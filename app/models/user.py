@@ -3,6 +3,18 @@ from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.extensions import db
 
+ROLE_HIERARCHY = {
+    'SUPERADMIN': 100,
+    'PROPERTY_MANAGER': 80,
+    'ACCOUNTANT': 70,
+    'LANDLORD': 50,
+    'CARETAKER': 40,
+    'RECEPTIONIST': 30,
+    'STAFF': 30,
+    'VIEWER': 20,
+    'TENANT': 10
+}
+
 class Role(db.Model):
     __tablename__ = 'roles'
     
@@ -15,6 +27,10 @@ class Role(db.Model):
     
     users = db.relationship('User', back_populates='role', lazy='dynamic')
     permissions = db.relationship('Permission', secondary='role_permissions', back_populates='roles')
+
+    @property
+    def hierarchy_level(self):
+        return ROLE_HIERARCHY.get(self.name.upper(), 10)
 
     def __repr__(self):
         return f"<Role {self.name}>"
@@ -101,6 +117,44 @@ class User(UserMixin, db.Model):
 
     def is_superadmin(self):
         return self.role and self.role.name == 'SUPERADMIN'
+
+    @property
+    def role_level(self):
+        if not self.role:
+            return 0
+        return self.role.hierarchy_level
+
+    def can_manage_user(self, target_user):
+        """
+        Determines if current user can activate, deactivate, or edit target user.
+        Superadmin can manage any non-self user.
+        Higher levels can manage strictly lower levels.
+        """
+        if not self.is_active or not self.role:
+            return False
+        if self.id == target_user.id:
+            return False  # Cannot deactivate oneself
+        if self.is_superadmin():
+            return True
+        if target_user.is_superadmin():
+            return False  # Only superadmins can touch superadmins
+        return self.has_permission('users.manage') and (self.role_level > target_user.role_level)
+
+    def can_reset_password_for(self, target_user):
+        """
+        Determines if current user can reset password for target user.
+        Superadmin can reset for anyone.
+        Senior staff can reset for subordinate/junior roles.
+        """
+        if not self.is_active or not self.role:
+            return False
+        if self.is_superadmin():
+            return True  # Superadmin is paramount system owner
+        if target_user.is_superadmin():
+            return False  # Junior/equal cannot reset Superadmin password
+        if self.id == target_user.id:
+            return True
+        return self.has_permission('users.manage') and (self.role_level > target_user.role_level)
 
     def __repr__(self):
         return f"<User {self.username}>"

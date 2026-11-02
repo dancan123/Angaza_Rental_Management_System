@@ -3,6 +3,7 @@ from werkzeug.utils import secure_filename
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, send_file
 from flask_login import login_required
 from app.models.system import DatabaseBackup
+from app.models.user import Role, Permission, User
 from app.services.personalization_service import PersonalizationService
 from app.services.backup_service import BackupService
 from app.services.audit_service import AuditService
@@ -16,7 +17,17 @@ settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
 def index():
     settings = PersonalizationService.get_all_settings()
     backups = DatabaseBackup.query.order_by(DatabaseBackup.created_at.desc()).all()
-    return render_template('settings/index.html', settings=settings, backups=backups)
+    roles = Role.query.all()
+    permissions = Permission.query.order_by(Permission.module, Permission.code).all()
+    users = User.query.order_by(User.created_at.desc()).all()
+    return render_template(
+        'settings/index.html',
+        settings=settings,
+        backups=backups,
+        roles=roles,
+        permissions=permissions,
+        users=users
+    )
 
 @settings_bp.route('/general', methods=['POST'])
 @login_required

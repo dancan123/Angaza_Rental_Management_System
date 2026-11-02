@@ -67,11 +67,15 @@ def create_user():
 @login_required
 @permission_required('users.manage')
 def toggle_status(user_id):
+    user = User.query.get_or_404(user_id)
     if current_user.id == user_id:
         flash('You cannot deactivate your own account.', 'warning')
         return redirect(url_for('users.index'))
 
-    user = User.query.get_or_404(user_id)
+    if not current_user.can_manage_user(user):
+        flash(f"Access Denied: You do not have hierarchical authority to modify the account status for {user.full_name} ({user.role.display_name if user.role else 'User'}).", 'danger')
+        return redirect(url_for('users.index'))
+
     old_status = user.is_active
     user.is_active = not user.is_active
     db.session.commit()
@@ -85,18 +89,50 @@ def toggle_status(user_id):
 @login_required
 @permission_required('users.manage')
 def reset_password(user_id):
-    new_password = request.form.get('new_password', '')
+    user = User.query.get_or_404(user_id)
+    if not current_user.can_reset_password_for(user):
+        flash(f"Access Denied: You can only reset passwords for subordinate/junior accounts. Super Administrator and senior accounts are protected.", 'danger')
+        return redirect(url_for('users.index'))
+
+    new_password = request.form.get('new_password', '').strip()
     if not new_password or len(new_password) < 6:
         flash('Password must be at least 6 characters long.', 'danger')
         return redirect(url_for('users.index'))
 
-    user = User.query.get_or_404(user_id)
     user.set_password(new_password)
     db.session.commit()
 
-    AuditService.log('PASSWORD_RESET', 'User', user.id)
-    flash(f"Password for '{user.username}' has been reset.", 'success')
+    AuditService.log('PASSWORD_RESET', 'User', user.id, new_values={'reset_by': current_user.username, 'target': user.username})
+    flash(f"Password for '{user.username}' ({user.role.display_name if user.role else 'User'}) has been successfully reset.", 'success')
     return redirect(url_for('users.index'))
+
+@users_bp.route('/roles/<int:role_id>/permissions', methods=['POST'])
+@login_required
+@permission_required('settings.manage')
+def update_role_permissions(role_id):
+    if not current_user.is_superadmin():
+        flash('Only the Super Administrator has authority to modify the Role Access Matrix.', 'danger')
+        return redirect(url_for('settings.index') + '#tab-rbac')
+
+    role = db.session.get(Role, role_id)
+    if not role:
+        flash('Role not found.', 'danger')
+        return redirect(url_for('settings.index') + '#tab-rbac')
+
+    if role.name == 'SUPERADMIN':
+        flash('The Super Administrator role maintains immutable paramount access across all system modules.', 'warning')
+        return redirect(url_for('settings.index') + '#tab-rbac')
+
+    from app.models.user import Permission
+    permission_codes = request.form.getlist('permissions')
+    selected_perms = Permission.query.filter(Permission.code.in_(permission_codes)).all()
+    
+    role.permissions = selected_perms
+    db.session.commit()
+
+    AuditService.log('UPDATE_ROLE_PERMS', 'Role', role.id, new_values={'role': role.name, 'permissions': permission_codes})
+    flash(f"Access privileges for role '{role.display_name}' have been successfully updated.", 'success')
+    return redirect(url_for('settings.index') + '#tab-rbac')
 
 @users_bp.route('/profile')
 @login_required

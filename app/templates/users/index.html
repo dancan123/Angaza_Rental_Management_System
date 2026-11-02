@@ -47,9 +47,39 @@
                             <small class="text-muted">{{ u.phone or '—' }}</small>
                         </td>
                         <td>
-                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
-                                {{ u.role.display_name if u.role else 'None' }}
-                            </span>
+                            {% if u.role %}
+                                {% if u.role.name == 'SUPERADMIN' %}
+                                <span class="badge bg-danger text-white border border-danger fw-bold" title="Super Administrator - Paramount Authority (Level 100)">
+                                    <i class="bi bi-shield-fill-check me-1"></i> SuperAdmin (L100)
+                                </span>
+                                {% elif u.role.name == 'PROPERTY_MANAGER' %}
+                                <span class="badge bg-primary text-white" title="Property Manager (Level 80)">
+                                    <i class="bi bi-person-badge-fill me-1"></i> Manager (L80)
+                                </span>
+                                {% elif u.role.name == 'ACCOUNTANT' %}
+                                <span class="badge bg-success-subtle text-success border border-success" title="Accountant (Level 70)">
+                                    <i class="bi bi-calculator me-1"></i> Accountant (L70)
+                                </span>
+                                {% elif u.role.name == 'LANDLORD' %}
+                                <span class="badge bg-info-subtle text-dark border border-info" title="Property Owner / Landlord (Level 50)">
+                                    <i class="bi bi-building me-1"></i> Landlord (L50)
+                                </span>
+                                {% elif u.role.name == 'CARETAKER' %}
+                                <span class="badge bg-warning-subtle text-dark border border-warning" title="Field Caretaker (Level 40)">
+                                    <i class="bi bi-tools me-1"></i> Caretaker (L40)
+                                </span>
+                                {% elif u.role.name == 'RECEPTIONIST' %}
+                                <span class="badge bg-secondary-subtle text-dark border" title="Receptionist / Front Desk (Level 30)">
+                                    <i class="bi bi-telephone-inbound me-1"></i> Receptionist (L30)
+                                </span>
+                                {% else %}
+                                <span class="badge bg-light text-dark border">
+                                    {{ u.role.display_name }} (L{{ u.role_level }})
+                                </span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">Unassigned</span>
+                            {% endif %}
                         </td>
                         <td>
                             {% if u.is_superadmin() %}
@@ -76,14 +106,20 @@
                         </td>
                         <td class="text-end pe-3">
                             <div class="d-inline-flex gap-1">
+                                {% if current_user.can_reset_password_for(u) %}
                                 <!-- Reset Password Modal Button -->
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#resetPasswordModal{{ u.id }}" title="Reset Password">
-                                    <i class="bi bi-key"></i>
+                                <button type="button" class="btn btn-outline-warning btn-sm text-dark" data-bs-toggle="modal" data-bs-target="#resetPasswordModal{{ u.id }}" title="Reset Password for Subordinate Account">
+                                    <i class="bi bi-key-fill text-warning-emphasis"></i>
                                 </button>
+                                {% else %}
+                                <button type="button" class="btn btn-light btn-sm text-muted border-0" disabled title="Protected: SuperAdmin or Senior Authority">
+                                    <i class="bi bi-shield-lock-fill text-muted"></i>
+                                </button>
+                                {% endif %}
                                 
-                                {% if current_user.id != u.id %}
+                                {% if current_user.can_manage_user(u) %}
                                 <!-- Toggle Active Status Form -->
-                                <form method="POST" action="{{ url_for('users.toggle_status', user_id=u.id) }}" class="d-inline">
+                                <form method="POST" action="{{ url_for('users.toggle_status', user_id=u.id) }}" class="d-inline" onsubmit="return confirm('Change status for {{ u.username }}?');">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                     {% if u.is_active %}
                                     <button type="submit" class="btn btn-outline-danger btn-sm" title="Deactivate User">
@@ -102,21 +138,38 @@
                             <div class="modal fade text-start" id="resetPasswordModal{{ u.id }}" tabindex="-1" aria-hidden="true">
                                 <div class="modal-dialog">
                                     <div class="modal-content">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title fw-bold">Reset Password for {{ u.username }}</h5>
+                                        <div class="modal-header bg-light">
+                                            <div>
+                                                <h5 class="modal-title fw-bold mb-0">Reset Password: {{ u.full_name }}</h5>
+                                                <small class="text-muted">Username: <strong>@{{ u.username }}</strong> • Role: <strong>{{ u.role.display_name if u.role else 'User' }}</strong> (Level {{ u.role_level }})</small>
+                                            </div>
                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                         </div>
                                         <form method="POST" action="{{ url_for('users.reset_password', user_id=u.id) }}">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                            <div class="modal-body">
+                                            <div class="modal-body p-4">
+                                                <div class="alert alert-warning py-2 small mb-3">
+                                                    <i class="bi bi-shield-exclamation me-1"></i> As <strong>{{ current_user.full_name }} ({{ current_user.role.display_name if current_user.role else 'Admin' }} - Level {{ current_user.role_level }})</strong>, you are resetting the password for a junior/subordinate account.
+                                                </div>
                                                 <div class="mb-3">
                                                     <label class="form-label small fw-semibold">New Password</label>
-                                                    <input type="password" name="new_password" class="form-control" placeholder="Enter at least 6 characters" required minlength="6">
+                                                    <div class="input-group">
+                                                        <span class="input-group-text bg-white"><i class="bi bi-key"></i></span>
+                                                        <input type="text" id="pwdInput{{ u.id }}" name="new_password" class="form-control font-monospace" placeholder="Enter new password (min 6 characters)" required minlength="6">
+                                                    </div>
+                                                </div>
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="const p = 'Angaza@' + Math.floor(1000 + Math.random() * 9000) + '!'; document.getElementById('pwdInput{{ u.id }}').value = p;">
+                                                        <i class="bi bi-magic me-1"></i> Auto-Generate Password
+                                                    </button>
+                                                    <small class="text-muted">e.g. Angaza@4921!</small>
                                                 </div>
                                             </div>
                                             <div class="modal-footer">
                                                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                                                <button type="submit" class="btn btn-primary-custom">Update Password</button>
+                                                <button type="submit" class="btn btn-warning fw-bold text-dark">
+                                                    <i class="bi bi-check-circle-fill me-1"></i> Confirm Password Reset
+                                                </button>
                                             </div>
                                         </form>
                                     </div>

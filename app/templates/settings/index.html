@@ -35,6 +35,11 @@
                 <button class="nav-link text-start py-3" id="backups-tab" data-bs-toggle="pill" data-bs-target="#tab-backups" type="button">
                     <i class="bi bi-database-check me-2"></i> Database Backups
                 </button>
+                {% if current_user.is_superadmin() %}
+                <button class="nav-link text-start py-3 text-danger" id="rbac-tab" data-bs-toggle="pill" data-bs-target="#tab-rbac" type="button">
+                    <i class="bi bi-shield-lock-fill me-2"></i> Roles &amp; Access Control
+                </button>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -298,8 +303,249 @@
                 </div>
             </div>
 
+            {% if current_user.is_superadmin() %}
+            <!-- 6. Roles & Access Control (SuperAdmin only) -->
+            <div class="tab-pane fade" id="tab-rbac" role="tabpanel">
+                <div class="card card-custom bg-white p-4">
+                    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+                        <div>
+                            <h5 class="fw-bold mb-1"><i class="bi bi-shield-lock-fill me-2 text-danger"></i> Roles &amp; Access Control</h5>
+                            <p class="text-muted small mb-0">
+                                Manage system-wide role permissions. Only <span class="badge bg-danger">SuperAdmin</span> can edit this matrix.
+                                The <strong>SuperAdmin</strong> role is <em>immutable</em> — all permissions are permanently granted.
+                            </p>
+                        </div>
+                        <span class="badge bg-danger px-3 py-2">
+                            <i class="bi bi-shield-fill-exclamation me-1"></i> SuperAdmin Access Only
+                        </span>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover align-middle mb-0">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th style="width:200px">Role</th>
+                                    <th>Level</th>
+                                    <th>Description</th>
+                                    <th class="text-center"># Permissions</th>
+                                    <th class="text-center">Users</th>
+                                    <th class="text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for role in roles %}
+                                {% set role_users_count = users | selectattr('role_id', 'equalto', role.id) | list | length %}
+                                <tr {% if role.name == 'SUPERADMIN' %}class="table-danger"{% endif %}>
+                                    <td>
+                                        {% if role.name == 'SUPERADMIN' %}
+                                            <span class="badge bg-danger me-1"><i class="bi bi-crown-fill"></i> SUPREME</span>
+                                        {% elif role.hierarchy_level >= 70 %}
+                                            <span class="badge bg-dark me-1">ADMIN</span>
+                                        {% elif role.hierarchy_level >= 40 %}
+                                            <span class="badge bg-primary me-1">STAFF</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary me-1">USER</span>
+                                        {% endif %}
+                                        <strong>{{ role.name | replace('_', ' ') | title }}</strong>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border">L{{ role.hierarchy_level }}</span>
+                                    </td>
+                                    <td class="small text-muted">
+                                        {% if role.name == 'SUPERADMIN' %}Supreme system owner with full, irrevocable access.
+                                        {% elif role.name == 'PROPERTY_MANAGER' %}Manages properties, tenants, leases, and reports.
+                                        {% elif role.name == 'LANDLORD' %}Views own property data and financials.
+                                        {% elif role.name == 'ACCOUNTANT' %}Handles billing, invoices, and financial records.
+                                        {% elif role.name == 'CARETAKER' %}Handles maintenance and unit inspections.
+                                        {% elif role.name == 'RECEPTIONIST' %}Manages bookings and tenant enquiries.
+                                        {% elif role.name == 'TENANT' %}Limited portal access for own tenancy details.
+                                        {% elif role.name == 'VIEWER' %}Read-only access to reports and dashboards.
+                                        {% else %}Custom system role.{% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                            {{ role.permissions | length }}
+                                        </span>
+                                        {% if role.name == 'SUPERADMIN' %}
+                                        <span class="badge bg-danger ms-1">ALL</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-secondary-subtle text-secondary">{{ role_users_count }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <button type="button" class="btn btn-sm {% if role.name == 'SUPERADMIN' %}btn-outline-secondary{% else %}btn-outline-danger{% endif %}"
+                                                data-bs-toggle="modal" data-bs-target="#rbacModal{{ role.id }}">
+                                            {% if role.name == 'SUPERADMIN' %}
+                                                <i class="bi bi-eye me-1"></i> View
+                                            {% else %}
+                                                <i class="bi bi-pencil-square me-1"></i> Edit Permissions
+                                            {% endif %}
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Permission Legend -->
+                    <div class="mt-4 pt-3 border-top">
+                        <h6 class="fw-semibold mb-3"><i class="bi bi-key-fill me-2 text-warning"></i>All System Permissions</h6>
+                        <div class="row g-2">
+                            {% for module_name, module_perms in permissions | groupby('module') %}
+                            <div class="col-md-4">
+                                <div class="card border-0 bg-light p-2">
+                                    <div class="fw-bold small text-uppercase text-secondary mb-1">
+                                        <i class="bi bi-layers me-1"></i>{{ module_name }}
+                                    </div>
+                                    {% for perm in module_perms %}
+                                    <div class="d-flex align-items-center gap-1 mb-1">
+                                        <span class="badge bg-dark" style="font-size:0.65rem;">{{ perm.code }}</span>
+                                        <span class="text-muted" style="font-size:0.75rem;">{{ perm.description or '' }}</span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
         </div>
     </div>
 </div>
+
+{% if current_user.is_superadmin() %}
+<!-- RBAC Modal: Edit Role Permissions -->
+{% for role in roles %}
+<div class="modal fade" id="rbacModal{{ role.id }}" tabindex="-1" aria-labelledby="rbacLabel{{ role.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="rbacLabel{{ role.id }}">
+                    <i class="bi bi-shield-lock-fill me-2"></i>
+                    {% if role.name == 'SUPERADMIN' %}
+                        <span class="badge bg-danger me-2">SUPREME</span>
+                    {% endif %}
+                    Edit Permissions — {{ role.name | replace('_', ' ') | title }}
+                    <small class="ms-2 text-white-50 small">Level {{ role.hierarchy_level }}</small>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            {% if role.name == 'SUPERADMIN' %}
+            <div class="modal-body">
+                <div class="alert alert-danger d-flex align-items-center">
+                    <i class="bi bi-shield-fill-exclamation fs-4 me-3"></i>
+                    <div>
+                        <strong>Supreme Authority — Immutable</strong><br>
+                        The SuperAdmin role holds all permissions at all times and cannot be modified. This is a system-enforced constraint.
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm align-middle">
+                        <thead class="table-dark">
+                            <tr>
+                                <th style="width:220px">Module</th>
+                                <th>Permission Code</th>
+                                <th>Description</th>
+                                <th class="text-center">Granted</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for perm in permissions %}
+                            <tr>
+                                <td><span class="badge bg-secondary">{{ perm.module | upper }}</span></td>
+                                <td><code>{{ perm.code }}</code></td>
+                                <td>{{ perm.description or '—' }}</td>
+                                <td class="text-center"><i class="bi bi-check-circle-fill text-success fs-5"></i></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+            {% else %}
+            <form method="POST" action="{{ url_for('users.update_role_permissions', role_id=role.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Check the permissions this role should have. Changes apply immediately on Save.
+                    </p>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover table-sm align-middle">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th style="width:180px">Module</th>
+                                    <th>Permission Code</th>
+                                    <th>Description</th>
+                                    <th class="text-center" style="width:90px">Grant</th>
+                                </tr>
+                            </thead>
+                            <tbody class="small">
+                                {% set role_perm_codes = role.permissions | map(attribute='code') | list %}
+                                {% for module_name, module_perms in permissions | groupby('module') %}
+                                <tr class="table-light">
+                                    <td colspan="4" class="fw-bold text-uppercase small text-secondary ps-2">
+                                        <i class="bi bi-layers me-1"></i>{{ module_name }}
+                                    </td>
+                                </tr>
+                                {% for perm in module_perms %}
+                                <tr>
+                                    <td></td>
+                                    <td><code>{{ perm.code }}</code></td>
+                                    <td>{{ perm.description or '—' }}</td>
+                                    <td class="text-center">
+                                        <div class="form-check form-switch d-flex justify-content-center m-0">
+                                            <input class="form-check-input" type="checkbox"
+                                                   name="permissions" value="{{ perm.code }}"
+                                                   {% if perm.code in role_perm_codes %}checked{% endif %}
+                                                   role="switch">
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-save me-1"></i> Save Role Permissions
+                    </button>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// RBAC: select-all / deselect-all per modal
+document.querySelectorAll('[id^="rbacModal"]').forEach(function(modal){
+    modal.addEventListener('show.bs.modal', function(){
+        var checks = modal.querySelectorAll('input[type="checkbox"]');
+        var checkAllBtn = modal.querySelector('.btn-check-all');
+        if(checkAllBtn){
+            checkAllBtn.addEventListener('click', function(){
+                checks.forEach(function(c){ c.checked = true; });
+            });
+        }
+    });
+});
+</script>
 {% endblock %}
 

@@ -35,3 +35,4 @@ instance/*.db-shm
 .DS_Store
 Thumbs.db
 *.bak
+
