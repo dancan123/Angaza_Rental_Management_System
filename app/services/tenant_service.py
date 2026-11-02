@@ -10,9 +10,10 @@ from app.utils.currency import to_cents
 class TenantService:
     @staticmethod
     def get_tenants(search=None, is_active=True):
-        query = Tenant.query
+        from app.models.property import Property
+        query = Tenant.query.outerjoin(RentalUnit, Tenant.id == RentalUnit.current_tenant_id).outerjoin(Property, RentalUnit.property_id == Property.id)
         if is_active is not None:
-            query = query.filter_by(is_active=is_active)
+            query = query.filter(Tenant.is_active == is_active)
         if search:
             clean_search = search.strip()
             term = f"%{clean_search}%"
@@ -25,13 +26,25 @@ class TenantService:
                 (Tenant.first_name + ' ' + Tenant.last_name).ilike(term),
                 Tenant.phone.ilike(term),
                 Tenant.id_passport_number.ilike(term),
-                Tenant.email.ilike(term)
+                Tenant.email.ilike(term),
+                RentalUnit.unit_number.ilike(term),
+                Property.name.ilike(term),
+                Property.location.ilike(term)
             ]
-            if clean_digits and len(clean_digits) >= 4:
-                conditions.append(Tenant.phone.ilike(f"%{clean_digits}%"))
+            if clean_digits:
+                if clean_digits.startswith('0') and len(clean_digits) >= 9:
+                    conditions.append(Tenant.phone.ilike(f"%{clean_digits[1:]}%"))
+                if len(clean_digits) >= 6:
+                    conditions.append(Tenant.phone.ilike(f"%{clean_digits[-9:]}%"))
+
+            words = clean_search.split()
+            if len(words) > 1:
+                for w in words:
+                    conditions.append(Tenant.first_name.ilike(f"%{w}%"))
+                    conditions.append(Tenant.last_name.ilike(f"%{w}%"))
 
             query = query.filter(db.or_(*conditions))
-        return query.order_by(Tenant.created_at.desc()).all()
+        return query.distinct().order_by(Tenant.created_at.desc()).all()
 
     @staticmethod
     def create_tenant(first_name, last_name, id_passport_number, phone, email=None, emergency_contact=None, emergency_phone=None, physical_address=None, occupation=None, next_of_kin_data=None):

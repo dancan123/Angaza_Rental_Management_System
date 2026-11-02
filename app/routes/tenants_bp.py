@@ -20,15 +20,34 @@ def index():
 
     tenants = TenantService.get_tenants(search=search, is_active=is_active)
     
-    # If single exact match from quick search bar, go straight to tenant profile
+    # If single exact match from quick search bar with direct=1, go straight to tenant profile
     if direct and search and len(tenants) == 1:
         return redirect(url_for('tenants.detail', tenant_id=tenants[0].id))
+
+    # Pre-calculate financial balances and tenancy data for all matched tenants
+    tenant_data = []
+    for t in tenants:
+        summary = TenantService.get_tenant_financial_summary(t.id)
+        active_lease = t.leases.filter_by(status='ACTIVE').first()
+        deposit_cents = active_lease.deposit_cents if active_lease else 0
+        rent_cents = active_lease.monthly_rent_cents if active_lease else (t.current_unit.rent_amount_cents if t.current_unit else 0)
+        nok = t.next_of_kin.first()
+        tenant_data.append({
+            'tenant': t,
+            'summary': summary,
+            'active_lease': active_lease,
+            'rent_cents': rent_cents,
+            'deposit_cents': deposit_cents,
+            'outstanding_cents': summary.get('outstanding_cents', 0),
+            'next_of_kin': nok
+        })
 
     vacant_units = RentalUnit.query.filter_by(occupancy_status='VACANT').all()
 
     return render_template(
         'tenants/index.html',
         tenants=tenants,
+        tenant_data=tenant_data,
         vacant_units=vacant_units,
         search=search,
         status_filter=status_filter

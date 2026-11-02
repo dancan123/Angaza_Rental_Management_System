@@ -39,28 +39,46 @@
     </form>
 </div>
 
-<!-- Tenants Table -->
-<div class="card card-custom bg-white">
+<!-- Active Search Feedback Banner -->
+{% if search %}
+<div class="alert alert-info py-2 px-3 d-flex justify-content-between align-items-center mb-3 shadow-sm">
+    <div class="small">
+        <i class="bi bi-search me-1 text-primary"></i> 
+        Showing search results for: <strong>"{{ search }}"</strong> 
+        <span class="badge bg-primary rounded-pill ms-2">{{ tenant_data|length if tenant_data is defined else tenants|length }} found</span>
+    </div>
+    <a href="{{ url_for('tenants.index') }}" class="btn btn-sm btn-outline-secondary py-1 px-2">
+        <i class="bi bi-x-circle me-1"></i> Clear Search
+    </a>
+</div>
+{% endif %}
+
+<!-- Tenants Table with Comprehensive Primaries, Tenancy, Arrears & Next of Kin -->
+<div class="card card-custom bg-white shadow-sm">
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light small">
                     <tr>
-                        <th class="ps-3">Tenant Name</th>
+                        <th class="ps-3">Tenant &amp; Occupation</th>
                         <th>National ID / Passport</th>
-                        <th>Telephone</th>
-                        <th>Email</th>
-                        <th>Current Rented Unit</th>
+                        <th>Telephone &amp; WhatsApp</th>
+                        <th>Current Unit &amp; Estate</th>
+                        <th>Monthly Rent</th>
+                        <th>Rent Arrears / Balance</th>
+                        <th>Deposit Held</th>
+                        <th>Next of Kin</th>
                         <th>Status</th>
-                        <th class="text-end pe-3">Action</th>
+                        <th class="text-end pe-3">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="small">
-                    {% for t in tenants %}
+                    {% for item in (tenant_data if tenant_data is defined else []) %}
+                    {% set t = item.tenant %}
                     <tr>
                         <td class="ps-3">
                             <div class="d-flex align-items-center gap-2">
-                                <div class="rounded-circle bg-primary-subtle text-primary fw-bold d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
+                                <div class="rounded-circle bg-primary-subtle text-primary fw-bold d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; font-size: 0.9rem;">
                                     {{ t.first_name[0] }}{{ t.last_name[0] }}
                                 </div>
                                 <div>
@@ -71,16 +89,68 @@
                                 </div>
                             </div>
                         </td>
-                        <td><code>{{ t.id_passport_number }}</code></td>
-                        <td>{{ t.phone }}</td>
-                        <td>{{ t.email or '—' }}</td>
+                        <td><code class="fw-bold text-dark">{{ t.id_passport_number }}</code></td>
+                        <td>
+                            <div class="d-flex align-items-center gap-1">
+                                <span class="fw-semibold">{{ t.phone }}</span>
+                                <a href="https://wa.me/{{ t.phone|replace('+','')|replace(' ','')|replace('-','') }}" target="_blank" class="btn btn-sm btn-outline-success p-0 px-1 border-0" title="WhatsApp Tenant">
+                                    <i class="bi bi-whatsapp text-success"></i>
+                                </a>
+                                <a href="tel:{{ t.phone }}" class="btn btn-sm btn-outline-secondary p-0 px-1 border-0" title="Call Phone">
+                                    <i class="bi bi-telephone-fill text-muted"></i>
+                                </a>
+                            </div>
+                            {% if t.email %}
+                            <div class="text-muted small" style="font-size: 0.75rem;">{{ t.email }}</div>
+                            {% endif %}
+                        </td>
                         <td>
                             {% if t.current_unit %}
-                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
-                                <i class="bi bi-door-closed me-1"></i> {{ t.current_unit.unit_number }} ({{ t.current_unit.property.name }})
+                            <a href="{{ url_for('properties.detail', property_id=t.current_unit.property_id) }}" class="badge bg-primary-subtle text-primary border border-primary-subtle text-decoration-none" title="View Property & Unit">
+                                <i class="bi bi-door-closed me-1"></i> Unit {{ t.current_unit.unit_number }} ({{ t.current_unit.property.name }})
+                            </a>
+                            {% else %}
+                            <span class="text-muted small italic">No active unit</span>
+                            {% endif %}
+                        </td>
+                        <td class="fw-semibold text-dark">
+                            {% if item.rent_cents > 0 %}
+                            KES {{ '{:,.2f}'.format(item.rent_cents / 100) }}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.outstanding_cents > 0 %}
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold" title="Rent arrears balance">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i> KES {{ '{:,.2f}'.format(item.outstanding_cents / 100) }} Due
+                            </span>
+                            {% elif item.outstanding_cents < 0 %}
+                            <span class="badge bg-info-subtle text-info border border-info-subtle" title="Advance rent paid">
+                                KES {{ '{:,.2f}'.format(-item.outstanding_cents / 100) }} (Credit)
                             </span>
                             {% else %}
-                            <span class="text-muted">No active unit</span>
+                            <span class="badge bg-success-subtle text-success border border-success-subtle" title="Fully paid up">
+                                <i class="bi bi-check-circle-fill me-1"></i> KES 0.00 (Cleared)
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="fw-semibold text-success">
+                            {% if item.deposit_cents > 0 %}
+                            KES {{ '{:,.2f}'.format(item.deposit_cents / 100) }}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.next_of_kin %}
+                            <div class="fw-semibold text-dark" style="font-size: 0.8rem;">{{ item.next_of_kin.name }}</div>
+                            <small class="text-muted">{{ item.next_of_kin.phone }} ({{ item.next_of_kin.relationship or 'Contact' }})</small>
+                            {% elif t.emergency_contact %}
+                            <div class="fw-semibold text-dark" style="font-size: 0.8rem;">{{ t.emergency_contact }}</div>
+                            <small class="text-muted">{{ t.emergency_phone or '—' }}</small>
+                            {% else %}
+                            <span class="text-muted small">—</span>
                             {% endif %}
                         </td>
                         <td>
@@ -91,18 +161,23 @@
                             {% endif %}
                         </td>
                         <td class="text-end pe-3">
-                            <div class="btn-group btn-group-sm">
-                                <a href="{{ url_for('tenants.detail', tenant_id=t.id) }}" class="btn btn-outline-primary" title="View Full KYC, Tenancy & Ledger">
+                            <div class="d-inline-flex gap-1">
+                                <a href="{{ url_for('tenants.detail', tenant_id=t.id) }}" class="btn btn-outline-primary btn-sm" title="Open Full 360-Degree Tenant Dossier">
                                     <i class="bi bi-person-lines-fill me-1"></i> Dossier
                                 </a>
+                                {% if current_user.has_permission('billing.manage') %}
+                                <a href="{{ url_for('billing.index', tenant_id=t.id) }}" class="btn btn-outline-success btn-sm" title="Receive Rent & Record Payment">
+                                    <i class="bi bi-cash-coin"></i>
+                                </a>
+                                {% endif %}
                                 {% if current_user.has_permission('tenants.manage') %}
-                                <a href="{{ url_for('tenants.detail', tenant_id=t.id) }}" class="btn btn-outline-secondary" title="Edit Profile Details">
+                                <a href="{{ url_for('tenants.detail', tenant_id=t.id) }}#editTenantModal" class="btn btn-outline-secondary btn-sm" title="Edit Primary Details">
                                     <i class="bi bi-pencil"></i>
                                 </a>
                                 {% if not t.current_unit and t.is_active %}
                                 <form method="POST" action="{{ url_for('tenants.delete_tenant', tenant_id=t.id) }}" class="d-inline" onsubmit="return confirm('Archive record for {{ t.full_name }}?');">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                    <button type="submit" class="btn btn-outline-danger" title="Archive / Deactivate Tenant">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Archive / Deactivate Tenant">
                                         <i class="bi bi-archive"></i>
                                     </button>
                                 </form>
@@ -113,10 +188,14 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-5">
+                        <td colspan="10" class="text-center text-muted py-5">
                             <i class="bi bi-people fs-1 text-secondary mb-2 d-block"></i>
                             <h5>No Tenants Found</h5>
-                            <p class="small mb-0">Register a new tenant or modify your search terms.</p>
+                            <p class="small mb-2">No matching tenant records found for your query.</p>
+                            {% if search %}
+                            <div class="small text-muted mb-3">You searched for: <code>{{ search }}</code>. Try searching by tenant first name, last name, phone (e.g. 0712...), National ID, house/unit number (e.g. A-101), or property estate name.</div>
+                            <a href="{{ url_for('tenants.index') }}" class="btn btn-sm btn-primary">View All Tenants</a>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
