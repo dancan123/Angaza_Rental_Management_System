@@ -1,0 +1,537 @@
+{% extends "base.html" %}
+
+{% block title %}{{ property.name }} - {{ app_name }}{% endblock %}
+
+{% block content %}
+<!-- Property Header -->
+<div class="card card-custom bg-white p-4 mb-4">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <h3 class="fw-bold mb-0">{{ property.name }}</h3>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ property.ref_number }}</span>
+                <span class="badge bg-success-subtle text-success border border-success-subtle">{{ property.management_status }}</span>
+            </div>
+            <p class="text-muted small mb-2"><i class="bi bi-geo-alt-fill text-danger me-1"></i> {{ property.location }} | Type: <strong>{{ property.property_type }}</strong></p>
+            <div class="small">
+                <span class="text-muted">Landlord/Owner:</span> <strong>{{ property.landlord.name }}</strong> ({{ property.landlord.phone }})
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#createUnitModal">
+                <i class="bi bi-plus-lg me-1"></i> Add Rental Unit
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#createBuildingModal">
+                <i class="bi bi-building-add me-1"></i> Add Building
+            </button>
+        </div>
+    </div>
+
+    <!-- Occupancy Rate Progress -->
+    <div class="mt-4 pt-3 border-top">
+        <div class="d-flex justify-content-between align-items-center mb-1 small fw-semibold">
+            <span>Occupancy Rate ({{ stats.rate }}%)</span>
+            <span>{{ stats.occupied }} Occupied / {{ stats.total }} Total Units</span>
+        </div>
+        <div class="progress" style="height: 10px;">
+            <div class="progress-bar bg-primary" style="width: {{ stats.rate }}%"></div>
+        </div>
+        <div class="d-flex gap-4 mt-2 small text-muted flex-wrap">
+            <div><span class="badge badge-occupied me-1">●</span> {{ stats.occupied }} Occupied</div>
+            <div><span class="badge badge-vacant me-1">●</span> {{ stats.vacant }} Vacant</div>
+            <div><span class="badge badge-reserved me-1">●</span> {{ stats.reserved }} Reserved</div>
+            <div><span class="badge badge-maintenance me-1">●</span> {{ stats.maintenance }} Maintenance</div>
+        </div>
+    </div>
+</div>
+
+<!-- Navigation Tabs -->
+<ul class="nav nav-tabs mb-4" id="propDetailTab" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link active fw-semibold" id="grid-tab" data-bs-toggle="tab" data-bs-target="#tab-grid" type="button">
+            <i class="bi bi-grid-3x3-gap-fill me-1 text-primary"></i> Visual Occupancy Grid
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link fw-semibold" id="table-tab" data-bs-toggle="tab" data-bs-target="#tab-table" type="button">
+            <i class="bi bi-table me-1 text-primary"></i> Units Table View ({{ units|length }})
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link fw-semibold" id="buildings-tab" data-bs-toggle="tab" data-bs-target="#tab-buildings" type="button">
+            <i class="bi bi-buildings me-1 text-primary"></i> Buildings &amp; Floors ({{ buildings|length }})
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="propDetailTabContent">
+
+    <!-- Tab 1: Visual Occupancy Grid -->
+    <div class="tab-pane fade show active" id="tab-grid" role="tabpanel">
+        <div class="row g-3">
+            {% for unit in units %}
+            <div class="col-xl-3 col-lg-4 col-md-6">
+                <div class="card card-custom h-100 bg-white border-top border-4 {% if unit.occupancy_status == 'OCCUPIED' %}border-primary{% elif unit.occupancy_status == 'VACANT' %}border-success{% elif unit.occupancy_status == 'RESERVED' %}border-warning{% elif unit.occupancy_status == 'MAINTENANCE' %}border-danger{% else %}border-secondary{% endif %}">
+                    <div class="card-body p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="fw-bold mb-0 text-dark">{{ unit.unit_number }}</h5>
+                            <span class="badge {% if unit.occupancy_status == 'OCCUPIED' %}badge-occupied{% elif unit.occupancy_status == 'VACANT' %}badge-vacant{% elif unit.occupancy_status == 'RESERVED' %}badge-reserved{% elif unit.occupancy_status == 'MAINTENANCE' %}badge-maintenance{% else %}badge-inactive{% endif %}">
+                                {{ unit.occupancy_status }}
+                            </span>
+                        </div>
+
+                        <div class="text-muted small mb-2">
+                            <span>{{ unit.unit_type }}</span>
+                            {% if unit.building %} • {{ unit.building.name }}{% endif %}
+                            {% if unit.floor %} ({{ unit.floor.floor_name }}){% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <span class="text-muted small">Rent:</span> <strong class="text-primary">{{ unit.rent_display }}</strong>
+                            <span class="text-muted small">/ mo</span>
+                        </div>
+
+                        {% if unit.occupancy_status == 'OCCUPIED' and unit.current_tenant %}
+                        <div class="p-2 bg-light rounded small mb-2 border">
+                            <div class="text-muted" style="font-size: 0.75rem;">Current Tenant:</div>
+                            <div class="fw-semibold text-truncate">{{ unit.current_tenant.full_name }}</div>
+                            <div class="text-muted" style="font-size: 0.75rem;">{{ unit.current_tenant.phone }}</div>
+                        </div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                            <div class="text-muted small">
+                                <i class="bi bi-door-closed me-1"></i> {{ unit.bedrooms }} Bed • {{ unit.bathrooms }} Bath
+                            </div>
+                            
+                            <!-- Change Status Dropdown -->
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    Action
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end shadow-sm small">
+                                    <li><h6 class="dropdown-header">Update Unit Status</h6></li>
+                                    <li>
+                                        <form method="POST" action="{{ url_for('properties.update_unit_status', unit_id=unit.id) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <input type="hidden" name="status" value="OCCUPIED">
+                                            <button type="submit" class="dropdown-item text-primary {% if unit.occupancy_status == 'OCCUPIED' %}fw-bold bg-light{% endif %}">
+                                                <i class="bi bi-person-check-fill me-1"></i> Mark Occupied
+                                            </button>
+                                        </form>
+                                    </li>
+                                    <li>
+                                        <form method="POST" action="{{ url_for('properties.update_unit_status', unit_id=unit.id) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <input type="hidden" name="status" value="VACANT">
+                                            <button type="submit" class="dropdown-item text-success {% if unit.occupancy_status == 'VACANT' %}fw-bold bg-light{% endif %}">
+                                                <i class="bi bi-check-circle me-1"></i> Mark Vacant
+                                            </button>
+                                        </form>
+                                    </li>
+                                    <li>
+                                        <form method="POST" action="{{ url_for('properties.update_unit_status', unit_id=unit.id) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <input type="hidden" name="status" value="MAINTENANCE">
+                                            <button type="submit" class="dropdown-item text-danger {% if unit.occupancy_status == 'MAINTENANCE' %}fw-bold bg-light{% endif %}">
+                                                <i class="bi bi-tools me-1"></i> Mark Maintenance
+                                            </button>
+                                        </form>
+                                    </li>
+                                    <li>
+                                        <form method="POST" action="{{ url_for('properties.update_unit_status', unit_id=unit.id) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <input type="hidden" name="status" value="RESERVED">
+                                            <button type="submit" class="dropdown-item text-warning {% if unit.occupancy_status == 'RESERVED' %}fw-bold bg-light{% endif %}">
+                                                <i class="bi bi-calendar-check me-1"></i> Mark Reserved
+                                            </button>
+                                        </form>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12">
+                <div class="card card-custom bg-white p-5 text-center text-muted">
+                    <i class="bi bi-door-open fs-1 text-secondary mb-2"></i>
+                    <h5>No Rental Units Registered</h5>
+                    <p class="small mb-3">Add rooms, apartments, or shops to this property to visualize occupancy.</p>
+                    <div>
+                        <button type="button" class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#createUnitModal">
+                            <i class="bi bi-plus-lg me-1"></i> Add Rental Unit
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Tab 2: Units Table View -->
+    <div class="tab-pane fade" id="tab-table" role="tabpanel">
+        <div class="card card-custom bg-white">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small">
+                            <tr>
+                                <th class="ps-3">Unit Number</th>
+                                <th>Type</th>
+                                <th>Building / Floor</th>
+                                <th>Rent / Mo</th>
+                                <th>Deposit</th>
+                                <th>Bed/Bath</th>
+                                <th>Status</th>
+                                <th>Current Tenant</th>
+                                <th class="text-end pe-3">Update Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for u in units %}
+                            <tr>
+                                <td class="ps-3 fw-bold text-primary">{{ u.unit_number }}</td>
+                                <td>{{ u.unit_type }}</td>
+                                <td>
+                                    {{ u.building.name if u.building else '—' }}
+                                    {% if u.floor %}<small class="text-muted d-block">{{ u.floor.floor_name }}</small>{% endif %}
+                                </td>
+                                <td class="fw-bold">{{ u.rent_display }}</td>
+                                <td class="text-muted">{{ u.deposit_display }}</td>
+                                <td>{{ u.bedrooms }} Bed / {{ u.bathrooms }} Bath</td>
+                                <td>
+                                    <span class="badge {% if u.occupancy_status == 'OCCUPIED' %}badge-occupied{% elif u.occupancy_status == 'VACANT' %}badge-vacant{% elif u.occupancy_status == 'RESERVED' %}badge-reserved{% elif u.occupancy_status == 'MAINTENANCE' %}badge-maintenance{% else %}badge-inactive{% endif %}">
+                                        {{ u.occupancy_status }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if u.current_tenant %}
+                                    <span class="fw-semibold">{{ u.current_tenant.full_name }}</span>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-3">
+                                    <div class="d-flex justify-content-end gap-1">
+                                        <!-- Edit Unit Button -->
+                                        {% if current_user.has_permission('units.manage') %}
+                                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="modal" data-bs-target="#editUnitModal{{ u.id }}" title="Edit Unit Details">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        {% endif %}
+
+                                        <!-- Status Dropdown -->
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle py-0 px-2" type="button" data-bs-toggle="dropdown">
+                                                Status
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end shadow-sm small">
+                                                <li><h6 class="dropdown-header">Update Unit Status</h6></li>
+                                                <li>
+                                                    <form method="POST" action="{{ url_for('properties.update_unit_status', unit_id=u.id) }}">
+                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                        <input type="hidden" name="status" value="OCCUPIED">
+                                                        <button type="submit" class="dropdown-item text-primary"><i class="bi bi-person-check-fill me-1"></i> Mark Occupied</button>
+                                                    </form>
+                                                </li>
+                                                <li>
+                                                    <form method="POST" action="{{ url_for('properties.update_unit_status', unit_id=u.id) }}">
+                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                        <input type="hidden" name="status" value="VACANT">
+                                                        <button type="submit" class="dropdown-item text-success"><i class="bi bi-check-circle me-1"></i> Mark Vacant</button>
+                                                    </form>
+                                                </li>
+                                                <li>
+                                                    <form method="POST" action="{{ url_for('properties.update_unit_status', unit_id=u.id) }}">
+                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                        <input type="hidden" name="status" value="MAINTENANCE">
+                                                        <button type="submit" class="dropdown-item text-danger"><i class="bi bi-tools me-1"></i> Mark Maintenance</button>
+                                                    </form>
+                                                </li>
+                                                <li>
+                                                    <form method="POST" action="{{ url_for('properties.update_unit_status', unit_id=u.id) }}">
+                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                        <input type="hidden" name="status" value="RESERVED">
+                                                        <button type="submit" class="dropdown-item text-warning"><i class="bi bi-calendar-check me-1"></i> Mark Reserved</button>
+                                                    </form>
+                                                </li>
+                                            </ul>
+                                        </div>
+
+                                        <!-- Delete Unit Button -->
+                                        {% if current_user.has_permission('units.manage') and u.occupancy_status != 'OCCUPIED' and not u.current_tenant_id %}
+                                        <form method="POST" action="{{ url_for('properties.delete_unit', unit_id=u.id) }}" class="d-inline" onsubmit="return confirm('Delete unit {{ u.unit_number }}?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete Unit">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Edit Unit Modal -->
+                                    <div class="modal fade text-start" id="editUnitModal{{ u.id }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header bg-light">
+                                                    <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2 text-primary"></i> Edit Unit {{ u.unit_number }}</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <form method="POST" action="{{ url_for('properties.edit_unit', unit_id=u.id) }}">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                    <div class="modal-body p-4">
+                                                        <div class="row g-3">
+                                                            <div class="col-md-6">
+                                                                <label class="form-label small fw-semibold">Unit Number / Code *</label>
+                                                                <input type="text" name="unit_number" class="form-control" value="{{ u.unit_number }}" required>
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <label class="form-label small fw-semibold">Unit Type *</label>
+                                                                <select name="unit_type" class="form-select" required>
+                                                                    {% for val, label in unit_types %}
+                                                                    <option value="{{ val }}" {% if val == u.unit_type %}selected{% endif %}>{{ label }}</option>
+                                                                    {% endfor %}
+                                                                </select>
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <label class="form-label small fw-semibold">Monthly Rent (KES) *</label>
+                                                                <input type="number" step="0.01" name="rent_amount" class="form-control" value="{{ u.rent_amount_cents / 100 }}" required>
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <label class="form-label small fw-semibold">Security Deposit (KES)</label>
+                                                                <input type="number" step="0.01" name="deposit_amount" class="form-control" value="{{ u.deposit_amount_cents / 100 }}">
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <label class="form-label small fw-semibold">Bedrooms</label>
+                                                                <input type="number" name="bedrooms" class="form-control" value="{{ u.bedrooms }}">
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <label class="form-label small fw-semibold">Bathrooms</label>
+                                                                <input type="number" name="bathrooms" class="form-control" value="{{ u.bathrooms }}">
+                                                            </div>
+                                                            <div class="col-12">
+                                                                <label class="form-label small fw-semibold">Occupancy Status</label>
+                                                                <select name="occupancy_status" class="form-select">
+                                                                    <option value="VACANT" {% if u.occupancy_status == 'VACANT' %}selected{% endif %}>VACANT</option>
+                                                                    <option value="OCCUPIED" {% if u.occupancy_status == 'OCCUPIED' %}selected{% endif %}>OCCUPIED</option>
+                                                                    <option value="MAINTENANCE" {% if u.occupancy_status == 'MAINTENANCE' %}selected{% endif %}>MAINTENANCE</option>
+                                                                    <option value="RESERVED" {% if u.occupancy_status == 'RESERVED' %}selected{% endif %}>RESERVED</option>
+                                                                </select>
+                                                            </div>
+                                                            <div class="col-12">
+                                                                <label class="form-label small fw-semibold">Amenities / Highlights</label>
+                                                                <input type="text" name="amenities" class="form-control" value="{{ u.amenities or '' }}" placeholder="Balcony, High floor, Pre-paid token meter...">
+                                                            </div>
+                                                            <div class="col-12">
+                                                                <label class="form-label small fw-semibold">Description</label>
+                                                                <textarea name="description" class="form-control" rows="2">{{ u.description or '' }}</textarea>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                                        <button type="submit" class="btn btn-primary-custom fw-semibold">Save Unit Changes</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="9" class="text-center text-muted py-4">No units found.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 3: Buildings and Floors -->
+    <div class="tab-pane fade" id="tab-buildings" role="tabpanel">
+        <div class="row g-4">
+            {% for b in buildings %}
+            <div class="col-md-6">
+                <div class="card card-custom bg-white p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="fw-bold mb-0">{{ b.name }}</h5>
+                        <span class="badge bg-light text-dark border">{{ b.code }}</span>
+                    </div>
+                    <p class="text-muted small mb-3">{{ b.description or 'No specific building notes.' }}</p>
+
+                    <h6 class="fw-semibold small text-uppercase text-muted border-bottom pb-1">Floors in this Building</h6>
+                    <div class="list-group list-group-flush mb-3">
+                        {% for f in b.floors %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 small">
+                            <span><i class="bi bi-layers me-1 text-primary"></i> {{ f.floor_name }} (Floor #{{ f.floor_number }})</span>
+                            <span class="badge bg-light text-dark border">{{ f.rental_units.count() }} Units</span>
+                        </div>
+                        {% else %}
+                        <div class="text-muted small py-2">No floors recorded.</div>
+                        {% endfor %}
+                    </div>
+
+                    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createFloorModal{{ b.id }}">
+                        <i class="bi bi-plus-circle me-1"></i> Add Floor
+                    </button>
+                </div>
+            </div>
+
+            <!-- Modal: Create Floor for this building -->
+            <div class="modal fade" id="createFloorModal{{ b.id }}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title fw-bold">Add Floor to {{ b.name }}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <form method="POST" action="{{ url_for('properties.create_floor', property_id=property.id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <input type="hidden" name="building_id" value="{{ b.id }}">
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">Floor Number</label>
+                                    <input type="number" name="floor_number" class="form-control" placeholder="e.g. 1, 2, 3..." required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">Floor Name / Label</label>
+                                    <input type="text" name="floor_name" class="form-control" placeholder="e.g. 1st Floor, Mezzanine..." required>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary-custom">Add Floor</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal: Create Rental Unit -->
+<div class="modal fade" id="createUnitModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Add Rental Unit to {{ property.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('properties.create_unit', property_id=property.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Unit Number / Code</label>
+                            <input type="text" name="unit_number" class="form-control" placeholder="e.g. A-101, Shop-04" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Unit Type</label>
+                            <select name="unit_type" class="form-select" required>
+                                {% for code, label in unit_types %}
+                                <option value="{{ code }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Building (Optional)</label>
+                            <select name="building_id" class="form-select">
+                                <option value="">Select Building...</option>
+                                {% for b in buildings %}
+                                <option value="{{ b.id }}">{{ b.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Floor (Optional)</label>
+                            <select name="floor_id" class="form-select">
+                                <option value="">Select Floor...</option>
+                                {% for b in buildings %}
+                                    {% for f in b.floors %}
+                                    <option value="{{ f.id }}">{{ b.name }} - {{ f.floor_name }}</option>
+                                    {% endfor %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Monthly Rent ({{ currency }})</label>
+                            <input type="number" step="0.01" name="rent_amount" class="form-control" placeholder="e.g. 25000" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Security Deposit ({{ currency }})</label>
+                            <input type="number" step="0.01" name="deposit_amount" class="form-control" placeholder="e.g. 25000">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Bedrooms</label>
+                            <input type="number" name="bedrooms" class="form-control" min="0" value="1">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Bathrooms</label>
+                            <input type="number" name="bathrooms" class="form-control" min="0" value="1">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Amenities (Comma separated)</label>
+                            <input type="text" name="amenities" class="form-control" placeholder="e.g. Balcony, High-speed Wifi, Hot Shower, Prepaid Meter">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Description / Notes</label>
+                            <textarea name="description" class="form-control" rows="2" placeholder="Internal remarks, meter number, fixtures..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-custom">Create Rental Unit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Create Building -->
+<div class="modal fade" id="createBuildingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Add Building to Property</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('properties.create_building', property_id=property.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Building Name</label>
+                        <input type="text" name="name" class="form-control" placeholder="e.g. Block B, Wing West" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Building Code / Short Name</label>
+                        <input type="text" name="code" class="form-control" placeholder="e.g. BLK-B">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Total Floors in Building</label>
+                        <input type="number" name="total_floors" class="form-control" min="1" value="1">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Description</label>
+                        <textarea name="description" class="form-control" rows="2" placeholder="Building notes..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-custom">Save Building</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

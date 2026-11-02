@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Lease {{ lease.lease_number }} - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <div class="small text-muted mb-1"><a href="{{ url_for('leases.index') }}" class="text-decoration-none">&larr; Back to Leases</a></div>
+        <h3 class="fw-bold mb-0">Tenancy Agreement: {{ lease.lease_number }}</h3>
+        <p class="text-muted small mb-0">Demised Unit: <strong>{{ lease.rental_unit.unit_number }}</strong> ({{ lease.rental_unit.property.name }})</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('leases.download_lease_pdf', lease_id=lease.id) }}" class="btn btn-danger">
+            <i class="bi bi-file-earmark-pdf me-1"></i> Download Legal PDF Agreement
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Lease Summary Card -->
+    <div class="col-lg-6">
+        <div class="card card-custom bg-white p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 px-3 py-2">
+                    {{ lease.lease_number }}
+                </span>
+                {% if lease.status == 'ACTIVE' %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">ACTIVE TENANCY</span>
+                {% elif lease.status == 'TERMINATED' %}
+                <span class="badge bg-danger-subtle text-danger border px-3 py-2">TERMINATED</span>
+                {% else %}
+                <span class="badge bg-secondary px-3 py-2">{{ lease.status }}</span>
+                {% endif %}
+            </div>
+
+            <div class="small mb-3">
+                <div class="row mb-2">
+                    <div class="col-5 text-muted">Tenant Name:</div>
+                    <div class="col-7 fw-bold">{{ lease.tenant.full_name }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 text-muted">ID / Passport:</div>
+                    <div class="col-7"><code>{{ lease.tenant.id_passport_number }}</code></div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 text-muted">Telephone:</div>
+                    <div class="col-7">{{ lease.tenant.phone }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 text-muted">Property / Estate:</div>
+                    <div class="col-7">{{ lease.rental_unit.property.name }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 text-muted">Demised Unit:</div>
+                    <div class="col-7 fw-bold text-primary">{{ lease.rental_unit.unit_number }} ({{ lease.rental_unit.unit_type }})</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 text-muted">Monthly Rent:</div>
+                    <div class="col-7 fw-bold text-success">{{ lease.rent_display }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 text-muted">Security Deposit:</div>
+                    <div class="col-7">{{ lease.deposit_display }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 text-muted">Commencement Date:</div>
+                    <div class="col-7">{{ lease.start_date.strftime('%d/%m/%Y') }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 text-muted">Expiration Date:</div>
+                    <div class="col-7">{{ lease.end_date.strftime('%d/%m/%Y') if lease.end_date else 'Periodic (Month to Month)' }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 text-muted">Payment Due Day:</div>
+                    <div class="col-7">{{ lease.payment_due_day }}th of every month</div>
+                </div>
+                <div class="row">
+                    <div class="col-5 text-muted">Notice Period:</div>
+                    <div class="col-7">{{ lease.notice_period_days }} Days written notice</div>
+                </div>
+            </div>
+
+            {% if lease.status == 'ACTIVE' and current_user.has_permission('leases.manage') %}
+            <div class="mt-4 pt-3 border-top">
+                <form method="POST" action="{{ url_for('leases.terminate_lease', lease_id=lease.id) }}" onsubmit="return confirm('Terminate this lease contract? This will release Unit {{ lease.rental_unit.unit_number }} to Vacant status.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                        <i class="bi bi-x-circle me-1"></i> Terminate Agreement Early
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Terms & Conditions Display -->
+    <div class="col-lg-6">
+        <div class="card card-custom bg-white p-4 h-100">
+            <h5 class="fw-bold mb-3"><i class="bi bi-file-text me-2 text-primary"></i> Legal Covenants & Terms</h5>
+            <div class="p-3 bg-light rounded border small" style="white-space: pre-line; line-height: 1.6;">
+                {{ lease.terms_and_conditions }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

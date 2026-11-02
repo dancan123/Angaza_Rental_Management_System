@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Financial & Operational Reports - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h3 class="fw-bold mb-0">Financial & Management Reports</h3>
+        <p class="text-muted small mb-0">Comprehensive analytics, collections audits, arrears aging, P&L statements, and landlord remittances.</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- 1. Rent Collections Report -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card card-custom bg-white h-100 p-4">
+            <div class="stat-card-icon bg-primary-subtle text-primary mb-3">
+                <i class="bi bi-cash-stack"></i>
+            </div>
+            <h5 class="fw-bold mb-1">Rent Collections Report</h5>
+            <p class="text-muted small mb-3">Daily, monthly, and annual rental collections breakdown by payment method, property, and dates.</p>
+            <div class="mt-auto">
+                <a href="{{ url_for('reports.collection') }}" class="btn btn-outline-primary btn-sm w-100">
+                    <i class="bi bi-file-earmark-bar-graph me-1"></i> Open Collection Report
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Tenant Arrears Report -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card card-custom bg-white h-100 p-4">
+            <div class="stat-card-icon bg-danger-subtle text-danger mb-3">
+                <i class="bi bi-exclamation-octagon"></i>
+            </div>
+            <h5 class="fw-bold mb-1">Tenant Arrears & Balances</h5>
+            <p class="text-muted small mb-3">Real-time ledger of overdue rent balances, unpaid invoices, tenant contacts, and arrears aging.</p>
+            <div class="mt-auto">
+                <a href="{{ url_for('reports.arrears') }}" class="btn btn-outline-danger btn-sm w-100">
+                    <i class="bi bi-file-earmark-excel me-1"></i> Open Arrears Report
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Income & Expenditure Statement -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card card-custom bg-white h-100 p-4">
+            <div class="stat-card-icon bg-success-subtle text-success mb-3">
+                <i class="bi bi-graph-up-arrow"></i>
+            </div>
+            <h5 class="fw-bold mb-1">Income & Expenditure (P&L)</h5>
+            <p class="text-muted small mb-3">Net rental operating income, categorized operational expenses, maintenance costs, and profit margins.</p>
+            <div class="mt-auto">
+                <a href="{{ url_for('reports.income_statement') }}" class="btn btn-outline-success btn-sm w-100">
+                    <i class="bi bi-pie-chart me-1"></i> View P&L Statement
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Landlord Remittance Statement -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card card-custom bg-white h-100 p-4">
+            <div class="stat-card-icon bg-info-subtle text-info mb-3">
+                <i class="bi bi-bank2"></i>
+            </div>
+            <h5 class="fw-bold mb-1">Landlord Statements</h5>
+            <p class="text-muted small mb-3">Dedicated monthly statements for property owners showing rent received, expenses deducted, and net remittance.</p>
+            <div class="mt-auto">
+                <a href="{{ url_for('reports.landlord_statement') }}" class="btn btn-outline-info btn-sm w-100">
+                    <i class="bi bi-person-badge me-1"></i> Generate Owner Statement
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. Visual Occupancy Report -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card card-custom bg-white h-100 p-4">
+            <div class="stat-card-icon bg-warning-subtle text-warning mb-3">
+                <i class="bi bi-grid-3x3-gap"></i>
+            </div>
+            <h5 class="fw-bold mb-1">Occupancy & Vacancy Report</h5>
+            <p class="text-muted small mb-3">Real-time occupancy rates, vacant unit inventory, turnover duration, and reserved units status.</p>
+            <div class="mt-auto">
+                <a href="{{ url_for('properties.occupancy_grid') }}" class="btn btn-outline-warning btn-sm w-100">
+                    <i class="bi bi-grid me-1"></i> Open Occupancy Board
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

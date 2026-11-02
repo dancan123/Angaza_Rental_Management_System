@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}Personalization & System Settings - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h3 class="fw-bold mb-0">System Personalization & Configuration</h3>
+        <p class="text-muted small mb-0">Rebrand the system, manage business credentials, customize theme colors, and configure financial policies.</p>
+    </div>
+    <div>
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2">
+            <i class="bi bi-shield-lock-fill me-1"></i> Admin Authorization Active
+        </span>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Navigation Tabs -->
+    <div class="col-lg-3">
+        <div class="card card-custom bg-white p-2">
+            <div class="nav flex-column nav-pills" id="settingsTab" role="tablist">
+                <button class="nav-link text-start active py-3" id="general-tab" data-bs-toggle="pill" data-bs-target="#tab-general" type="button">
+                    <i class="bi bi-building-gear me-2"></i> Business & Profile
+                </button>
+                <button class="nav-link text-start py-3" id="branding-tab" data-bs-toggle="pill" data-bs-target="#tab-branding" type="button">
+                    <i class="bi bi-palette-fill me-2"></i> Branding & Colors
+                </button>
+                <button class="nav-link text-start py-3" id="financial-tab" data-bs-toggle="pill" data-bs-target="#tab-financial" type="button">
+                    <i class="bi bi-coin me-2"></i> Currency & Billing Rules
+                </button>
+                <button class="nav-link text-start py-3" id="invoicing-tab" data-bs-toggle="pill" data-bs-target="#tab-invoicing" type="button">
+                    <i class="bi bi-receipt me-2"></i> Invoicing & Receipts
+                </button>
+                <button class="nav-link text-start py-3" id="backups-tab" data-bs-toggle="pill" data-bs-target="#tab-backups" type="button">
+                    <i class="bi bi-database-check me-2"></i> Database Backups
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Contents -->
+    <div class="col-lg-9">
+        <div class="tab-content" id="settingsTabContent">
+
+            <!-- 1. General Business Profile -->
+            <div class="tab-pane fade show active" id="tab-general" role="tabpanel">
+                <div class="card card-custom bg-white p-4">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-building me-2 text-primary"></i> Business & Company Profile</h5>
+                    <form method="POST" action="{{ url_for('settings.update_general') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Application Display Name</label>
+                                <input type="text" name="app_name" class="form-control" value="{{ settings.get('app_name', '') }}" required>
+                                <div class="form-text">Shown in sidebar, page titles, and headers.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Property Management Business Name</label>
+                                <input type="text" name="business_name" class="form-control" value="{{ settings.get('business_name', '') }}" required>
+                                <div class="form-text">Your registered trading name.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Managing Director / Landlord Name</label>
+                                <input type="text" name="landlord_name" class="form-control" value="{{ settings.get('landlord_name', '') }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Telephone Number</label>
+                                <input type="text" name="business_phone" class="form-control" value="{{ settings.get('business_phone', '') }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Official Email Address</label>
+                                <input type="email" name="business_email" class="form-control" value="{{ settings.get('business_email', '') }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Business Registration / Certificate No.</label>
+                                <input type="text" name="business_reg_no" class="form-control" value="{{ settings.get('business_reg_no', '') }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">KRA / Tax PIN Number</label>
+                                <input type="text" name="tax_pin" class="form-control" value="{{ settings.get('tax_pin', '') }}">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Physical / Postal Address</label>
+                                <input type="text" name="business_address" class="form-control" value="{{ settings.get('business_address', '') }}">
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-3 border-top text-end">
+                            <button type="submit" class="btn btn-primary-custom px-4">
+                                <i class="bi bi-save me-1"></i> Save Business Settings
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 2. Branding & Colors -->
+            <div class="tab-pane fade" id="tab-branding" role="tabpanel">
+                <div class="card card-custom bg-white p-4">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-palette me-2 text-primary"></i> System Theme & Visual Branding</h5>
+                    <form method="POST" action="{{ url_for('settings.update_branding') }}" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        
+                        <div class="row g-4 mb-4 align-items-center">
+                            <div class="col-md-4 text-center">
+                                <label class="form-label small fw-semibold d-block">Current Logo Preview</label>
+                                <div class="border rounded p-3 bg-light d-inline-block">
+                                    <img src="{{ settings.get('logo_url', '/static/img/logo.png') }}" alt="Logo Preview" style="max-height: 80px; max-width: 180px; object-fit: contain;" onerror="this.src='https://via.placeholder.com/150x60?text=No+Logo';">
+                                </div>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label small fw-semibold">Upload New Company Logo</label>
+                                <input type="file" name="logo_file" class="form-control" accept="image/*">
+                                <div class="form-text">Recommended format: PNG or SVG with transparent background (max 2MB).</div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Primary Brand Color</label>
+                                <div class="input-group">
+                                    <input type="color" class="form-control form-control-color" name="theme_primary_color" value="{{ settings.get('theme_primary_color', '#1a56db') }}">
+                                    <input type="text" class="form-control" value="{{ settings.get('theme_primary_color', '#1a56db') }}" readonly>
+                                </div>
+                                <div class="form-text">Applied to buttons, active navigation links, and primary badges.</div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Secondary / Accent Color</label>
+                                <div class="input-group">
+                                    <input type="color" class="form-control form-control-color" name="theme_secondary_color" value="{{ settings.get('theme_secondary_color', '#0e9f6e') }}">
+                                    <input type="text" class="form-control" value="{{ settings.get('theme_secondary_color', '#0e9f6e') }}" readonly>
+                                </div>
+                                <div class="form-text">Applied to secondary highlights and operational accents.</div>
+                            </div>
+
+                            <div class="col-12 mt-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="theme_dark_mode" id="darkThemeSwitch" {% if settings.get('theme_dark_mode') == 'true' %}checked{% endif %}>
+                                    <label class="form-check-label fw-semibold" for="darkThemeSwitch">Enable Dark Mode Theme by Default</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 pt-3 border-top text-end">
+                            <button type="submit" class="btn btn-primary-custom px-4">
+                                <i class="bi bi-brush me-1"></i> Update Theme Branding
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 3. Financial & Billing Rules -->
+            <div class="tab-pane fade" id="tab-financial" role="tabpanel">
+                <div class="card card-custom bg-white p-4">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-cash-coin me-2 text-primary"></i> Currency & Rent Billing Rules</h5>
+                    <form method="POST" action="{{ url_for('settings.update_financial') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">System Currency Code</label>
+                                <select name="currency" class="form-select">
+                                    <option value="KES" {% if settings.get('currency') == 'KES' %}selected{% endif %}>KES - Kenya Shilling</option>
+                                    <option value="USD" {% if settings.get('currency') == 'USD' %}selected{% endif %}>USD - US Dollar</option>
+                                    <option value="EUR" {% if settings.get('currency') == 'EUR' %}selected{% endif %}>EUR - Euro</option>
+                                    <option value="GBP" {% if settings.get('currency') == 'GBP' %}selected{% endif %}>GBP - British Pound</option>
+                                    <option value="UGX" {% if settings.get('currency') == 'UGX' %}selected{% endif %}>UGX - Uganda Shilling</option>
+                                    <option value="TZS" {% if settings.get('currency') == 'TZS' %}selected{% endif %}>TZS - Tanzania Shilling</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Default Rent Due Day of Month</label>
+                                <input type="number" name="default_due_day" class="form-control" min="1" max="28" value="{{ settings.get('default_due_day', '5') }}" required>
+                                <div class="form-text">e.g. 5 = 5th of every month.</div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Grace Period (Days)</label>
+                                <input type="number" name="grace_period_days" class="form-control" min="0" max="30" value="{{ settings.get('grace_period_days', '5') }}" required>
+                                <div class="form-text">Days before penalty begins.</div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Late Payment Penalty (%)</label>
+                                <div class="input-group">
+                                    <input type="number" step="0.1" name="late_fee_percentage" class="form-control" min="0" max="100" value="{{ settings.get('late_fee_percentage', '5') }}" required>
+                                    <span class="input-group-text">%</span>
+                                </div>
+                                <div class="form-text">Applied on overdue rent balances.</div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Financial Year Start Month</label>
+                                <select name="financial_year_start" class="form-select">
+                                    <option value="1" {% if settings.get('financial_year_start') == '1' %}selected{% endif %}>January</option>
+                                    <option value="7" {% if settings.get('financial_year_start') == '7' %}selected{% endif %}>July (Gov Fiscal Year)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 pt-3 border-top text-end">
+                            <button type="submit" class="btn btn-primary-custom px-4">
+                                <i class="bi bi-save me-1"></i> Save Billing Rules
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 4. Invoicing & Receipts -->
+            <div class="tab-pane fade" id="tab-invoicing" role="tabpanel">
+                <div class="card card-custom bg-white p-4">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-receipt me-2 text-primary"></i> Invoicing & Receipt Customization</h5>
+                    <form method="POST" action="{{ url_for('settings.update_financial') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <!-- preserve other financial settings -->
+                        <input type="hidden" name="currency" value="{{ settings.get('currency', 'KES') }}">
+                        <input type="hidden" name="default_due_day" value="{{ settings.get('default_due_day', '5') }}">
+                        <input type="hidden" name="grace_period_days" value="{{ settings.get('grace_period_days', '5') }}">
+                        <input type="hidden" name="late_fee_percentage" value="{{ settings.get('late_fee_percentage', '5') }}">
+                        <input type="hidden" name="financial_year_start" value="{{ settings.get('financial_year_start', '1') }}">
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Default Payment Instructions (on Invoices)</label>
+                            <textarea name="default_payment_instructions" class="form-control" rows="3">{{ settings.get('default_payment_instructions', '') }}</textarea>
+                            <div class="form-text">Details displayed on tenant invoices explaining how to pay (Paybill, Till, Bank details).</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Official Receipt Footer Note</label>
+                            <textarea name="receipt_footer" class="form-control" rows="2">{{ settings.get('receipt_footer', '') }}</textarea>
+                            <div class="form-text">Printed at the bottom of all generated payment receipts and PDF downloads.</div>
+                        </div>
+
+                        <div class="mt-4 pt-3 border-top text-end">
+                            <button type="submit" class="btn btn-primary-custom px-4">
+                                <i class="bi bi-save me-1"></i> Save Invoicing Preferences
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 5. Database Backups -->
+            <div class="tab-pane fade" id="tab-backups" role="tabpanel">
+                <div class="card card-custom bg-white p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h5 class="fw-bold mb-0"><i class="bi bi-database me-2 text-primary"></i> SQLite Database Backups</h5>
+                            <span class="text-muted small">Perform non-locking hot backups and export snapshots.</span>
+                        </div>
+                        <form method="POST" action="{{ url_for('settings.create_backup') }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="btn btn-primary-custom btn-sm">
+                                <i class="bi bi-cloud-arrow-up-fill me-1"></i> Trigger Hot Backup Now
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light small">
+                                <tr>
+                                    <th>Snapshot File</th>
+                                    <th>Size</th>
+                                    <th>Checksum (SHA256)</th>
+                                    <th>Status</th>
+                                    <th>Created At</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="small">
+                                {% for b in backups %}
+                                <tr>
+                                    <td class="fw-semibold">{{ b.file_name }}</td>
+                                    <td>{{ (b.file_size_bytes / 1024) | round(1) }} KB</td>
+                                    <td><code>{{ b.checksum[:16] }}...</code></td>
+                                    <td><span class="badge bg-success-subtle text-success">{{ b.status }}</span></td>
+                                    <td>{{ b.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                    <td>
+                                        <a href="{{ url_for('settings.download_backup', backup_id=b.id) }}" class="btn btn-outline-secondary btn-sm">
+                                            <i class="bi bi-download"></i> Download
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        <i class="bi bi-archive fs-3 d-block mb-1"></i> No backup archives created yet.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+

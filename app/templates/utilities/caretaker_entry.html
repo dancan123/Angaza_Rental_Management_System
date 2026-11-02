@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Caretaker Meter Reading Entry - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <a href="{{ url_for('utilities.index') }}" class="btn btn-sm btn-outline-secondary mb-2">
+                    <i class="bi bi-arrow-left me-1"></i> Back to Utilities
+                </a>
+                <h3 class="fw-bold mb-0">Caretaker Meter Walkthrough</h3>
+                <p class="text-muted small">Streamlined mobile form for fast door-to-door water and electricity logging.</p>
+            </div>
+            <div>
+                <span class="badge bg-primary fs-6 px-3 py-2"><i class="bi bi-calendar3 me-1"></i> {{ today.strftime('%d %b %Y') }}</span>
+            </div>
+        </div>
+
+        <!-- Property Switcher -->
+        <div class="card card-custom bg-white p-3 mb-3 border shadow-sm">
+            <form method="GET" action="{{ url_for('utilities.caretaker_entry') }}" class="d-flex gap-2">
+                <select name="property_id" class="form-select fw-semibold" onchange="this.form.submit()">
+                    {% for p in properties %}
+                    <option value="{{ p.id }}" {% if selected_property and selected_property.id == p.id %}selected{% endif %}>
+                        🏢 {{ p.name }} ({{ p.rental_units.count() }} Units)
+                    </option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-secondary-custom">Switch</button>
+            </form>
+        </div>
+
+        <!-- Meters List for Selected Property -->
+        {% if meters %}
+        <div class="d-flex flex-column gap-3">
+            {% for m in meters %}
+            <div class="card card-custom bg-white p-3 border shadow-sm">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <span class="badge {% if m.meter_type == 'WATER' %}bg-info text-white{% else %}bg-warning text-dark{% endif %} mb-1">
+                            {{ m.meter_type }} METER
+                        </span>
+                        <h5 class="fw-bold mb-0 text-primary">Unit {{ m.rental_unit.unit_number }}</h5>
+                        <small class="text-muted">Serial: <strong>{{ m.meter_number }}</strong></small>
+                    </div>
+                    <div class="text-end">
+                        <div class="small text-muted">Current Tenant:</div>
+                        <div class="fw-semibold">{{ m.rental_unit.current_tenant.full_name if m.rental_unit.current_tenant else 'Vacant' }}</div>
+                    </div>
+                </div>
+
+                <div class="row g-2 align-items-center bg-light p-2 rounded mb-3 border">
+                    <div class="col-6">
+                        <span class="small text-muted d-block">Previous Reading:</span>
+                        <span class="fs-5 fw-bold text-danger">{{ m.last_reading }}</span>
+                    </div>
+                    <div class="col-6 text-end">
+                        <span class="small text-muted d-block">Billing Rate:</span>
+                        <span class="small fw-semibold">{{ m.rate_display }} / unit</span>
+                    </div>
+                </div>
+
+                <!-- Reading Submission Form -->
+                <form method="POST" action="{{ url_for('utilities.record_reading') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <input type="hidden" name="meter_id" value="{{ m.id }}"/>
+                    <input type="hidden" name="reading_date" value="{{ today.strftime('%Y-%m-%d') }}"/>
+                    <input type="hidden" name="auto_bill" value="1"/>
+                    <input type="hidden" name="next_url" value="{{ request.full_path }}"/>
+
+                    <div class="input-group">
+                        <span class="input-group-text bg-white fw-bold">New Reading:</span>
+                        <input type="number" step="0.01" name="current_reading" class="form-control form-control-lg fw-bold text-primary" placeholder="&gt;= {{ m.last_reading }}" min="{{ m.last_reading }}" required>
+                        <button type="submit" class="btn btn-primary-custom px-4 fw-semibold">
+                            <i class="bi bi-check2-circle me-1"></i> Submit
+                        </button>
+                    </div>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="card card-custom bg-white p-5 text-center text-muted">
+            <i class="bi bi-speedometer2 fs-1 text-secondary mb-2"></i>
+            <h5>No Sub-Meters Registered for This Property</h5>
+            <p class="small">Add water or electricity meters from the Utilities dashboard to start logging readings.</p>
+            <div>
+                <a href="{{ url_for('utilities.index') }}" class="btn btn-primary-custom">
+                    Go to Utilities Dashboard
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

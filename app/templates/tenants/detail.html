@@ -1,0 +1,530 @@
+{% extends "base.html" %}
+
+{% block title %}{{ tenant.full_name }} - {{ app_name }}{% endblock %}
+
+{% block content %}
+<!-- Tenant Profile Header & Financial Summary -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-5">
+        <div class="card card-custom bg-white p-4 h-100">
+            <div class="d-flex align-items-center gap-3 mb-3">
+                <div class="rounded-circle bg-primary text-white fw-bold d-flex align-items-center justify-content-center" style="width: 56px; height: 56px; font-size: 1.4rem;">
+                    {{ tenant.first_name[0] }}{{ tenant.last_name[0] }}
+                </div>
+                <div>
+                    <h4 class="fw-bold mb-0">{{ tenant.full_name }}</h4>
+                    <span class="text-muted small">National ID: <code>{{ tenant.id_passport_number }}</code></span>
+                </div>
+            </div>
+
+            <div class="small border-top pt-3">
+                <div class="row mb-2">
+                    <div class="col-4 text-muted">Telephone:</div>
+                    <div class="col-8 fw-semibold">{{ tenant.phone }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-4 text-muted">Email:</div>
+                    <div class="col-8">{{ tenant.email or 'Not provided' }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-4 text-muted">Occupation:</div>
+                    <div class="col-8">{{ tenant.occupation or 'Resident' }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-4 text-muted">Address:</div>
+                    <div class="col-8">{{ tenant.physical_address or '—' }}</div>
+                </div>
+                <div class="row">
+                    <div class="col-4 text-muted">Account Status:</div>
+                    <div class="col-8">
+                        {% if tenant.is_active %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle">Active Tenant</span>
+                        {% else %}
+                        <span class="badge bg-secondary-subtle text-secondary border">Offboarded / Inactive</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action buttons for tenant -->
+            <div class="d-flex gap-2 mt-4 pt-3 border-top flex-wrap">
+                {% if current_user.has_permission('tenants.manage') %}
+                <button type="button" class="btn btn-outline-secondary btn-sm flex-fill" data-bs-toggle="modal" data-bs-target="#editTenantModal">
+                    <i class="bi bi-pencil-square me-1"></i> Edit Details
+                </button>
+                {% endif %}
+                <a href="{{ url_for('billing.index', tenant_id=tenant.id) }}" class="btn btn-outline-success btn-sm flex-fill">
+                    <i class="bi bi-cash-stack me-1"></i> Receive Rent
+                </a>
+                {% if tenant.is_active and tenant.current_unit and current_user.has_permission('tenants.manage') %}
+                <button type="button" class="btn btn-outline-primary btn-sm flex-fill" data-bs-toggle="modal" data-bs-target="#transferModal">
+                    <i class="bi bi-arrow-left-right me-1"></i> Transfer
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm flex-fill" data-bs-toggle="modal" data-bs-target="#moveOutModal">
+                    <i class="bi bi-box-arrow-right me-1"></i> Move-Out
+                </button>
+                {% endif %}
+                {% if not tenant.current_unit and tenant.is_active and current_user.has_permission('tenants.manage') %}
+                <form method="POST" action="{{ url_for('tenants.delete_tenant', tenant_id=tenant.id) }}" class="d-inline flex-fill" onsubmit="return confirm('Archive this tenant record?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+                        <i class="bi bi-archive me-1"></i> Archive
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Current Unit & Financial Overview -->
+    <div class="col-lg-7">
+        <div class="row g-3 h-100">
+            <!-- Current Unit Card -->
+            <div class="col-12">
+                <div class="card card-custom bg-white p-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted small fw-semibold text-uppercase">Current Tenancy &amp; Assigned Unit</span>
+                        {% if tenant.current_unit %}
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                            <i class="bi bi-door-closed-fill me-1"></i> Occupied Unit
+                        </span>
+                        {% else %}
+                        <span class="badge bg-secondary-subtle text-secondary">No Active Unit</span>
+                        {% endif %}
+                    </div>
+                    {% if tenant.current_unit %}
+                    <div class="d-flex justify-content-between align-items-center mt-2 border-bottom pb-2">
+                        <div>
+                            <h4 class="fw-bold mb-0 text-primary">{{ tenant.current_unit.unit_number }}</h4>
+                            <span class="text-muted small">{{ tenant.current_unit.property.name }} • {{ tenant.current_unit.unit_type }}</span>
+                        </div>
+                        <div class="text-end">
+                            <span class="text-muted small d-block">Monthly Rent</span>
+                            <span class="fw-bold fs-5 text-dark">{{ tenant.current_unit.rent_display }}</span>
+                        </div>
+                    </div>
+                    {% if active_lease %}
+                    <div class="row g-2 mt-2 small text-muted">
+                        <div class="col-sm-6">
+                            <span>Lease Number:</span> <strong class="text-dark">{{ active_lease.lease_number }}</strong>
+                        </div>
+                        <div class="col-sm-6">
+                            <span>Commencement:</span> <strong class="text-dark">{{ active_lease.start_date.strftime('%d/%m/%Y') }}</strong>
+                        </div>
+                        <div class="col-sm-6">
+                            <span>Payment Due Day:</span> <strong class="text-dark">{{ active_lease.payment_due_day }}th of every month</strong>
+                        </div>
+                        <div class="col-sm-6">
+                            <span>Security Deposit Held:</span> <strong class="text-success">{{ active_lease.deposit_display }}</strong>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <p class="text-muted small mt-2 mb-0">Tenant does not currently occupy an active room or apartment.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Financial Root Data KPI Strip -->
+            <!-- Total Invoiced / Billed -->
+            <div class="col-sm-6 col-md-3">
+                <div class="card card-custom bg-white p-3 text-center">
+                    <div class="text-muted small" style="font-size: 0.78rem;">Total Invoiced</div>
+                    <h5 class="fw-bold mt-1 mb-0">{{ summary.total_billed_cents | currency }}</h5>
+                    <div class="text-muted" style="font-size: 0.7rem;">Rent &amp; charges</div>
+                </div>
+            </div>
+
+            <!-- Total Paid -->
+            <div class="col-sm-6 col-md-3">
+                <div class="card card-custom bg-white p-3 text-center">
+                    <div class="text-muted small" style="font-size: 0.78rem;">Total Paid</div>
+                    <h5 class="fw-bold text-success mt-1 mb-0">{{ summary.total_paid_cents | currency }}</h5>
+                    <div class="text-muted" style="font-size: 0.7rem;">Settled payments</div>
+                </div>
+            </div>
+
+            <!-- Outstanding Balance / Arrears -->
+            <div class="col-sm-6 col-md-3">
+                <div class="card card-custom bg-white p-3 text-center">
+                    <div class="text-muted small" style="font-size: 0.78rem;">Rent Arrears</div>
+                    <h5 class="fw-bold {% if summary.outstanding_cents > 0 %}text-danger{% else %}text-success{% endif %} mt-1 mb-0">
+                        {{ summary.outstanding_cents | currency }}
+                    </h5>
+                    <div class="text-muted" style="font-size: 0.7rem;">
+                        {% if summary.outstanding_cents > 0 %}
+                        <span class="badge bg-danger-subtle text-danger p-0" style="font-size: 0.68rem;">Payment Due</span>
+                        {% else %}
+                        <span class="badge bg-success-subtle text-success p-0" style="font-size: 0.68rem;">Zero Arrears</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Security Deposit Held -->
+            <div class="col-sm-6 col-md-3">
+                <div class="card card-custom bg-white p-3 text-center">
+                    <div class="text-muted small" style="font-size: 0.78rem;">Deposit Held</div>
+                    <h5 class="fw-bold text-primary mt-1 mb-0">
+                        {{ summary.deposit_held_cents | currency }}
+                    </h5>
+                    <div class="text-muted" style="font-size: 0.7rem;">Refundable deposit</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Tabs -->
+<ul class="nav nav-tabs mb-4" id="tenantDetailTab" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link active fw-semibold" id="charges-tab" data-bs-toggle="tab" data-bs-target="#tab-charges" type="button">
+            <i class="bi bi-file-text me-1 text-primary"></i> Rent Invoices & Charges ({{ charges|length }})
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link fw-semibold" id="payments-tab" data-bs-toggle="tab" data-bs-target="#tab-payments" type="button">
+            <i class="bi bi-receipt me-1 text-primary"></i> Confirmed Payments ({{ payments|length }})
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link fw-semibold" id="history-tab" data-bs-toggle="tab" data-bs-target="#tab-history" type="button">
+            <i class="bi bi-clock-history me-1 text-primary"></i> Tenancy History & Transfers
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link fw-semibold" id="kin-tab" data-bs-toggle="tab" data-bs-target="#tab-kin" type="button">
+            <i class="bi bi-people me-1 text-primary"></i> Next of Kin & Contacts
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="tenantDetailTabContent">
+
+    <!-- Tab 1: Invoices & Charges -->
+    <div class="tab-pane fade show active" id="tab-charges" role="tabpanel">
+        <div class="card card-custom bg-white">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small">
+                            <tr>
+                                <th class="ps-3">Invoice Number</th>
+                                <th>Period</th>
+                                <th>Charge Type</th>
+                                <th>Due Date</th>
+                                <th>Amount</th>
+                                <th>Paid</th>
+                                <th>Balance</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for c in charges %}
+                            <tr>
+                                <td class="ps-3 fw-bold text-primary">{{ c.invoice_number }}</td>
+                                <td>{{ c.period_month }}/{{ c.period_year }}</td>
+                                <td><span class="badge bg-light text-dark border">{{ c.charge_type }}</span></td>
+                                <td>{{ c.due_date.strftime('%d/%m/%Y') }}</td>
+                                <td class="fw-semibold">{{ c.amount_display }}</td>
+                                <td class="text-success">{{ c.paid_display }}</td>
+                                <td class="fw-bold {% if c.balance_cents > 0 %}text-danger{% else %}text-muted{% endif %}">{{ c.balance_display }}</td>
+                                <td>
+                                    {% if c.status == 'PAID' %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">Paid</span>
+                                    {% elif c.status == 'PARTIALLY_PAID' %}
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Partial</span>
+                                    {% else %}
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Unpaid</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">No rent invoices issued yet.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: Payments -->
+    <div class="tab-pane fade" id="tab-payments" role="tabpanel">
+        <div class="card card-custom bg-white">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small">
+                            <tr>
+                                <th class="ps-3">Receipt Number</th>
+                                <th>Date</th>
+                                <th>Payment Method</th>
+                                <th>Transaction Ref</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for p in payments %}
+                            <tr>
+                                <td class="ps-3 fw-bold text-primary">{{ p.receipt_number }}</td>
+                                <td>{{ p.payment_date.strftime('%d/%m/%Y') }}</td>
+                                <td>{{ p.payment_method }}</td>
+                                <td><code>{{ p.transaction_reference or '—' }}</code></td>
+                                <td class="fw-bold text-success">{{ p.amount_display }}</td>
+                                <td><span class="badge bg-success-subtle text-success">Confirmed</span></td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">No payment receipts recorded yet.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 3: Tenancy History -->
+    <div class="tab-pane fade" id="tab-history" role="tabpanel">
+        <div class="card card-custom bg-white p-3">
+            <h6 class="fw-bold mb-3">Historical Tenancy Records & Moves</h6>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light small">
+                        <tr>
+                            <th>Unit</th>
+                            <th>Move-In Date</th>
+                            <th>Move-Out Date</th>
+                            <th>Transfer / Move Reason</th>
+                            <th>Deposit Refunded</th>
+                            <th>Deductions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="small">
+                        {% if active_lease %}
+                        <!-- Active Current Lease -->
+                        <tr class="table-primary-subtle">
+                            <td class="fw-bold text-primary">
+                                <i class="bi bi-door-closed-fill me-1"></i> {{ active_lease.rental_unit.unit_number }} (Current Unit)
+                            </td>
+                            <td>{{ active_lease.start_date.strftime('%d/%m/%Y') }}</td>
+                            <td><span class="badge bg-success-subtle text-success border border-success-subtle">Active Lease</span></td>
+                            <td>Agreement #{{ active_lease.lease_number }} • Due: {{ active_lease.payment_due_day }}th</td>
+                            <td class="text-success fw-semibold">Held: {{ active_lease.deposit_display }}</td>
+                            <td>—</td>
+                        </tr>
+                        {% endif %}
+
+                        {% for rec in tenancy_records %}
+                        <tr>
+                            <td class="fw-bold">{{ rec.rental_unit.unit_number }}</td>
+                            <td>{{ rec.move_in_date.strftime('%d/%m/%Y') }}</td>
+                            <td>{{ rec.move_out_date.strftime('%d/%m/%Y') if rec.move_out_date else '—' }}</td>
+                            <td>{{ rec.transfer_reason or rec.move_out_inspection_notes or 'Tenancy completed' }}</td>
+                            <td class="text-success">{{ rec.deposit_refunded_cents | currency }}</td>
+                            <td class="text-danger">
+                                {{ rec.deposit_deductions_cents | currency }}
+                                {% if rec.deduction_reason %}<small class="d-block text-muted">{{ rec.deduction_reason }}</small>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+
+                        {% if not active_lease and not tenancy_records %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">No past or active tenancy history recorded.</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 4: Next of Kin -->
+    <div class="tab-pane fade" id="tab-kin" role="tabpanel">
+        <div class="card card-custom bg-white p-4">
+            <h6 class="fw-bold mb-3">Emergency Contact & Next of Kin Information</h6>
+            <div class="row g-3">
+                {% for kin in tenant.next_of_kin %}
+                <div class="col-md-6">
+                    <div class="border rounded p-3 bg-light">
+                        <div class="fw-bold text-dark">{{ kin.full_name }}</div>
+                        <div class="text-muted small mb-2"><i class="bi bi-heart me-1"></i> Relationship: <strong>{{ kin.relationship }}</strong></div>
+                        <div class="small"><i class="bi bi-telephone me-1"></i> Phone: {{ kin.phone }}</div>
+                        {% if kin.email %}<div class="small"><i class="bi bi-envelope me-1"></i> Email: {{ kin.email }}</div>{% endif %}
+                        {% if kin.physical_address %}<div class="small"><i class="bi bi-geo me-1"></i> Address: {{ kin.physical_address }}</div>{% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <div class="col-12 text-muted">No next-of-kin contacts registered.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal: Transfer Unit -->
+{% if tenant.current_unit %}
+<div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Transfer {{ tenant.full_name }} to Another Unit</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('tenants.transfer_unit', tenant_id=tenant.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Current Unit</label>
+                        <input type="text" class="form-control" value="{{ tenant.current_unit.unit_number }} ({{ tenant.current_unit.property.name }})" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Select Destination Vacant Unit</label>
+                        <select name="new_unit_id" class="form-select" required>
+                            <option value="" disabled selected>Select Vacant Unit...</option>
+                            {% for u in vacant_units %}
+                            <option value="{{ u.id }}">{{ u.unit_number }} ({{ u.property.name }} - {{ u.rent_display }}/mo)</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Reason for Transfer</label>
+                        <input type="text" name="transfer_reason" class="form-control" placeholder="e.g. Upgrading to 2 bedroom, floor preference...">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-custom">Execute Unit Transfer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Move-Out -->
+<div class="modal fade" id="moveOutModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Process Move-Out & Offboarding</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('tenants.move_out', tenant_id=tenant.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <div class="alert alert-warning small">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Completing move-out will terminate active lease, free Unit <strong>{{ tenant.current_unit.unit_number }}</strong> to Vacant status, and archive tenancy.
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Move-Out Inspection Notes</label>
+                        <textarea name="inspection_notes" class="form-control" rows="2" placeholder="Condition of walls, keys returned, meter readings..."></textarea>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Deposit Refund ({{ currency }})</label>
+                            <input type="number" step="0.01" name="deposit_refunded" class="form-control" placeholder="0.00">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Deposit Deductions ({{ currency }})</label>
+                            <input type="number" step="0.01" name="deposit_deductions" class="form-control" placeholder="0.00">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Deduction Reason (if any)</label>
+                        <input type="text" name="deduction_reason" class="form-control" placeholder="e.g. Repainting, broken tiles, unpaid utilities...">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Confirm Move-Out & Offboard</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+<!-- Modal: Edit Tenant Details -->
+<div class="modal fade" id="editTenantModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2 text-primary"></i> Edit Tenant Profile: {{ tenant.full_name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('tenants.edit_tenant', tenant_id=tenant.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body p-4">
+                    <h6 class="fw-bold small text-uppercase text-primary border-bottom pb-1 mb-3">1. Primary Personal & Contact Details</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">First Name *</label>
+                            <input type="text" name="first_name" class="form-control" value="{{ tenant.first_name }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Last / Family Name *</label>
+                            <input type="text" name="last_name" class="form-control" value="{{ tenant.last_name }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">National ID / Passport *</label>
+                            <input type="text" name="id_passport_number" class="form-control" value="{{ tenant.id_passport_number }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Telephone Number *</label>
+                            <input type="text" name="phone" class="form-control" value="{{ tenant.phone }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Email Address</label>
+                            <input type="email" name="email" class="form-control" value="{{ tenant.email or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Occupation / Employer</label>
+                            <input type="text" name="occupation" class="form-control" value="{{ tenant.occupation or '' }}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Permanent / Postal Address</label>
+                            <input type="text" name="physical_address" class="form-control" value="{{ tenant.physical_address or '' }}">
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold small text-uppercase text-primary border-bottom pb-1 mb-3">2. Next of Kin & Emergency Contact</h6>
+                    {% set kin = tenant.next_of_kin.first() %}
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label small fw-semibold">Next of Kin Full Name</label>
+                            <input type="text" name="kin_name" class="form-control" value="{{ kin.full_name if kin else '' }}" placeholder="Full Name">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Relationship</label>
+                            <input type="text" name="kin_relationship" class="form-control" value="{{ kin.relationship if kin else '' }}" placeholder="e.g. Spouse / Sibling">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Next of Kin Phone</label>
+                            <input type="text" name="kin_phone" class="form-control" value="{{ kin.phone if kin else '' }}" placeholder="Telephone Number">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Emergency Contact Person</label>
+                            <input type="text" name="emergency_contact" class="form-control" value="{{ tenant.emergency_contact or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Emergency Phone</label>
+                            <input type="text" name="emergency_phone" class="form-control" value="{{ tenant.emergency_phone or '' }}">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-custom fw-semibold">Save Updated Details</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

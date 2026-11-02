@@ -1,0 +1,570 @@
+{% extends "base.html" %}
+
+{% block title %}Rent Billing & Payment Management - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h3 class="fw-bold mb-0">Rent Billing & Payment Management</h3>
+        <p class="text-muted small mb-0">Manage rent invoicing, record and allocate payments, handle arrears, and issue verified receipts.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        {% if current_user.has_permission('billing.manage') %}
+        <form method="POST" action="{{ url_for('billing.send_reminders') }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="btn btn-outline-info shadow-sm" onclick="return confirm('Dispatch automated rent payment reminders to all tenants with pending balances?');">
+                <i class="bi bi-bell me-1"></i> Send Rent Reminders
+            </button>
+        </form>
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#generateMonthlyModal">
+            <i class="bi bi-calendar-event me-1"></i> Run Monthly Billing
+        </button>
+        <button type="button" class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#recordPaymentModal">
+            <i class="bi bi-cash-stack me-1"></i> Record Rent Payment
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Billing KPI Summary -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-3 col-md-6">
+        <div class="card card-custom p-3 bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold">Total Billed</span>
+                    <h4 class="fw-bold mt-1 mb-0">{{ total_billed_cents | currency }}</h4>
+                    <span class="text-muted small">Month: {{ selected_month }}/{{ selected_year }}</span>
+                </div>
+                <div class="stat-card-icon bg-primary-subtle text-primary">
+                    <i class="bi bi-receipt-cutoff"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card card-custom p-3 bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold">Collected</span>
+                    <h4 class="fw-bold text-success mt-1 mb-0">{{ total_collected_cents | currency }}</h4>
+                    <span class="badge bg-success-subtle text-success">{{ collection_pct }}% Settled</span>
+                </div>
+                <div class="stat-card-icon bg-success-subtle text-success">
+                    <i class="bi bi-check2-all"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card card-custom p-3 bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold">Arrears / Unpaid</span>
+                    <h4 class="fw-bold text-danger mt-1 mb-0">{{ total_outstanding_cents | currency }}</h4>
+                    <span class="text-muted small">Pending collection</span>
+                </div>
+                <div class="stat-card-icon bg-danger-subtle text-danger">
+                    <i class="bi bi-hourglass-split"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card card-custom p-3 bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold">Late Penalties</span>
+                    <form method="POST" action="{{ url_for('billing.apply_penalties') }}" class="mt-1">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="btn btn-outline-warning btn-sm" onclick="return confirm('Audit all overdue invoices and apply late fee penalties based on configured grace period?');">
+                            <i class="bi bi-lightning-charge me-1"></i> Apply Late Fees
+                        </button>
+                    </form>
+                    <span class="text-muted small mt-1 d-block">Grace period check</span>
+                </div>
+                <div class="stat-card-icon bg-warning-subtle text-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick House Payment Breakdown Bar -->
+<div class="card card-custom bg-white p-3 mb-4 shadow-sm">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="fw-bold text-dark small text-uppercase">
+            <i class="bi bi-houses-fill text-primary me-1"></i> House Payment Status Overview ({{ selected_month }}/{{ selected_year }}):
+        </div>
+        <div class="d-flex gap-2 flex-wrap small">
+            <span class="badge bg-light text-dark border px-3 py-2">Total Houses: <strong>{{ counts.total }}</strong></span>
+            <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2"><i class="bi bi-check2-circle me-1"></i> Paid On-Time: <strong>{{ counts.paid }}</strong></span>
+            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2"><i class="bi bi-clock-history me-1"></i> Paid Late: <strong>{{ counts.paid_late }}</strong></span>
+            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-3 py-2"><i class="bi bi-pie-chart me-1"></i> Partially Paid: <strong>{{ counts.partial }}</strong></span>
+            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2"><i class="bi bi-exclamation-octagon me-1"></i> Unpaid / Arrears: <strong>{{ counts.unpaid }}</strong></span>
+            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-3 py-2"><i class="bi bi-door-open me-1"></i> Vacant: <strong>{{ counts.vacant }}</strong></span>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs: Invoices vs Payments vs House Status Tracker -->
+<ul class="nav nav-tabs mb-4" id="billingTab" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link {% if active_tab == 'invoices' %}active{% endif %} fw-semibold" id="invoices-tab" data-bs-toggle="tab" data-bs-target="#tab-invoices" type="button">
+            <i class="bi bi-receipt me-1 text-primary"></i> Rent Invoices & Charges ({{ charges|length }})
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link {% if active_tab == 'payments' %}active{% endif %} fw-semibold" id="payments-tab" data-bs-toggle="tab" data-bs-target="#tab-payments" type="button">
+            <i class="bi bi-cash-coin me-1 text-primary"></i> Payment Ledger & Receipts ({{ payments|length }})
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link {% if active_tab == 'houses' %}active{% endif %} fw-semibold" id="houses-tab" data-bs-toggle="tab" data-bs-target="#tab-houses" type="button">
+            <i class="bi bi-house-check-fill me-1 text-success"></i> House Payment Status Tracker ({{ unit_performance|length }})
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="billingTabContent">
+
+    <!-- Tab 1: Invoices -->
+    <div class="tab-pane fade {% if active_tab == 'invoices' %}show active{% endif %}" id="tab-invoices" role="tabpanel">
+        <div class="card card-custom bg-white mb-3 p-3">
+            <form method="GET" action="{{ url_for('billing.index') }}" class="row g-2 align-items-center">
+                <input type="hidden" name="tab" value="invoices">
+                <div class="col-md-3">
+                    <label class="form-label small text-muted mb-0">Search Tenant / Invoice</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                        <input type="text" name="search" class="form-control" placeholder="Name, phone, invoice..." value="{{ search or '' }}">
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small text-muted mb-0">Billing Month</label>
+                    <select name="month" class="form-select form-select-sm">
+                        {% for m in range(1, 13) %}
+                        <option value="{{ m }}" {% if selected_month == m %}selected{% endif %}>Month {{ m }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small text-muted mb-0">Billing Year</label>
+                    <select name="year" class="form-select form-select-sm">
+                        <option value="2026" {% if selected_year == 2026 %}selected{% endif %}>2026</option>
+                        <option value="2025" {% if selected_year == 2025 %}selected{% endif %}>2025</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small text-muted mb-0">Status</label>
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="">All Statuses</option>
+                        <option value="UNPAID" {% if selected_status == 'UNPAID' %}selected{% endif %}>Unpaid</option>
+                        <option value="PARTIALLY_PAID" {% if selected_status == 'PARTIALLY_PAID' %}selected{% endif %}>Partially Paid</option>
+                        <option value="PAID" {% if selected_status == 'PAID' %}selected{% endif %}>Fully Paid</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-outline-primary btn-sm w-100">
+                        <i class="bi bi-filter me-1"></i> Search / Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card card-custom bg-white">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small">
+                            <tr>
+                                <th class="ps-3">Invoice Number</th>
+                                <th>Rental Unit</th>
+                                <th>Tenant</th>
+                                <th>Charge Type</th>
+                                <th>Due Date</th>
+                                <th>Amount</th>
+                                <th>Paid</th>
+                                <th>Balance</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for c in charges %}
+                            <tr>
+                                <td class="ps-3 fw-bold text-primary">{{ c.invoice_number }}</td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">
+                                        {{ c.rental_unit.unit_number }} ({{ c.rental_unit.property.name }})
+                                    </span>
+                                </td>
+                                <td>{{ c.tenant.full_name }}</td>
+                                <td><span class="badge bg-light text-dark border">{{ c.charge_type }}</span></td>
+                                <td>{{ c.due_date.strftime('%d/%m/%Y') }}</td>
+                                <td class="fw-semibold">{{ c.amount_display }}</td>
+                                <td class="text-success">{{ c.paid_display }}</td>
+                                <td class="fw-bold {% if c.balance_cents > 0 %}text-danger{% else %}text-muted{% endif %}">{{ c.balance_display }}</td>
+                                <td>
+                                    {% if c.status == 'PAID' %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">Paid</span>
+                                    {% elif c.status == 'PARTIALLY_PAID' %}
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Partial</span>
+                                    {% else %}
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Unpaid</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="9" class="text-center text-muted py-5">
+                                    <i class="bi bi-inbox fs-1 text-secondary mb-2 d-block"></i>
+                                    <h5>No Invoices for Period {{ selected_month }}/{{ selected_year }}</h5>
+                                    <p class="small mb-0">Click "Run Monthly Billing" above to automatically generate rent charges for active leases.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: Payments -->
+    <div class="tab-pane fade {% if active_tab == 'payments' %}show active{% endif %}" id="tab-payments" role="tabpanel">
+        <div class="card card-custom bg-white">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small">
+                            <tr>
+                                <th class="ps-3">Receipt Number</th>
+                                <th>Date</th>
+                                <th>Tenant</th>
+                                <th>Unit</th>
+                                <th>Payment Method</th>
+                                <th>Transaction Ref</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                                <th class="text-end pe-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for p in payments %}
+                            <tr>
+                                <td class="ps-3 fw-bold text-primary">{{ p.receipt_number }}</td>
+                                <td>{{ p.payment_date.strftime('%d/%m/%Y') }}</td>
+                                <td>{{ p.tenant.full_name }}</td>
+                                <td><span class="badge bg-light text-dark border">{{ p.rental_unit.unit_number }}</span></td>
+                                <td>{{ p.payment_method }}</td>
+                                <td><code>{{ p.transaction_reference or '—' }}</code></td>
+                                <td class="fw-bold text-success">{{ p.amount_display }}</td>
+                                <td>
+                                    {% if p.payment_status == 'CONFIRMED' %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">Confirmed</span>
+                                    {% elif p.payment_status == 'REVERSED' %}
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Reversed</span>
+                                    {% else %}
+                                    <span class="badge bg-warning-subtle text-warning">{{ p.payment_status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-3">
+                                    <div class="d-inline-flex gap-1">
+                                        <!-- Printable Receipt -->
+                                        <a href="{{ url_for('billing.view_receipt', payment_id=p.id) }}" class="btn btn-outline-primary btn-sm" title="View / Print Receipt">
+                                            <i class="bi bi-printer"></i>
+                                        </a>
+                                        <!-- Download PDF -->
+                                        <a href="{{ url_for('billing.download_receipt_pdf', payment_id=p.id) }}" class="btn btn-outline-secondary btn-sm" title="Download PDF Receipt">
+                                            <i class="bi bi-file-earmark-pdf"></i>
+                                        </a>
+
+                                        {% if p.payment_status == 'CONFIRMED' and current_user.has_permission('billing.manage') %}
+                                        <!-- Reverse Payment Modal Trigger -->
+                                        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#reverseModal{{ p.id }}" title="Reverse Payment">
+                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Reversal Modal -->
+                                    {% if p.payment_status == 'CONFIRMED' %}
+                                    <div class="modal fade text-start" id="reverseModal{{ p.id }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title fw-bold">Reverse Payment {{ p.receipt_number }}</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <form method="POST" action="{{ url_for('billing.reverse_payment', payment_id=p.id) }}">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                    <div class="modal-body">
+                                                        <div class="alert alert-danger small">
+                                                            <i class="bi bi-exclamation-octagon-fill me-1"></i> Reversing this payment of <strong>{{ p.amount_display }}</strong> will un-allocate all settled charges, mark the payment as REVERSED, and create an immutable audit record.
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-semibold">Reason for Reversal</label>
+                                                            <textarea name="reversal_reason" class="form-control" rows="2" placeholder="e.g. Bounced cheque, wrong tenant account entered, duplicate entry..." required></textarea>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                                        <button type="submit" class="btn btn-danger">Confirm Payment Reversal</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="9" class="text-center text-muted py-5">
+                                    <i class="bi bi-cash fs-1 text-secondary mb-2 d-block"></i>
+                                    <h5>No Payments Recorded</h5>
+                                    <p class="small mb-0">Record your first rent collection using the button above.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 3: House Payment Status Tracker -->
+    <div class="tab-pane fade {% if active_tab == 'houses' %}show active{% endif %}" id="tab-houses" role="tabpanel">
+        <div class="card card-custom bg-white mb-3 p-3">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" class="btn btn-sm btn-outline-dark filter-house-btn active" data-filter="all">All Houses ({{ unit_performance|length }})</button>
+                    <button type="button" class="btn btn-sm btn-outline-success filter-house-btn" data-filter="PAID"><i class="bi bi-check2-circle me-1"></i> Paid On-Time ({{ counts.paid }})</button>
+                    <button type="button" class="btn btn-sm btn-outline-warning text-dark filter-house-btn" data-filter="PAID_LATE"><i class="bi bi-clock-history me-1"></i> Paid Late ({{ counts.paid_late }})</button>
+                    <button type="button" class="btn btn-sm btn-outline-info text-dark filter-house-btn" data-filter="PARTIAL"><i class="bi bi-pie-chart me-1"></i> Partial ({{ counts.partial }})</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger filter-house-btn" data-filter="UNPAID"><i class="bi bi-exclamation-octagon me-1"></i> Unpaid / Arrears ({{ counts.unpaid }})</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary filter-house-btn" data-filter="VACANT"><i class="bi bi-door-open me-1"></i> Vacant ({{ counts.vacant }})</button>
+                </div>
+                <div>
+                    <a href="{{ url_for('properties.export_vacant_excel') }}" class="btn btn-outline-success btn-sm">
+                        <i class="bi bi-file-earmark-excel-fill me-1"></i> Export Vacant Houses (.xlsx)
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card card-custom bg-white">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="housePerformanceTable">
+                        <thead class="table-light small">
+                            <tr>
+                                <th class="ps-3">Unit Number</th>
+                                <th>Property & Building</th>
+                                <th>Type</th>
+                                <th>Current Tenant</th>
+                                <th>Billed (Rent)</th>
+                                <th>Paid</th>
+                                <th>Balance Due</th>
+                                <th>House Payment Status</th>
+                                <th class="text-end pe-3">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for item in unit_performance %}
+                            <tr class="house-row" data-status="{{ item.status_tag }}">
+                                <td class="ps-3 fw-bold text-primary">
+                                    {{ item.unit.unit_number }}
+                                </td>
+                                <td>
+                                    <div class="fw-semibold text-dark">{{ item.unit.property.name if item.unit.property else '—' }}</div>
+                                    <small class="text-muted">{{ item.unit.building.name if item.unit.building else '' }}</small>
+                                </td>
+                                <td><span class="badge bg-light text-dark border">{{ item.unit.unit_type }}</span></td>
+                                <td>
+                                    {% if item.status_tag == 'VACANT' %}
+                                    <span class="text-muted italic">Vacant — Available to Let</span>
+                                    {% else %}
+                                    <span class="fw-semibold">{{ item.tenant_name }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="fw-bold">{{ item.billed_cents | currency }}</td>
+                                <td class="text-success fw-bold">{{ item.paid_cents | currency }}</td>
+                                <td class="{% if item.balance_cents > 0 %}text-danger fw-bold{% else %}text-muted{% endif %}">
+                                    {{ item.balance_cents | currency }}
+                                </td>
+                                <td>
+                                    {% if item.status_tag == 'PAID' %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                                        <i class="bi bi-check-circle-fill me-1"></i> Paid On-Time
+                                    </span>
+                                    {% elif item.status_tag == 'PAID_LATE' %}
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1">
+                                        <i class="bi bi-clock-history me-1"></i> Paid Late (Penalty)
+                                    </span>
+                                    {% elif item.status_tag == 'PARTIAL' %}
+                                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-2 py-1">
+                                        <i class="bi bi-pie-chart-fill me-1"></i> Partially Paid
+                                    </span>
+                                    {% elif item.status_tag == 'UNPAID' %}
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Unpaid (Arrears)
+                                    </span>
+                                    {% elif item.status_tag == 'VACANT' %}
+                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">
+                                        <i class="bi bi-door-open me-1"></i> Vacant
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-light text-dark border">{{ item.status_tag }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-3">
+                                    {% if item.status_tag == 'VACANT' %}
+                                    <a href="{{ url_for('bookings.index') }}" class="btn btn-outline-primary btn-sm py-0 px-2">Reserve</a>
+                                    {% elif item.balance_cents > 0 %}
+                                    <button type="button" class="btn btn-primary-custom btn-sm py-0 px-2" data-bs-toggle="modal" data-bs-target="#recordPaymentModal">Collect</button>
+                                    {% else %}
+                                    <span class="text-success small fw-semibold"><i class="bi bi-check2"></i> Cleared</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal: Run Monthly Billing -->
+<div class="modal fade" id="generateMonthlyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Execute Monthly Rent Invoicing</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('billing.generate_monthly') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <p class="small text-muted">This will automatically generate rent invoices for all tenants with active leases. Units already billed for this month will be skipped to prevent duplication.</p>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Billing Month</label>
+                            <select name="month" class="form-select">
+                                {% for m in range(1, 13) %}
+                                <option value="{{ m }}" {% if selected_month == m %}selected{% endif %}>Month {{ m }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Billing Year</label>
+                            <select name="year" class="form-select">
+                                <option value="2026">2026</option>
+                                <option value="2025">2025</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-custom">Run Billing Now</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Record Payment -->
+<div class="modal fade" id="recordPaymentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Record & Allocate Rent Payment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('billing.record_payment') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <label class="form-label small fw-semibold">Select Tenant</label>
+                            <select name="tenant_id" class="form-select" required>
+                                <option value="" disabled selected>Select Active Tenant...</option>
+                                {% for t in active_tenants %}
+                                <option value="{{ t.id }}">{{ t.full_name }} (Unit: {{ t.current_unit.unit_number if t.current_unit else 'None' }} - {{ t.phone }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Amount Paid ({{ currency }})</label>
+                            <input type="number" step="0.01" name="amount" class="form-control" placeholder="e.g. 25000" required>
+                            <div class="form-text">Will be automatically allocated to oldest unpaid rent invoices.</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Payment Method</label>
+                            <select name="payment_method" class="form-select" required>
+                                {% for code, label in payment_methods %}
+                                <option value="{{ code }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Payment Date</label>
+                            <input type="date" name="payment_date" class="form-control" value="{{ selected_year }}-{{ '%02d' % selected_month }}-01">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Transaction Reference / Cheque No.</label>
+                            <input type="text" name="transaction_reference" class="form-control" placeholder="e.g. QWE123XYZ or CHQ-0012">
+                            <div class="form-text">Duplicates are checked and prevented automatically.</div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Description / Remarks</label>
+                            <textarea name="description" class="form-control" rows="2" placeholder="e.g. November rent payment via M-Pesa..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-custom">Confirm & Issue Receipt</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.filter-house-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.filter-house-btn').forEach(b => b.classList.remove('active', 'btn-dark'));
+        this.classList.add('active');
+
+        const filter = this.getAttribute('data-filter');
+        const rows = document.querySelectorAll('.house-row');
+
+        rows.forEach(row => {
+            const status = row.getAttribute('data-status');
+            if (filter === 'all' || status === filter) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+
+

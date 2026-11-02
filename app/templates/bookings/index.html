@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+
+{% block title %}House Reservations & Bookings - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h3 class="fw-bold mb-0">House Reservations & Bookings</h3>
+        <p class="text-muted small mb-0">Reserve vacant units, collect holding deposits, prevent double-bookings, and convert reservations into active tenancies.</p>
+    </div>
+    {% if current_user.has_permission('bookings.manage') %}
+    <button type="button" class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#createBookingModal">
+        <i class="bi bi-calendar-plus me-1"></i> New House Reservation
+    </button>
+    {% endif %}
+</div>
+
+<!-- Booking Status Filter & Search -->
+<div class="card card-custom bg-white p-3 mb-4 shadow-sm">
+    <div class="row g-2 align-items-center">
+        <div class="col-lg-8">
+            <div class="btn-group flex-wrap" role="group">
+                <a href="{{ url_for('bookings.index') }}" class="btn btn-sm {% if not selected_status %}btn-primary-custom{% else %}btn-outline-secondary{% endif %}">
+                    All Records ({{ bookings|length }})
+                </a>
+                <a href="{{ url_for('bookings.index', status='PENDING') }}" class="btn btn-sm {% if selected_status == 'PENDING' %}btn-warning text-dark fw-bold{% else %}btn-outline-warning text-dark{% endif %} position-relative">
+                    <i class="bi bi-clock-history me-1"></i> Web Inquiries &amp; Viewings
+                    {% if pending_count > 0 %}
+                    <span class="badge bg-danger rounded-pill ms-1">{{ pending_count }}</span>
+                    {% endif %}
+                </a>
+                <a href="{{ url_for('bookings.index', status='ACTIVE') }}" class="btn btn-sm {% if selected_status == 'ACTIVE' %}btn-primary-custom{% else %}btn-outline-secondary{% endif %}">
+                    <i class="bi bi-bookmark-check me-1"></i> Active Holding
+                    {% if active_count > 0 %}
+                    <span class="badge bg-primary rounded-pill ms-1">{{ active_count }}</span>
+                    {% endif %}
+                </a>
+                <a href="{{ url_for('bookings.index', status='CONFIRMED_MOVE_IN') }}" class="btn btn-sm {% if selected_status == 'CONFIRMED_MOVE_IN' %}btn-primary-custom{% else %}btn-outline-secondary{% endif %}">
+                    <i class="bi bi-door-closed me-1"></i> Moved In / Tenancies
+                </a>
+                <a href="{{ url_for('bookings.index', status='CANCELLED') }}" class="btn btn-sm {% if selected_status == 'CANCELLED' %}btn-primary-custom{% else %}btn-outline-secondary{% endif %}">
+                    Cancelled
+                </a>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <form method="GET" action="{{ url_for('bookings.index') }}" class="d-flex">
+                {% if selected_status %}<input type="hidden" name="status" value="{{ selected_status }}">{% endif %}
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" name="search" class="form-control" placeholder="Search applicant, phone, ref..." value="{{ search or '' }}">
+                    <button class="btn btn-primary" type="submit">Filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Bookings Table -->
+<div class="card card-custom bg-white">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light small">
+                    <tr>
+                        <th class="ps-3">Reference</th>
+                        <th>Reserved Unit</th>
+                        <th>Prospective Tenant</th>
+                        <th>Telephone</th>
+                        <th>Expected Move-In</th>
+                        <th>Deposit Held</th>
+                        <th>Expiry Date</th>
+                        <th>Status</th>
+                        <th class="text-end pe-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="small">
+                    {% for b in bookings %}
+                    <tr>
+                        <td class="ps-3 fw-bold text-primary">{{ b.booking_reference }}</td>
+                        <td>
+                            <span class="badge bg-light text-dark border">
+                                {{ b.rental_unit.unit_number }} ({{ b.rental_unit.property.name }})
+                            </span>
+                        </td>
+                        <td class="fw-semibold">{{ b.prospective_name }}</td>
+                        <td>{{ b.prospective_phone }}</td>
+                        <td>{{ b.expected_move_in_date.strftime('%d/%m/%Y') }}</td>
+                        <td class="fw-bold text-success">{{ b.deposit_display }}</td>
+                        <td>
+                            <span class="text-muted">{{ b.expiry_date.strftime('%d/%m/%Y') }}</span>
+                        </td>
+                        <td>
+                            {% if b.status == 'PENDING' %}
+                            <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i> Web Inquiry</span>
+                            {% elif b.status == 'ACTIVE' %}
+                            <span class="badge badge-reserved">Active Holding</span>
+                            {% elif b.status == 'CONFIRMED_MOVE_IN' %}
+                            <span class="badge badge-occupied">Moved In</span>
+                            {% elif b.status == 'CANCELLED' %}
+                            <span class="badge bg-secondary-subtle text-secondary border">Cancelled</span>
+                            {% else %}
+                            <span class="badge bg-danger-subtle text-danger">{{ b.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-3">
+                            {% if b.status == 'PENDING' and current_user.has_permission('bookings.manage') %}
+                            <div class="d-inline-flex gap-1 align-items-center">
+                                <button type="button" class="btn btn-primary btn-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#inquiryModal{{ b.id }}" title="Review Web Inquiry & Allocate">
+                                    <i class="bi bi-person-check-fill me-1"></i> Review &amp; Allocate
+                                </button>
+                                <a href="https://wa.me/{{ b.prospective_phone|replace('+','')|replace(' ','')|replace('-','') }}?text=Hello%20{{ b.prospective_name }}%2C%20regarding%20your%20inquiry%20for%20Unit%20{{ b.rental_unit.unit_number }}%20at%20{{ b.rental_unit.property.name }}..." target="_blank" class="btn btn-outline-success btn-sm" title="WhatsApp Applicant">
+                                    <i class="bi bi-whatsapp"></i>
+                                </a>
+                                <a href="tel:{{ b.prospective_phone }}" class="btn btn-outline-secondary btn-sm" title="Call Applicant">
+                                    <i class="bi bi-telephone-fill"></i>
+                                </a>
+                                <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#cancelModal{{ b.id }}" title="Decline Inquiry">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </div>
+                            {% elif b.status == 'ACTIVE' and current_user.has_permission('bookings.manage') %}
+                            <div class="d-inline-flex gap-1 align-items-center">
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#inquiryModal{{ b.id }}" title="View Dossier">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <form method="POST" action="{{ url_for('bookings.convert_to_tenancy', booking_id=b.id) }}" onsubmit="return confirm('Confirm move-in? This will establish active lease and assign Unit {{ b.rental_unit.unit_number }} to {{ b.prospective_name }}.');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="btn btn-success btn-sm fw-semibold" title="Complete Move-In">
+                                        <i class="bi bi-check-lg me-1"></i> Move In
+                                    </button>
+                                </form>
+                                <a href="https://wa.me/{{ b.prospective_phone|replace('+','')|replace(' ','')|replace('-','') }}" target="_blank" class="btn btn-outline-success btn-sm" title="WhatsApp Applicant">
+                                    <i class="bi bi-whatsapp"></i>
+                                </a>
+                                <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#cancelModal{{ b.id }}" title="Cancel Booking">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </div>
+                            {% else %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#inquiryModal{{ b.id }}" title="View Details">
+                                <i class="bi bi-eye"></i> View
+                            </button>
+                            {% endif %}
+
+                            <!-- Review & Allocate Inquiry Modal -->
+                            <div class="modal fade text-start" id="inquiryModal{{ b.id }}" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog modal-lg">
+                                    <div class="modal-content">
+                                        <div class="modal-header bg-light">
+                                            <div>
+                                                <h5 class="modal-title fw-bold mb-0">
+                                                    <i class="bi bi-house-door-fill text-primary me-2"></i>
+                                                    {% if b.status == 'PENDING' %}Review Web Inquiry &amp; Allocate House{% else %}Reservation Details{% endif %}
+                                                </h5>
+                                                <small class="text-muted">Reference: <strong class="text-primary">{{ b.booking_reference }}</strong> • Logged: {{ b.created_at.strftime('%d/%m/%Y %H:%M') if b.created_at else '—' }}</small>
+                                            </div>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body p-4">
+                                            <div class="row g-3 mb-4">
+                                                <div class="col-md-6">
+                                                    <div class="p-3 border rounded bg-light-subtle h-100">
+                                                        <h6 class="fw-bold text-dark border-bottom pb-2 mb-3"><i class="bi bi-person-circle me-1 text-primary"></i> Prospective Tenant Details</h6>
+                                                        <p class="mb-2"><strong class="text-muted small d-block">Full Name:</strong> <span class="fs-6 fw-bold text-dark">{{ b.prospective_name }}</span></p>
+                                                        <p class="mb-2"><strong class="text-muted small d-block">Telephone / WhatsApp:</strong> <span class="fw-bold">{{ b.prospective_phone }}</span></p>
+                                                        <p class="mb-2"><strong class="text-muted small d-block">Email Address:</strong> <span>{{ b.prospective_email or 'Not provided' }}</span></p>
+                                                        <p class="mb-0"><strong class="text-muted small d-block">National ID / Passport:</strong> <span class="badge bg-secondary-subtle text-secondary border">{{ b.prospective_id_number or 'Not provided' }}</span></p>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="p-3 border rounded bg-light-subtle h-100">
+                                                        <h6 class="fw-bold text-dark border-bottom pb-2 mb-3"><i class="bi bi-building me-1 text-primary"></i> Target Rental Unit</h6>
+                                                        <p class="mb-2"><strong class="text-muted small d-block">Property &amp; Unit:</strong> <span class="fw-bold fs-6 text-primary">Unit {{ b.rental_unit.unit_number }}</span> — {{ b.rental_unit.property.name }}</p>
+                                                        <p class="mb-2"><strong class="text-muted small d-block">Monthly Rent:</strong> <span class="fw-bold text-success">KES {{ '{:,.2f}'.format(b.rental_unit.rent_amount_cents / 100) }}</span></p>
+                                                        <p class="mb-2"><strong class="text-muted small d-block">Required Deposit:</strong> <span>KES {{ '{:,.2f}'.format(b.rental_unit.deposit_amount_cents / 100) }}</span></p>
+                                                        <p class="mb-0"><strong class="text-muted small d-block">Preferred Move-In / Viewing Date:</strong> <span class="fw-bold text-dark">{{ b.expected_move_in_date.strftime('%A, %d %B %Y') }}</span></p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="mb-4">
+                                                <h6 class="fw-bold text-dark mb-2"><i class="bi bi-chat-left-quote me-1 text-secondary"></i> Questions / Special Notes from Tenant:</h6>
+                                                <div class="p-3 bg-light rounded border text-secondary" style="min-height: 60px;">
+                                                    {{ b.notes or 'No specific questions or preferences submitted with this request.' }}
+                                                </div>
+                                            </div>
+
+                                            <div class="d-flex align-items-center gap-2 flex-wrap p-3 rounded border bg-light">
+                                                <span class="small fw-bold text-muted me-auto">Direct Contact:</span>
+                                                <a href="https://wa.me/{{ b.prospective_phone|replace('+','')|replace(' ','')|replace('-','') }}?text=Hello%20{{ b.prospective_name }}%2C%20thank%20you%20for%20inquiring%20about%20Unit%20{{ b.rental_unit.unit_number }}%20at%20{{ b.rental_unit.property.name }}.%20We%20are%20pleased%20to%20assist%20you..." target="_blank" class="btn btn-success btn-sm">
+                                                    <i class="bi bi-whatsapp me-1"></i> WhatsApp {{ b.prospective_name }}
+                                                </a>
+                                                <a href="tel:{{ b.prospective_phone }}" class="btn btn-outline-dark btn-sm">
+                                                    <i class="bi bi-telephone-fill me-1"></i> Call Phone
+                                                </a>
+                                                {% if b.prospective_email %}
+                                                <a href="mailto:{{ b.prospective_email }}?subject=Inquiry%20Update:%20Unit%20{{ b.rental_unit.unit_number }}%20{{ b.rental_unit.property.name }}" class="btn btn-outline-secondary btn-sm">
+                                                    <i class="bi bi-envelope-fill me-1"></i> Email
+                                                </a>
+                                                {% endif %}
+                                            </div>
+
+                                            {% if b.status == 'PENDING' and current_user.has_permission('bookings.manage') %}
+                                            <hr class="my-4">
+                                            <div class="row g-3">
+                                                <div class="col-md-6">
+                                                    <div class="card h-100 border-primary">
+                                                        <div class="card-body">
+                                                            <h6 class="card-title fw-bold text-primary"><i class="bi bi-key-fill me-1"></i> Option 1: Allocate &amp; Move-In Immediately</h6>
+                                                            <p class="card-text small text-muted">Establishes active tenant account, generates lease agreement, and marks Unit {{ b.rental_unit.unit_number }} as <strong>OCCUPIED</strong>.</p>
+                                                            <form method="POST" action="{{ url_for('bookings.convert_to_tenancy', booking_id=b.id) }}" onsubmit="return confirm('Allocate Unit {{ b.rental_unit.unit_number }} and complete move-in for {{ b.prospective_name }}?');">
+                                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                                <button type="submit" class="btn btn-primary w-100 fw-bold">
+                                                                    <i class="bi bi-check-circle-fill me-1"></i> Allocate House &amp; Move In
+                                                                </button>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="card h-100 border-warning">
+                                                        <div class="card-body">
+                                                            <h6 class="card-title fw-bold text-warning-emphasis"><i class="bi bi-bookmark-check-fill me-1"></i> Option 2: Approve &amp; Hold / Reserve</h6>
+                                                            <p class="card-text small text-muted">Holds Unit {{ b.rental_unit.unit_number }} as <strong>RESERVED</strong> while client finishes viewing or pays holding deposit.</p>
+                                                            <form method="POST" action="{{ url_for('bookings.approve_booking', booking_id=b.id) }}">
+                                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                                <div class="input-group input-group-sm mb-2">
+                                                                    <span class="input-group-text">Deposit KES</span>
+                                                                    <input type="number" step="0.01" name="holding_deposit" class="form-control" placeholder="0.00" value="0">
+                                                                </div>
+                                                                <button type="submit" class="btn btn-warning w-100 fw-bold">
+                                                                    <i class="bi bi-bookmark-fill me-1"></i> Approve &amp; Reserve Unit
+                                                                </button>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% elif b.status == 'ACTIVE' and current_user.has_permission('bookings.manage') %}
+                                            <hr class="my-4">
+                                            <div class="p-3 border rounded bg-success-subtle d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <h6 class="fw-bold text-success mb-1">Unit Reserved &amp; Ready for Move-In</h6>
+                                                    <p class="small text-muted mb-0">Deposit held: <strong>{{ b.deposit_display }}</strong></p>
+                                                </div>
+                                                <form method="POST" action="{{ url_for('bookings.convert_to_tenancy', booking_id=b.id) }}" onsubmit="return confirm('Confirm move-in? This will establish active lease and assign Unit {{ b.rental_unit.unit_number }} to {{ b.prospective_name }}.');">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                    <button type="submit" class="btn btn-success fw-bold">
+                                                        <i class="bi bi-check-lg me-1"></i> Complete Move-In Now
+                                                    </button>
+                                                </form>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Cancel / Decline Modal -->
+                            <div class="modal fade text-start" id="cancelModal{{ b.id }}" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title fw-bold">{% if b.status == 'PENDING' %}Decline Inquiry{% else %}Cancel Reservation{% endif %} {{ b.booking_reference }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <form method="POST" action="{{ url_for('bookings.cancel_booking', booking_id=b.id) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <div class="modal-body">
+                                                <p class="small text-muted">This will close the inquiry and ensure Unit <strong>{{ b.rental_unit.unit_number }}</strong> remains available on the public website.</p>
+                                                <div class="mb-3">
+                                                    <label class="form-label small fw-semibold">Reason for Decline / Cancellation</label>
+                                                    <input type="text" name="cancel_reason" class="form-control" placeholder="e.g. Client changed mind, unit already allocated..." required>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+                                                <button type="submit" class="btn btn-danger">Confirm</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-5">
+                            <i class="bi bi-calendar-x fs-1 text-secondary mb-2 d-block"></i>
+                            <h5>No Reservations Found</h5>
+                            <p class="small mb-0">Reserve a vacant house when prospective tenants pay a holding deposit.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Create Booking -->
+<div class="modal fade" id="createBookingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Reserve a Vacant House / Apartment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('bookings.create_booking') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <label class="form-label small fw-semibold">Select Available Vacant Unit</label>
+                            <select name="rental_unit_id" class="form-select" required>
+                                <option value="" disabled selected>Select from Vacant Units...</option>
+                                {% for u in vacant_units %}
+                                <option value="{{ u.id }}">{{ u.unit_number }} - {{ u.property.name }} ({{ u.unit_type }} - {{ u.rent_display }}/mo)</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text text-muted">Only vacant units are eligible for reservation. Double-booking is strictly prevented.</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Prospective Tenant Name</label>
+                            <input type="text" name="prospective_name" class="form-control" placeholder="e.g. Peter Ochieng" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Telephone Number</label>
+                            <input type="text" name="prospective_phone" class="form-control" placeholder="e.g. +254711223344" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Email Address (Optional)</label>
+                            <input type="email" name="prospective_email" class="form-control" placeholder="e.g. peter@gmail.com">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">National ID / Passport (Optional)</label>
+                            <input type="text" name="prospective_id_number" class="form-control" placeholder="e.g. 31234567">
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Expected Move-In Date</label>
+                            <input type="date" name="expected_move_in_date" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Booking / Holding Deposit ({{ currency }})</label>
+                            <input type="number" step="0.01" name="booking_deposit" class="form-control" placeholder="e.g. 5000">
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Reservation Expiry Date</label>
+                            <input type="date" name="expiry_date" class="form-control">
+                            <div class="form-text">Defaults to 7 days from today if blank.</div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Notes / Special Agreements</label>
+                            <textarea name="notes" class="form-control" rows="2" placeholder="e.g. Balance to be paid via M-Pesa on move-in day..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-custom">Confirm Reservation</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}Bank Accounts & Reconciliation - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h3 class="fw-bold mb-0">Bank Accounts & Statement Reconciliation</h3>
+        <p class="text-muted small mb-0">Manage landlord and property bank accounts, import CSV/Excel bank statements, and reconcile unmatched deposits.</p>
+    </div>
+    {% if current_user.has_permission('banking.manage') %}
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#uploadStatementModal">
+            <i class="bi bi-cloud-arrow-up-fill me-1"></i> Upload Statement
+        </button>
+        <button type="button" class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#createAccountModal">
+            <i class="bi bi-bank me-1"></i> Add Bank Account
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Active Bank Accounts Cards -->
+<div class="row g-3 mb-4">
+    {% for acc in accounts %}
+    <div class="col-md-4">
+        <div class="card card-custom bg-white p-3 h-100">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ acc.bank_name }}</span>
+                <span class="badge bg-success-subtle text-success">Active</span>
+            </div>
+            <h5 class="fw-bold mb-1">{{ acc.account_name }}</h5>
+            <div class="text-muted small">A/C: <code>{{ acc.account_number }}</code></div>
+            {% if acc.branch %}<div class="text-muted small">Branch: {{ acc.branch }}</div>{% endif %}
+            <div class="text-muted small mt-2 pt-2 border-top">
+                Currency: <strong>{{ acc.currency }}</strong>
+                {% if acc.property %} • {{ acc.property.name }}{% endif %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="card card-custom bg-white p-4 text-center text-muted">
+            <i class="bi bi-bank fs-2 text-secondary mb-2 d-block"></i>
+            No bank accounts configured. Click "Add Bank Account" to configure one.
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Unmatched Reconciliation Queue -->
+<div class="card card-custom bg-white mb-4">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <div>
+            <h6 class="fw-bold mb-0 text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i> Unmatched Transactions Queue ({{ queue|length }})</h6>
+            <small class="text-muted">Bank credits requiring manual verification and allocation to a tenant account.</small>
+        </div>
+        <span class="badge bg-danger-subtle text-danger px-3 py-2 fw-semibold">Action Required</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light small">
+                    <tr>
+                        <th class="ps-3">Date</th>
+                        <th>Reference</th>
+                        <th>Narration / Particulars</th>
+                        <th>Amount</th>
+                        <th class="text-end pe-3">Reconciliation Action</th>
+                    </tr>
+                </thead>
+                <tbody class="small">
+                    {% for tx in queue %}
+                    <tr>
+                        <td class="ps-3">{{ tx.transaction_date.strftime('%d/%m/%Y') }}</td>
+                        <td><code>{{ tx.reference }}</code></td>
+                        <td>{{ tx.description }}</td>
+                        <td class="fw-bold text-success">{{ tx.amount_display }}</td>
+                        <td class="text-end pe-3">
+                            <div class="d-inline-flex gap-1">
+                                <button type="button" class="btn btn-primary-custom btn-sm" data-bs-toggle="modal" data-bs-target="#reconcileModal{{ tx.id }}">
+                                    <i class="bi bi-check2-circle me-1"></i> Reconcile
+                                </button>
+                                <form method="POST" action="{{ url_for('banking.ignore_transaction', transaction_id=tx.id) }}" class="d-inline" onsubmit="return confirm('Ignore this transaction from queue?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="btn btn-outline-secondary btn-sm" title="Ignore">
+                                        <i class="bi bi-eye-slash"></i>
+                                    </button>
+                                </form>
+                            </div>
+
+                            <!-- Reconcile Modal -->
+                            <div class="modal fade text-start" id="reconcileModal{{ tx.id }}" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title fw-bold">Reconcile Bank Deposit: {{ tx.amount_display }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <form method="POST" action="{{ url_for('banking.reconcile_transaction', transaction_id=tx.id) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <div class="modal-body">
+                                                <div class="bg-light p-3 rounded mb-3 small border">
+                                                    <div>Ref: <strong>{{ tx.reference }}</strong></div>
+                                                    <div>Narration: <em>{{ tx.description }}</em></div>
+                                                    <div>Date: {{ tx.transaction_date.strftime('%d/%m/%Y') }}</div>
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label small fw-semibold">Select Tenant to Credit</label>
+                                                    <select name="tenant_id" class="form-select" required>
+                                                        <option value="" disabled selected>Select Active Tenant...</option>
+                                                        {% for t in tenants %}
+                                                        <option value="{{ t.id }}">{{ t.full_name }} (Unit: {{ t.current_unit.unit_number if t.current_unit else 'None' }})</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                    <div class="form-text">Payment will be confirmed and allocated to oldest unpaid rent invoices automatically.</div>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="btn btn-primary-custom">Confirm & Issue Receipt</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-5">
+                            <i class="bi bi-check-all fs-2 text-success mb-2 d-block"></i>
+                            Reconciliation queue is completely cleared! No unmatched bank deposits.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Upload Statement -->
+<div class="modal fade" id="uploadStatementModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Import Bank Statement</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('banking.upload_statement') }}" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Target Bank Account</label>
+                        <select name="bank_account_id" class="form-select" required>
+                            <option value="" disabled selected>Select Bank Account...</option>
+                            {% for a in accounts %}
+                            <option value="{{ a.id }}">{{ a.bank_name }} - {{ a.account_number }} ({{ a.account_name }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Statement File (.CSV or .XLSX)</label>
+                        <input type="file" name="statement_file" class="form-control" accept=".csv, .xlsx, .xls" required>
+                        <div class="form-text">Supports Equity Bank, KCB, Co-operative, Stanbic, Absa, and NCBA statement exports.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-custom">Upload & Match</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Create Bank Account -->
+<div class="modal fade" id="createAccountModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Add New Bank Account</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('banking.create_account') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Bank Name</label>
+                            <input type="text" name="bank_name" class="form-control" placeholder="e.g. Equity Bank" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Account Number</label>
+                            <input type="text" name="account_number" class="form-control" placeholder="e.g. 0123456789" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Account Name / Title</label>
+                            <input type="text" name="account_name" class="form-control" placeholder="e.g. Prime Property Management Collection A/C" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Branch Name</label>
+                            <input type="text" name="branch" class="form-control" placeholder="e.g. Community Branch">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Currency</label>
+                            <input type="text" name="currency" class="form-control" value="KES">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-custom">Save Bank Account</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

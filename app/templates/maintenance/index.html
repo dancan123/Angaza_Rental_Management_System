@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+
+{% block title %}Maintenance & Expenses - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h3 class="fw-bold mb-0">Maintenance & Property Expenses</h3>
+        <p class="text-muted small mb-0">Track tenant repair tickets, assign work orders to technicians, and log property operational expenditures.</p>
+    </div>
+    {% if current_user.has_permission('maintenance.manage') %}
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#createExpenseModal">
+            <i class="bi bi-wallet2 me-1"></i> Record Operating Expense
+        </button>
+        <button type="button" class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#createRequestModal">
+            <i class="bi bi-tools me-1"></i> Log Maintenance Issue
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Header Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card card-custom p-3 bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold">Active Maintenance Tickets</span>
+                    <h4 class="fw-bold text-danger mt-1 mb-0">{{ pending_tickets }}</h4>
+                    <span class="text-muted small">Pending or in-progress repairs</span>
+                </div>
+                <div class="stat-card-icon bg-danger-subtle text-danger">
+                    <i class="bi bi-tools"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card card-custom p-3 bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold">Total Operating Expenses</span>
+                    <h4 class="fw-bold text-primary mt-1 mb-0">{{ total_expense_cents | currency }}</h4>
+                    <span class="text-muted small">Repairs, utilities, and services</span>
+                </div>
+                <div class="stat-card-icon bg-primary-subtle text-primary">
+                    <i class="bi bi-receipt"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" id="maintTab" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link {% if active_tab == 'tickets' %}active{% endif %} fw-semibold" id="tickets-tab" data-bs-toggle="tab" data-bs-target="#tab-tickets" type="button">
+            <i class="bi bi-wrench me-1 text-primary"></i> Maintenance Tickets ({{ requests|length }})
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link {% if active_tab == 'expenses' %}active{% endif %} fw-semibold" id="expenses-tab" data-bs-toggle="tab" data-bs-target="#tab-expenses" type="button">
+            <i class="bi bi-cash-coin me-1 text-primary"></i> Operating Expenses Ledger ({{ expenses|length }})
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="maintTabContent">
+
+    <!-- Tab 1: Maintenance Tickets -->
+    <div class="tab-pane fade {% if active_tab == 'tickets' %}show active{% endif %}" id="tab-tickets" role="tabpanel">
+        <div class="card card-custom bg-white">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small">
+                            <tr>
+                                <th class="ps-3">Ticket #</th>
+                                <th>Unit / Property</th>
+                                <th>Issue Title</th>
+                                <th>Priority</th>
+                                <th>Technician</th>
+                                <th>Reported</th>
+                                <th>Status</th>
+                                <th class="text-end pe-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for r in requests %}
+                            <tr>
+                                <td class="ps-3 fw-bold text-primary">#{{ r.id }}</td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">
+                                        {{ r.rental_unit.unit_number }} ({{ r.rental_unit.property.name }})
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="fw-semibold">{{ r.title }}</div>
+                                    <small class="text-muted text-truncate d-inline-block" style="max-width: 250px;">{{ r.description }}</small>
+                                </td>
+                                <td>
+                                    {% if r.priority == 'EMERGENCY' %}
+                                    <span class="badge bg-danger">EMERGENCY</span>
+                                    {% elif r.priority == 'HIGH' %}
+                                    <span class="badge bg-danger-subtle text-danger border">High</span>
+                                    {% elif r.priority == 'MEDIUM' %}
+                                    <span class="badge bg-warning-subtle text-warning border">Medium</span>
+                                    {% else %}
+                                    <span class="badge bg-light text-dark border">Low</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ r.assigned_to_technician or 'Unassigned' }}</td>
+                                <td>{{ r.reported_date.strftime('%d/%m/%Y') }}</td>
+                                <td>
+                                    {% if r.status == 'RESOLVED' %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">Resolved</span>
+                                    {% elif r.status == 'ASSIGNED' %}
+                                    <span class="badge bg-info-subtle text-info border">Assigned</span>
+                                    {% elif r.status == 'PENDING' %}
+                                    <span class="badge bg-warning-subtle text-warning border">Pending</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary-subtle text-secondary">{{ r.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-3">
+                                    {% if r.status != 'RESOLVED' and current_user.has_permission('maintenance.manage') %}
+                                    <div class="d-inline-flex gap-1">
+                                        <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#assignModal{{ r.id }}" title="Assign Technician">
+                                            <i class="bi bi-person-gear"></i> Assign
+                                        </button>
+                                        <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#resolveModal{{ r.id }}" title="Mark Resolved">
+                                            <i class="bi bi-check-lg"></i> Resolve
+                                        </button>
+                                    </div>
+
+                                    <!-- Assign Modal -->
+                                    <div class="modal fade text-start" id="assignModal{{ r.id }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title fw-bold">Assign Ticket #{{ r.id }} to Technician</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <form method="POST" action="{{ url_for('maintenance.assign_technician', request_id=r.id) }}">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                    <div class="modal-body">
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-semibold">Technician Name</label>
+                                                            <input type="text" name="technician_name" class="form-control" placeholder="e.g. Kelvin Plumber" required>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-semibold">Telephone Number</label>
+                                                            <input type="text" name="technician_contact" class="form-control" placeholder="e.g. +254711223344">
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                                        <button type="submit" class="btn btn-primary-custom">Assign Technician</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Resolve Modal -->
+                                    <div class="modal fade text-start" id="resolveModal{{ r.id }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title fw-bold">Resolve Ticket #{{ r.id }}</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <form method="POST" action="{{ url_for('maintenance.resolve_request', request_id=r.id) }}">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                    <div class="modal-body">
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-semibold">Work Summary / Fix Details</label>
+                                                            <textarea name="work_summary" class="form-control" rows="2" placeholder="e.g. Replaced leaking trap under bathroom sink..." required></textarea>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-semibold">Repair / Material Cost ({{ currency }})</label>
+                                                            <input type="number" step="0.01" name="cost" class="form-control" placeholder="0.00">
+                                                            <div class="form-text">If greater than 0, an expense record under REPAIRS is automatically linked.</div>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-semibold">Completed By</label>
+                                                            <input type="text" name="completed_by" class="form-control" value="{{ r.assigned_to_technician or '' }}">
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                                        <button type="submit" class="btn btn-success">Complete & Close Ticket</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% else %}
+                                    <span class="text-success small"><i class="bi bi-check-circle me-1"></i> Closed</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-5">
+                                    <i class="bi bi-tools fs-2 text-secondary mb-2 d-block"></i>
+                                    No maintenance tickets logged yet.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: Expenses Ledger -->
+    <div class="tab-pane fade {% if active_tab == 'expenses' %}show active{% endif %}" id="tab-expenses" role="tabpanel">
+        <div class="card card-custom bg-white">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small">
+                            <tr>
+                                <th class="ps-3">Date</th>
+                                <th>Property</th>
+                                <th>Category</th>
+                                <th>Supplier / Contractor</th>
+                                <th>Description</th>
+                                <th class="text-end pe-3">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for e in expenses %}
+                            <tr>
+                                <td class="ps-3">{{ e.expense_date.strftime('%d/%m/%Y') }}</td>
+                                <td>{{ e.property.name }}</td>
+                                <td><span class="badge bg-light text-dark border">{{ e.category }}</span></td>
+                                <td>{{ e.supplier_name or '—' }}</td>
+                                <td>{{ e.description }}</td>
+                                <td class="text-end pe-3 fw-bold text-danger">{{ e.amount_display }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-5">No operating expenses recorded yet.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal: Log Maintenance Request -->
+<div class="modal fade" id="createRequestModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Log Maintenance Issue</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('maintenance.create_request') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Rental Unit</label>
+                        <select name="rental_unit_id" class="form-select" required>
+                            <option value="" disabled selected>Select Rental Unit...</option>
+                            {% for u in units %}
+                            <option value="{{ u.id }}">{{ u.unit_number }} - {{ u.property.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Issue Title</label>
+                        <input type="text" name="title" class="form-control" placeholder="e.g. Broken hot water element in shower" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Severity / Priority</label>
+                        <select name="priority" class="form-select" required>
+                            {% for code, label in priorities %}
+                            <option value="{{ code }}" {% if code == 'MEDIUM' %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Detailed Description</label>
+                        <textarea name="description" class="form-control" rows="3" placeholder="Explain the fault symptoms..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-custom">Log Ticket</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Record Expense -->
+<div class="modal fade" id="createExpenseModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Record Property Operational Expense</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('maintenance.create_expense') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Target Property</label>
+                            <select name="property_id" class="form-select" required>
+                                <option value="" disabled selected>Select Property...</option>
+                                {% for p in properties %}
+                                <option value="{{ p.id }}">{{ p.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Expense Category</label>
+                            <select name="category" class="form-select" required>
+                                {% for code, label in categories %}
+                                <option value="{{ code }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Amount ({{ currency }})</label>
+                            <input type="number" step="0.01" name="amount" class="form-control" placeholder="e.g. 8500" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Expense Date</label>
+                            <input type="date" name="expense_date" class="form-control" value="{{ date.today() }}">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Payee / Supplier Name</label>
+                            <input type="text" name="supplier_name" class="form-control" placeholder="e.g. Nairobi City Water or Security Firm">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Specific Unit (Optional)</label>
+                            <select name="rental_unit_id" class="form-select">
+                                <option value="">Common Property / Whole Building</option>
+                                {% for u in units %}
+                                <option value="{{ u.id }}">{{ u.unit_number }} ({{ u.property.name }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Description / Remarks</label>
+                            <textarea name="description" class="form-control" rows="2" placeholder="e.g. Monthly compound security service payment..." required></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-custom">Save Expense</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

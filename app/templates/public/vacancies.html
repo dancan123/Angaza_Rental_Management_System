@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vacant Houses & Available Rentals — {{ business_name }}</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: {{ sys_settings.get('theme_primary_color', '#1a56db') }};
+            --font-family-base: 'Plus Jakarta Sans', sans-serif;
+        }
+        body {
+            font-family: var(--font-family-base);
+            background-color: #f0f4f8;
+            color: #1e293b;
+        }
+        /* ── HERO BANNER ── */
+        .hero-banner {
+            position: relative;
+            min-height: 520px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            overflow: hidden;
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f2944 100%);
+        }
+        .hero-banner::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: url("{{ url_for('static', filename='img/hero-luxury-apartments.jpg') }}") center/cover no-repeat;
+            opacity: 0.45;
+            transform: scale(1.04);
+            transition: transform 6s ease;
+        }
+        .hero-banner:hover::before { transform: scale(1.07); }
+        .hero-banner::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg,
+                rgba(5, 15, 40, 0.30) 0%,
+                rgba(10, 25, 60, 0.72) 60%,
+                rgba(5, 15, 40, 0.88) 100%);
+        }
+        .hero-content {
+            position: relative;
+            z-index: 2;
+            padding: 5rem 1.5rem 4.5rem;
+            width: 100%;
+        }
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: rgba(255,255,255,0.12);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.30);
+            color: #fff;
+            padding: 0.4rem 1rem;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-bottom: 1.1rem;
+        }
+        .hero-badge .dot {
+            width: 8px; height: 8px;
+            background: #4ade80;
+            border-radius: 50%;
+            box-shadow: 0 0 0 3px rgba(74,222,128,0.35);
+            animation: pulse-dot 1.8s infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { box-shadow: 0 0 0 3px rgba(74,222,128,0.35); }
+            50%       { box-shadow: 0 0 0 7px rgba(74,222,128,0.15); }
+        }
+        .hero-title {
+            font-size: clamp(2rem, 5vw, 3.2rem);
+            font-weight: 800;
+            color: #fff;
+            line-height: 1.15;
+            text-shadow: 0 3px 12px rgba(0,0,0,0.5);
+            margin-bottom: 1rem;
+        }
+        .hero-sub {
+            font-size: 1.05rem;
+            font-weight: 500;
+            color: rgba(255,255,255,0.88);
+            max-width: 640px;
+            margin: 0 auto 1.8rem;
+            text-shadow: 0 1px 6px rgba(0,0,0,0.4);
+        }
+        /* ── TRUST STRIP ── */
+        .trust-strip {
+            background: linear-gradient(90deg, #1a56db 0%, #1e40af 100%);
+            padding: 0.7rem 0;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .trust-item {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            color: rgba(255,255,255,0.92);
+            font-size: 0.82rem;
+            font-weight: 600;
+        }
+        /* ── PROPERTY CARDS ── */
+        .card-unit {
+            border: 1px solid #e2e8f0;
+            border-radius: 1rem;
+            background: #ffffff;
+            transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+            cursor: pointer;
+            overflow: hidden;
+        }
+        .card-unit:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 16px 32px -8px rgba(26,86,219,0.18);
+            border-color: var(--primary-color);
+        }
+        .card-unit-img {
+            width: 100%;
+            height: 195px;
+            object-fit: cover;
+            display: block;
+        }
+        .unit-badge {
+            background-color: #dcfce7;
+            color: #166534;
+            font-weight: 700;
+            padding: 0.3rem 0.7rem;
+            border-radius: 0.4rem;
+            font-size: 0.78rem;
+        }
+        .price-tag {
+            color: var(--primary-color);
+            font-size: 1.3rem;
+            font-weight: 800;
+        }
+        .feature-chip {
+            background: #f1f5f9;
+            color: #475569;
+            border-radius: 999px;
+            padding: 0.2rem 0.6rem;
+            font-size: 0.73rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Public Header / Navbar -->
+    <nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top py-3">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('public.vacancies') }}">
+                {% if logo_url %}
+                <img src="{{ logo_url }}" alt="Logo" height="36" onerror="this.style.display='none'">
+                {% endif %}
+                <span class="fw-bold text-dark fs-5">{{ business_name }}</span>
+            </a>
+            <div class="d-flex align-items-center gap-3">
+                <button type="button" class="btn btn-outline-primary btn-sm fw-semibold d-none d-md-inline-flex align-items-center gap-1 shadow-sm" data-bs-toggle="modal" data-bs-target="#landlordListingModal">
+                    <i class="bi bi-building-add text-primary"></i> List Your Property / Apartment
+                </button>
+                <a href="tel:{{ business_phone }}" class="btn btn-outline-secondary btn-sm d-none d-md-inline-flex align-items-center gap-1">
+                    <i class="bi bi-telephone-fill text-primary"></i> {{ business_phone }}
+                </a>
+                <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-sm px-3 fw-semibold">
+                    <i class="bi bi-lock me-1"></i> Staff Portal
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="hero-banner">
+        <div class="hero-content">
+            <div class="container">
+                <div class="hero-badge">
+                    <span class="dot"></span>
+                    <i class="bi bi-houses-fill"></i> Available Houses &amp; Commercial Spaces — Updated Live
+                </div>
+                <h1 class="hero-title">Find Your Next Rental Home<br>or Office Space in Kenya</h1>
+                <p class="hero-sub">
+                    Browse verified vacant apartments, townhouses, bedsitters, and retail spaces managed by <strong>{{ business_name }}</strong>. Book a viewing or inquire online instantly.
+                </p>
+                <div class="d-flex justify-content-center gap-2 flex-wrap">
+                    <button type="button" class="btn btn-warning fw-bold px-4 py-2 shadow-lg rounded-pill" data-bs-toggle="modal" data-bs-target="#houseAlertModal" style="min-width:200px;">
+                        <i class="bi bi-bell-fill me-1"></i> Notify Me When a House is Available
+                    </button>
+                    <a href="https://wa.me/{{ clean_phone }}?text={{ wa_default_msg }}" target="_blank" class="btn btn-success fw-bold px-4 py-2 shadow rounded-pill">
+                        <i class="bi bi-whatsapp me-1"></i> Chat on WhatsApp
+                    </a>
+                    <a href="sms:{{ business_phone }}?body=Hello%2C%20I%20am%20looking%20for%20a%20rental%20house." class="btn btn-light fw-semibold px-3 py-2 rounded-pill shadow-sm d-none d-md-inline-flex">
+                        <i class="bi bi-chat-text-fill me-1 text-primary"></i> Send SMS
+                    </a>
+                    <a href="mailto:{{ business_email }}?subject=House%20Rental%20Inquiry" class="btn btn-outline-light fw-semibold px-3 py-2 rounded-pill shadow-sm d-none d-md-inline-flex">
+                        <i class="bi bi-envelope-fill me-1"></i> Email Office
+                    </a>
+                </div>
+
+                <!-- Quick Stats Bar inside hero -->
+                <div class="d-flex justify-content-center gap-4 flex-wrap mt-4 pt-3 border-top border-white border-opacity-25">
+                    <div class="text-center">
+                        <div class="fw-bold fs-4 text-warning">{{ units|length }}</div>
+                        <div class="text-white-50 small">Available Now</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="fw-bold fs-4 text-white">{{ properties|length }}</div>
+                        <div class="text-white-50 small">Estates / Complexes</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="fw-bold fs-4 text-success"><i class="bi bi-shield-check"></i></div>
+                        <div class="text-white-50 small">Verified Listings</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="fw-bold fs-4 text-white">0</div>
+                        <div class="text-white-50 small">Viewing Fees</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Trust & Verification Strip -->
+    <div class="trust-strip">
+        <div class="container">
+            <div class="row g-2 justify-content-center text-center">
+                <div class="col-6 col-md-3 trust-item justify-content-center">
+                    <i class="bi bi-patch-check-fill text-warning"></i> 100% Verified Rentals
+                </div>
+                <div class="col-6 col-md-3 trust-item justify-content-center">
+                    <i class="bi bi-clock-history text-warning"></i> Real-Time Vacancy Data
+                </div>
+                <div class="col-6 col-md-3 trust-item justify-content-center">
+                    <i class="bi bi-shield-shaded text-warning"></i> Zero Viewing Fees
+                </div>
+                <div class="col-6 col-md-3 trust-item justify-content-center">
+                    <i class="bi bi-whatsapp text-warning"></i> Direct Manager WhatsApp
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="container my-5">
+
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm mb-4" role="alert">
+                    <i class="bi bi-check-circle-fill me-2"></i> {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Filter Bar -->
+        <div class="card card-unit p-3 mb-4 shadow-sm">
+            <form method="GET" action="{{ url_for('public.vacancies') }}" class="row g-2 align-items-center">
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold text-muted mb-1">Filter by Property</label>
+                    <select name="property_id" class="form-select">
+                        <option value="">All Properties / Estates</option>
+                        {% for p in properties %}
+                        <option value="{{ p.id }}" {% if selected_property == p.id %}selected{% endif %}>{{ p.name }} ({{ p.location }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold text-muted mb-1">Unit Type</label>
+                    <select name="type" class="form-select">
+                        <option value="">All Unit Types</option>
+                        <option value="BEDSITTER" {% if selected_type == 'BEDSITTER' %}selected{% endif %}>Bedsitter / Studio</option>
+                        <option value="1_BEDROOM" {% if selected_type == '1_BEDROOM' %}selected{% endif %}>1 Bedroom</option>
+                        <option value="2_BEDROOM" {% if selected_type == '2_BEDROOM' %}selected{% endif %}>2 Bedroom</option>
+                        <option value="3_BEDROOM" {% if selected_type == '3_BEDROOM' %}selected{% endif %}>3 Bedroom</option>
+                        <option value="4_BEDROOM" {% if selected_type == '4_BEDROOM' %}selected{% endif %}>4+ Bedroom Villa</option>
+                        <option value="COMMERCIAL_SHOP" {% if selected_type == 'COMMERCIAL_SHOP' %}selected{% endif %}>Retail Shop</option>
+                        <option value="OFFICE_SPACE" {% if selected_type == 'OFFICE_SPACE' %}selected{% endif %}>Commercial Office</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold text-muted mb-1">Max Monthly Rent ({{ currency }})</label>
+                    <input type="number" name="max_rent" class="form-control" placeholder="e.g. 60000" value="{{ max_rent or '' }}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100 py-2">
+                        <i class="bi bi-funnel me-1"></i> Search
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Available Units Count -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h5 class="fw-bold mb-0">
+                Available Vacant Units ({{ units|length }})
+            </h5>
+            <span class="text-muted small">Updated in real-time from management database</span>
+        </div>
+
+        <!-- Units Grid -->
+        <div class="row g-4">
+            {% for u in units %}
+            <div class="col-lg-4 col-md-6">
+                <div class="card card-unit h-100 p-3 d-flex flex-column justify-content-between position-relative shadow-sm">
+                    <div role="button" data-bs-toggle="modal" data-bs-target="#inquireModal{{ u.id }}" title="Click to view details and inquire">
+                        <!-- High Quality Unit Image Banner -->
+                        <div class="position-relative overflow-hidden rounded mb-3" style="height: 160px; margin: -1rem -1rem 1rem -1rem;">
+                            {% if 'VILLA' in u.unit_type or '4_BEDROOM' in u.unit_type %}
+                            <img src="{{ url_for('static', filename='img/luxury-villa.jpg') }}" alt="{{ u.unit_number }}" class="w-100 h-100 object-fit-cover">
+                            {% elif '1_BEDROOM' in u.unit_type or '2_BEDROOM' in u.unit_type or 'BEDSITTER' in u.unit_type %}
+                            <img src="{{ url_for('static', filename='img/modern-interior.jpg') }}" alt="{{ u.unit_number }}" class="w-100 h-100 object-fit-cover">
+                            {% else %}
+                            <img src="{{ url_for('static', filename='img/hero-luxury-apartments.jpg') }}" alt="{{ u.unit_number }}" class="w-100 h-100 object-fit-cover">
+                            {% endif %}
+                            <span class="position-absolute top-0 start-0 m-2 badge bg-dark bg-opacity-75 text-white border border-light border-opacity-25">
+                                {{ u.unit_type }}
+                            </span>
+                            <span class="position-absolute top-0 end-0 m-2 unit-badge shadow-sm">
+                                <i class="bi bi-check-circle-fill me-1"></i> Ready to Let
+                            </span>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h4 class="fw-bold mb-0 text-dark">Unit {{ u.unit_number }}</h4>
+                            </div>
+                        </div>
+
+                        <div class="text-muted small mb-3">
+                            <i class="bi bi-geo-alt-fill text-danger me-1"></i>
+                            <strong>{{ u.property.name }}</strong> — {{ u.property.location }}
+                            {% if u.building %}<div class="text-muted ps-3">{{ u.building.name }} {% if u.floor %}• {{ u.floor.floor_name }}{% endif %}</div>{% endif %}
+                        </div>
+
+                        <div class="d-flex align-items-baseline gap-2 mb-3">
+                            <span class="price-tag">{{ u.rent_display }}</span>
+                            <span class="text-muted small">/ month</span>
+                        </div>
+
+                        <div class="p-2 bg-light rounded small mb-3 border">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted">Security Deposit:</span>
+                                <span class="fw-semibold">{{ u.deposit_display }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Space:</span>
+                                <span class="fw-semibold">{{ u.bedrooms }} Bed • {{ u.bathrooms }} Bath</span>
+                            </div>
+                        </div>
+
+                        {% if u.amenities %}
+                        <div class="small text-muted mb-3">
+                            <i class="bi bi-stars text-warning me-1"></i>
+                            <span class="text-dark fw-semibold">Features:</span> {{ u.amenities }}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="pt-3 border-top d-flex gap-2 flex-wrap position-relative" style="z-index: 2;">
+                        <button type="button" class="btn btn-outline-primary btn-sm flex-grow-1 fw-semibold" 
+                                data-bs-toggle="modal" data-bs-target="#inquireModal{{ u.id }}">
+                            <i class="bi bi-eye-fill me-1"></i> View &amp; Inquire
+                        </button>
+                        <a href="https://wa.me/{{ clean_phone }}?text=Hello%2C%20I%20am%20interested%20in%20Unit%20{{ u.unit_number }}%20at%20{{ u.property.name|urlencode }}%20(Rent%3A%20{{ u.rent_display }})." 
+                           target="_blank" class="btn btn-success btn-sm" title="Chat about this unit on WhatsApp">
+                            <i class="bi bi-whatsapp"></i>
+                        </a>
+                        <a href="sms:{{ business_phone }}?body=Inquiry%20for%20Unit%20{{ u.unit_number }}%20at%20{{ u.property.name|urlencode }}" 
+                           class="btn btn-light btn-sm border" title="SMS about this unit">
+                            <i class="bi bi-chat-dots-fill text-primary"></i>
+                        </a>
+                        <a href="tel:{{ business_phone }}" class="btn btn-light btn-sm border" title="Call Management">
+                            <i class="bi bi-telephone text-success"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Inquire / Book Modal -->
+                <div class="modal fade" id="inquireModal{{ u.id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header bg-light">
+                                <div>
+                                    <h5 class="modal-title fw-bold mb-0">Unit {{ u.unit_number }} — Complete Details</h5>
+                                    <small class="text-muted">{{ u.property.name }} ({{ u.property.location }})</small>
+                                </div>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body p-4">
+                                <!-- Root Data Breakdown -->
+                                <div class="card bg-light border p-3 mb-3">
+                                    <div class="row g-2 small">
+                                        <div class="col-6"><span class="text-muted">Monthly Rent:</span> <strong class="text-primary d-block fs-6">{{ u.rent_display }}</strong></div>
+                                        <div class="col-6"><span class="text-muted">Security Deposit:</span> <strong class="text-dark d-block fs-6">{{ u.deposit_display }}</strong></div>
+                                        <div class="col-6"><span class="text-muted">House Type:</span> <strong>{{ u.unit_type }}</strong></div>
+                                        <div class="col-6"><span class="text-muted">Rooms & Space:</span> <strong>{{ u.bedrooms }} Bed • {{ u.bathrooms }} Bath</strong></div>
+                                        <div class="col-6"><span class="text-muted">Building:</span> <strong>{{ u.building.name if u.building else 'Main Block' }}</strong></div>
+                                        <div class="col-6"><span class="text-muted">Floor:</span> <strong>{{ u.floor.floor_name if u.floor else 'Standard Floor' }}</strong></div>
+                                        <div class="col-12"><span class="text-muted">Amenities & Highlights:</span> <strong>{{ u.amenities or 'Clean water, electricity token meter, secure perimeter.' }}</strong></div>
+                                        {% if u.description %}
+                                        <div class="col-12"><span class="text-muted">Description:</span> <em>{{ u.description }}</em></div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <!-- Instant Contact Shortcuts inside Modal -->
+                                <div class="d-flex gap-2 mb-3">
+                                    <a href="https://wa.me/{{ clean_phone }}?text=Hello%2C%20I%20am%20interested%20in%20booking%20Unit%20{{ u.unit_number }}%20at%20{{ u.property.name|urlencode }}%20(Rent%3A%20{{ u.rent_display }})." 
+                                       target="_blank" class="btn btn-success btn-sm flex-grow-1 fw-bold">
+                                        <i class="bi bi-whatsapp me-1"></i> WhatsApp Agent
+                                    </a>
+                                    <a href="sms:{{ business_phone }}?body=Inquiry%20for%20Unit%20{{ u.unit_number }}%20at%20{{ u.property.name|urlencode }}" 
+                                       class="btn btn-outline-secondary btn-sm fw-semibold">
+                                        <i class="bi bi-chat-text-fill me-1"></i> SMS
+                                    </a>
+                                    <a href="tel:{{ business_phone }}" class="btn btn-outline-secondary btn-sm fw-semibold">
+                                        <i class="bi bi-telephone-fill me-1"></i> Call
+                                    </a>
+                                </div>
+
+                                <hr>
+
+                                <!-- Booking Inquiry Form -->
+                                <h6 class="fw-bold mb-2">Book a Physical Viewing or Reserve:</h6>
+                                <form method="POST" action="{{ url_for('public.inquire') }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <input type="hidden" name="unit_id" value="{{ u.id }}">
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Your Full Name *</label>
+                                        <input type="text" name="full_name" class="form-control form-control-sm" placeholder="e.g. Grace Wambui" required>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Telephone / WhatsApp Number *</label>
+                                        <input type="text" name="phone" class="form-control form-control-sm" placeholder="e.g. +254712345678" required>
+                                    </div>
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-md-6">
+                                            <label class="form-label small fw-semibold">Email Address (Optional)</label>
+                                            <input type="email" name="email" class="form-control form-control-sm" placeholder="grace@gmail.com">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small fw-semibold">National ID (Optional)</label>
+                                            <input type="text" name="id_number" class="form-control form-control-sm" placeholder="e.g. 29384756">
+                                        </div>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Preferred Move-In / Viewing Date</label>
+                                        <input type="date" name="expected_move_in" class="form-control form-control-sm" value="{{ date.today() }}">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-semibold">Questions / Special Notes</label>
+                                        <textarea name="notes" class="form-control form-control-sm" rows="2" placeholder="Tell us what time you would like to view..."></textarea>
+                                    </div>
+                                    <div class="d-flex justify-content-end gap-2">
+                                        <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>
+                                        <button type="submit" class="btn btn-primary btn-sm fw-bold">Submit Booking Inquiry</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            {% else %}
+            <div class="col-12">
+                <div class="card card-unit p-5 text-center text-muted">
+                    <i class="bi bi-house-check fs-1 text-success mb-2"></i>
+                    <h4>All Units Are Currently Fully Occupied!</h4>
+                    <p class="small mb-3">There are no vacant units matching your current filter. Please contact our management office to join our waiting list.</p>
+                    <div>
+                        <a href="{{ url_for('public.vacancies') }}" class="btn btn-outline-primary btn-sm">Clear Filter</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Published Partner & External Landlord Listings -->
+        {% if external_listings %}
+        <div class="mt-5 mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h5 class="fw-bold mb-0 text-dark">
+                    <i class="bi bi-stars text-warning me-1"></i> Partner &amp; External Landlord Vacancies ({{ external_listings|length }})
+                </h5>
+                <span class="text-muted small">Verified listings managed or marketed for partner apartment owners</span>
+            </div>
+            <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-2 fw-semibold">
+                <i class="bi bi-patch-check-fill me-1"></i> Verified External Homes
+            </span>
+        </div>
+
+        <div class="row g-4 mb-5">
+            {% for ext in external_listings %}
+            <div class="col-lg-4 col-md-6">
+                <div class="card card-unit h-100 p-3 d-flex flex-column justify-content-between position-relative shadow-sm border-top border-4 border-info">
+                    <div role="button" data-bs-toggle="modal" data-bs-target="#inquireExtModal{{ ext.id }}" title="Click to view details and inquire">
+                        <!-- Card Photo Banner -->
+                        <div class="position-relative overflow-hidden rounded mb-3" style="height: 160px; margin: -1rem -1rem 1rem -1rem;">
+                            <img src="{{ url_for('static', filename='img/hero-luxury-apartments.jpg') }}" alt="{{ ext.property_title }}" class="w-100 h-100 object-fit-cover">
+                            <span class="position-absolute top-0 start-0 m-2 badge bg-dark bg-opacity-75 text-white border border-light border-opacity-25">
+                                {{ ext.unit_type }}
+                            </span>
+                            <span class="position-absolute top-0 end-0 m-2 badge bg-info text-white shadow-sm fw-bold">
+                                <i class="bi bi-patch-check-fill me-1"></i> Partner Landlord
+                            </span>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h5 class="fw-bold mb-0 text-dark">{{ ext.property_title }}</h5>
+                                <span class="text-muted small"><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ ext.location }}</span>
+                            </div>
+                        </div>
+
+                        <div class="d-flex align-items-baseline gap-2 mb-3">
+                            <span class="price-tag text-info">{{ ext.rent_display }}</span>
+                            <span class="text-muted small">/ month</span>
+                        </div>
+
+                        <div class="p-2 bg-light rounded small mb-3 border">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted">Security Deposit:</span>
+                                <span class="fw-semibold">{{ ext.deposit_display }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Space:</span>
+                                <span class="fw-semibold">{{ ext.bedrooms }} Bed • {{ ext.bathrooms }} Bath</span>
+                            </div>
+                        </div>
+
+                        {% if ext.features %}
+                        <div class="small text-muted mb-3">
+                            <i class="bi bi-check2-circle text-success me-1"></i>
+                            <span class="text-dark fw-semibold">Features:</span> {{ ext.features }}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="pt-3 border-top d-flex gap-2 flex-wrap position-relative" style="z-index: 2;">
+                        <button type="button" class="btn btn-outline-info btn-sm flex-grow-1 fw-semibold text-dark" 
+                                data-bs-toggle="modal" data-bs-target="#inquireExtModal{{ ext.id }}">
+                            <i class="bi bi-eye-fill me-1 text-info"></i> View Details &amp; Apply
+                        </button>
+                        <a href="https://wa.me/{{ clean_phone }}?text=Hello%20Angaza%20Rentals%2C%20I%20am%20interested%20in%20viewing%20the%20partner%20property%3A%20{{ ext.property_title|urlencode }}%20at%20{{ ext.location|urlencode }}%20(Rent%3A%20{{ ext.rent_display }})." 
+                           target="_blank" class="btn btn-success btn-sm" title="Chat with Angaza Tenacity on WhatsApp">
+                            <i class="bi bi-whatsapp"></i>
+                        </a>
+                        <a href="sms:{{ business_phone }}?body=Inquiry%20for%20{{ ext.property_title|urlencode }}%20at%20{{ ext.location|urlencode }}" 
+                           class="btn btn-light btn-sm border" title="SMS Angaza Office">
+                            <i class="bi bi-chat-text-fill text-primary"></i>
+                        </a>
+                        <a href="tel:{{ business_phone }}" class="btn btn-light btn-sm border" title="Call Angaza Office">
+                            <i class="bi bi-telephone text-success"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- External Listing Detail & Inquiry Modal -->
+                <div class="modal fade" id="inquireExtModal{{ ext.id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header bg-light">
+                                <div>
+                                    <h5 class="modal-title fw-bold mb-0">{{ ext.property_title }}</h5>
+                                    <small class="text-muted"><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ ext.location }}</small>
+                                </div>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body p-4">
+                                <div class="card bg-light border p-3 mb-3">
+                                    <div class="row g-2 small">
+                                        <div class="col-6"><span class="text-muted">Monthly Rent:</span> <strong class="text-info d-block fs-6">{{ ext.rent_display }}</strong></div>
+                                        <div class="col-6"><span class="text-muted">Security Deposit:</span> <strong class="text-dark d-block fs-6">{{ ext.deposit_display }}</strong></div>
+                                        <div class="col-6"><span class="text-muted">House Type:</span> <strong>{{ ext.unit_type }}</strong></div>
+                                        <div class="col-6"><span class="text-muted">Space:</span> <strong>{{ ext.bedrooms }} Bed • {{ ext.bathrooms }} Bath</strong></div>
+                                        <div class="col-12"><span class="text-muted">Features & Amenities:</span> <strong>{{ ext.features or 'Standard residential amenities.' }}</strong></div>
+                                        {% if ext.description %}
+                                        <div class="col-12"><span class="text-muted">Description:</span> <em>{{ ext.description }}</em></div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="border rounded p-3 mb-3 bg-white">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <i class="bi bi-shield-check text-primary fs-5"></i>
+                                        <div class="fw-bold fs-6">Verified Partner Listing — {{ business_name }}</div>
+                                    </div>
+                                    <p class="small text-muted mb-0">
+                                        Inspected and marketed through our network. Landlord details are protected. Direct all inquiries, viewing appointments, and unit allocation through our tenancy desk below.
+                                    </p>
+                                </div>
+
+                                <!-- Instant Office Contact Buttons -->
+                                <div class="d-flex gap-2 mb-3">
+                                    <a href="https://wa.me/{{ clean_phone }}?text=Hello%20Angaza%20Rentals%2C%20I%20would%20like%20to%20view%20{{ ext.property_title|urlencode }}%20in%20{{ ext.location|urlencode }}%20(Rent%3A%20{{ ext.rent_display }})." 
+                                       target="_blank" class="btn btn-success btn-sm flex-grow-1 fw-bold">
+                                        <i class="bi bi-whatsapp me-1"></i> WhatsApp Angaza Desk
+                                    </a>
+                                    <a href="sms:{{ business_phone }}?body=Inquiry%20for%20{{ ext.property_title|urlencode }}" 
+                                       class="btn btn-outline-secondary btn-sm fw-semibold">
+                                        <i class="bi bi-chat-text-fill me-1"></i> SMS
+                                    </a>
+                                    <a href="tel:{{ business_phone }}" class="btn btn-outline-secondary btn-sm fw-semibold">
+                                        <i class="bi bi-telephone-fill me-1"></i> Call
+                                    </a>
+                                </div>
+
+                                <hr>
+
+                                <!-- Booking / Viewing Application Form -->
+                                <h6 class="fw-bold mb-2">Book a Physical Viewing / Apply:</h6>
+                                <form method="POST" action="{{ url_for('public.inquire_external_lead') }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <input type="hidden" name="listing_id" value="{{ ext.id }}">
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Your Full Name *</label>
+                                        <input type="text" name="full_name" class="form-control form-control-sm" placeholder="e.g. David Mwangi" required>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Telephone / WhatsApp Number *</label>
+                                        <input type="text" name="phone" class="form-control form-control-sm" placeholder="e.g. +254 7XX XXX XXX" required>
+                                    </div>
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-6">
+                                            <label class="form-label small fw-semibold">Email Address</label>
+                                            <input type="email" name="email" class="form-control form-control-sm" placeholder="david@gmail.com">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label small fw-semibold">Preferred Move-In</label>
+                                            <input type="date" name="expected_move_in" class="form-control form-control-sm">
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-semibold">Any Questions or Special Requests?</label>
+                                        <textarea name="notes" class="form-control form-control-sm" rows="2" placeholder="e.g. Need weekend viewing, has parking space..."></textarea>
+                                    </div>
+                                    <button type="submit" class="btn btn-info text-white w-100 btn-sm fw-bold shadow-sm">
+                                        <i class="bi bi-send-fill me-1"></i> Send Viewing Request to Angaza Desk
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- House Alert & Waitlist Modal -->
+    <div class="modal fade" id="houseAlertModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0"><i class="bi bi-bell-fill me-2"></i> Register for House & Vacancy Alerts</h5>
+                        <small class="text-white-50">Tell us what you are looking for, and we will contact you immediately when a matching house opens up.</small>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{{ url_for('public.register_house_alert') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="modal-body p-4">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Full Name *</label>
+                                <input type="text" name="full_name" class="form-control" placeholder="e.g. Kelvin Mutua" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Phone Number (WhatsApp/SMS) *</label>
+                                <input type="text" name="phone" class="form-control" placeholder="e.g. +254 712 345 678" required>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Email Address</label>
+                                <input type="email" name="email" class="form-control" placeholder="e.g. kelvin@gmail.com">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Preferred Contact Channel *</label>
+                                <select name="contact_method" class="form-select">
+                                    <option value="WHATSAPP" selected>WhatsApp Message</option>
+                                    <option value="SMS">Direct SMS</option>
+                                    <option value="PHONE">Direct Phone Call</option>
+                                    <option value="EMAIL">Email</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Type of House Needed *</label>
+                                <select name="unit_type" class="form-select" required>
+                                    <option value="BEDSITTER">Bedsitter / Studio</option>
+                                    <option value="1_BEDROOM">1 Bedroom</option>
+                                    <option value="2_BEDROOM" selected>2 Bedroom</option>
+                                    <option value="3_BEDROOM">3 Bedroom</option>
+                                    <option value="4_BEDROOM">4+ Bedroom Villa / Townhouse</option>
+                                    <option value="COMMERCIAL_SHOP">Retail Shop</option>
+                                    <option value="OFFICE_SPACE">Commercial Office</option>
+                                    <option value="ANY">Any / Flexible</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Maximum Monthly Budget (KES)</label>
+                                <input type="number" name="max_budget" class="form-control" placeholder="e.g. 35000">
+                                <small class="text-muted">Leave empty if flexible.</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Preferred Locations / Estates *</label>
+                                <input type="text" name="locations" class="form-control" placeholder="e.g. Kilimani, Westlands, Rongai, Karen..." required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Target Move-In Date</label>
+                                <input type="date" name="expected_move_in" class="form-control">
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label small fw-bold">Special Preferences or Requirements</label>
+                                <textarea name="notes" class="form-control" rows="2" placeholder="e.g. Needs parking for 2 cars, high floor with balcony, borehole water, pet friendly..."></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Instant Direct Channels in Modal -->
+                        <div class="alert alert-light border mt-4 mb-0 p-3">
+                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                <div>
+                                    <span class="fw-bold small d-block">Need urgent assistance right now?</span>
+                                    <small class="text-muted">Speak directly with our property care team:</small>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <a href="https://wa.me/{{ clean_phone }}?text={{ wa_default_msg }}" target="_blank" class="btn btn-success btn-sm fw-bold">
+                                        <i class="bi bi-whatsapp me-1"></i> WhatsApp
+                                    </a>
+                                    <a href="tel:{{ business_phone }}" class="btn btn-primary btn-sm fw-bold">
+                                        <i class="bi bi-telephone-fill me-1"></i> Call
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary fw-bold px-4">
+                            <i class="bi bi-send-fill me-1"></i> Submit & Get Alerted
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Landlord / Property Owner Listing Modal -->
+    <div class="modal fade" id="landlordListingModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0"><i class="bi bi-building-add text-warning me-2"></i> List Your Property with {{ business_name }}</h5>
+                        <small class="text-white-50">Market your vacant apartments, bedsitters, houses, or offices directly to thousands of ready tenants.</small>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{{ url_for('public.list_property_lead') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="modal-body p-4">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Owner / Agent Full Name *</label>
+                                <input type="text" name="owner_name" class="form-control" placeholder="e.g. John Mwangi" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Telephone Number *</label>
+                                <input type="text" name="owner_phone" class="form-control" placeholder="e.g. +254 722 000 111" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Email Address</label>
+                                <input type="email" name="owner_email" class="form-control" placeholder="e.g. jmwangi@properties.co.ke">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Property Type *</label>
+                                <select name="property_type" class="form-select" required>
+                                    <option value="APARTMENT" selected>Residential Apartment Block</option>
+                                    <option value="BEDSITTER">Bedsitter Complex</option>
+                                    <option value="RESIDENTIAL">Standalone Villa / Townhouse</option>
+                                    <option value="COMMERCIAL">Commercial Plaza / Retail Shops</option>
+                                    <option value="OFFICE">Office Suites</option>
+                                    <option value="MIXED_USE">Mixed-Use Commercial & Residential</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Property / Estate Name *</label>
+                                <input type="text" name="property_title" class="form-control" placeholder="e.g. Greenpark Gardens" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Exact Location / Address *</label>
+                                <input type="text" name="location" class="form-control" placeholder="e.g. Ngong Road, Nairobi" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Number of Vacant Units Available</label>
+                                <input type="number" name="num_vacant_units" class="form-control" value="1" min="1">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Target Monthly Rent Range (KES)</label>
+                                <input type="text" name="rent_range" class="form-control" placeholder="e.g. 25,000 - 40,000">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-bold">Property Highlights & Description</label>
+                                <textarea name="description" class="form-control" rows="3" placeholder="Tell us about the water supply, security, power backup, finishes, and specific tenant requirements..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary fw-bold px-4">
+                            <i class="bi bi-cloud-arrow-up-fill me-1"></i> Submit Property for Listing
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Public Footer -->
+    <footer class="bg-dark text-white py-4 mt-5 border-top border-secondary">
+        <div class="container text-center text-md-start d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <div class="fw-bold">{{ business_name }}</div>
+                <small class="text-white-50">Professional Property Management & Rental Services</small>
+            </div>
+            <div class="text-white-50 small">
+                Inquiries: <a href="mailto:{{ business_email }}" class="text-white text-decoration-none">{{ business_email }}</a> | Tel: {{ business_phone }}
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+

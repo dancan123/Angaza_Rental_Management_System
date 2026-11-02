@@ -1,0 +1,545 @@
+{% extends "base.html" %}
+
+{% block title %}Marketplace & External Listings Hub - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h3 class="fw-bold mb-0">Marketplace &amp; External Listings Hub</h3>
+        <p class="text-muted small mb-0">Publish &amp; market third-party landlord apartments on the public site and manage prospective tenant leads.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('public.vacancies') }}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill d-inline-flex align-items-center gap-1 shadow-sm">
+            <i class="bi bi-box-arrow-up-right"></i> View Public Site
+        </a>
+        {% if current_user.has_permission('properties.manage') %}
+        <button type="button" class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#createExternalModal">
+            <i class="bi bi-plus-circle-fill me-1"></i> Publish External Apartment
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<!-- KPI Summary Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card card-custom bg-white p-3 border-start border-4 border-success">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase">Live on Public Website</span>
+                    <h3 class="fw-bold text-success mb-0 mt-1">{{ total_published }}</h3>
+                    <span class="text-muted small">External apartments published</span>
+                </div>
+                <div class="rounded-circle bg-success-subtle text-success p-3">
+                    <i class="bi bi-broadcast fs-3"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-custom bg-white p-3 border-start border-4 border-warning">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase">Pending Review / Leads</span>
+                    <h3 class="fw-bold text-warning mb-0 mt-1">{{ total_pending }}</h3>
+                    <span class="text-muted small">Landlord listing requests</span>
+                </div>
+                <div class="rounded-circle bg-warning-subtle text-warning p-3">
+                    <i class="bi bi-hourglass-split fs-3"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-custom bg-white p-3 border-start border-4 border-primary">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase">House Seeker Waitlist</span>
+                    <h3 class="fw-bold text-primary mb-0 mt-1">{{ total_leads }}</h3>
+                    <span class="text-muted small">Clients looking for houses</span>
+                </div>
+                <div class="rounded-circle bg-primary-subtle text-primary p-3">
+                    <i class="bi bi-person-lines-fill fs-3"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Navigation Tabs -->
+<ul class="nav nav-tabs mb-4" id="marketplaceTab" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link active fw-semibold" id="listings-tab" data-bs-toggle="tab" data-bs-target="#tab-listings" type="button">
+            <i class="bi bi-building me-1 text-primary"></i> External &amp; Partner Apartments ({{ listings|length }})
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link fw-semibold" id="seekers-tab" data-bs-toggle="tab" data-bs-target="#tab-seekers" type="button">
+            <i class="bi bi-bell-fill me-1 text-warning"></i> House Seeker Waitlist &amp; Alerts ({{ leads|length }})
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="marketplaceTabContent">
+
+    <!-- Tab 1: External Listings -->
+    <div class="tab-pane fade show active" id="tab-listings" role="tabpanel">
+        <div class="card card-custom bg-white p-3 mb-4">
+            <form method="GET" action="{{ url_for('properties.marketplace') }}" class="row g-2 align-items-center">
+                <div class="col-md-7">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white text-muted"><i class="bi bi-search"></i></span>
+                        <input type="text" name="search" class="form-control" placeholder="Search by property, location, landlord, or phone..." value="{{ search }}">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select name="status" class="form-select">
+                        <option value="ALL" {% if status_filter == 'ALL' or not status_filter %}selected{% endif %}>All Listing Statuses</option>
+                        <option value="PUBLISHED" {% if status_filter == 'PUBLISHED' %}selected{% endif %}>Published on Website</option>
+                        <option value="PENDING" {% if status_filter == 'PENDING' %}selected{% endif %}>Pending Approval</option>
+                        <option value="RENTED" {% if status_filter == 'RENTED' %}selected{% endif %}>Filled / Rented</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-outline-secondary w-100 fw-semibold">
+                        <i class="bi bi-funnel me-1"></i> Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card card-custom bg-white">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small">
+                            <tr>
+                                <th class="ps-3">Property &amp; Specifications</th>
+                                <th>Location</th>
+                                <th>Rent &amp; Deposit</th>
+                                <th>Landlord Primaries (Private)</th>
+                                <th>Workflow Status</th>
+                                <th>Allocated Tenant</th>
+                                <th class="text-end pe-3">Agency Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for item in listings %}
+                            <tr>
+                                <td class="ps-3">
+                                    <div class="fw-bold text-dark fs-6">{{ item.property_title }}</div>
+                                    <div class="text-muted" style="font-size: 0.78rem;">
+                                        <span class="badge bg-light text-dark border">{{ item.unit_type }}</span>
+                                        • {{ item.bedrooms }} Bed / {{ item.bathrooms }} Bath
+                                    </div>
+                                    {% if item.features %}
+                                    <div class="text-muted mt-1" style="font-size: 0.72rem;">
+                                        <i class="bi bi-stars text-warning me-1"></i>{{ item.features }}
+                                    </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <i class="bi bi-geo-alt-fill text-danger me-1"></i> {{ item.location }}
+                                </td>
+                                <td>
+                                    <div class="fw-bold text-primary">{{ item.rent_display }}<small class="text-muted">/mo</small></div>
+                                    <div class="text-muted" style="font-size: 0.75rem;">Dep: {{ item.deposit_display }}</div>
+                                </td>
+                                <td>
+                                    <div class="fw-bold text-dark">{{ item.owner_name }}</div>
+                                    <a href="tel:{{ item.owner_phone }}" class="text-decoration-none small text-primary d-block">
+                                        <i class="bi bi-telephone me-1"></i>{{ item.owner_phone }}
+                                    </a>
+                                    {% if item.owner_email %}
+                                    <small class="text-muted d-block">{{ item.owner_email }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if item.status == 'PUBLISHED' %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                        <i class="bi bi-broadcast me-1"></i> Live on Public Site
+                                    </span>
+                                    {% elif item.status == 'ALLOCATED' %}
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle">
+                                        <i class="bi bi-person-check-fill me-1"></i> Linked / Allocated
+                                    </span>
+                                    {% elif item.status == 'PENDING' %}
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
+                                        <i class="bi bi-clock-history me-1"></i> Needs Approval
+                                    </span>
+                                    {% elif item.status == 'RENTED' %}
+                                    <span class="badge bg-secondary-subtle text-secondary border">
+                                        <i class="bi bi-lock-fill me-1"></i> Filled / Rented
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-light text-muted border">{{ item.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if item.allocated_tenant_name %}
+                                    <div class="fw-bold text-success">{{ item.allocated_tenant_name }}</div>
+                                    <a href="tel:{{ item.allocated_tenant_phone }}" class="text-muted small text-decoration-none">
+                                        <i class="bi bi-telephone me-1"></i>{{ item.allocated_tenant_phone }}
+                                    </a>
+                                    {% if item.allocated_at %}
+                                    <div class="text-muted" style="font-size: 0.7rem;">Linked: {{ item.allocated_at.strftime('%d/%m/%Y') }}</div>
+                                    {% endif %}
+                                    {% else %}
+                                    <span class="text-muted small">Not yet linked</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-3">
+                                    <div class="d-flex justify-content-end gap-1 flex-wrap">
+                                        <!-- Allocate / Link Tenant Modal Button -->
+                                        <button type="button" class="btn btn-primary btn-sm py-0 px-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#allocateModal{{ item.id }}" title="Link House to Tenant">
+                                            <i class="bi bi-link-45deg me-1"></i> Allocate
+                                        </button>
+
+                                        <!-- Toggle Status: Publish / Unpublish -->
+                                        <form method="POST" action="{{ url_for('properties.toggle_external_listing_status', listing_id=item.id) }}" class="d-inline">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            {% if item.status == 'PUBLISHED' %}
+                                            <input type="hidden" name="status" value="PENDING"/>
+                                            <button type="submit" class="btn btn-outline-warning btn-sm py-0 px-2" title="Unpublish from Website">
+                                                <i class="bi bi-eye-slash"></i> Unpublish
+                                            </button>
+                                            {% else %}
+                                            <input type="hidden" name="status" value="PUBLISHED"/>
+                                            <button type="submit" class="btn btn-outline-success btn-sm py-0 px-2" title="Publish to Public Website">
+                                                <i class="bi bi-broadcast"></i> Publish
+                                            </button>
+                                            {% endif %}
+                                        </form>
+
+                                        <!-- WhatsApp Landlord (Internal for Angaza Team) -->
+                                        {% set clean_owner_phone = item.owner_phone.replace(' ', '').replace('-', '').replace('+', '') %}
+                                        {% if clean_owner_phone.startswith('0') %}
+                                            {% set clean_owner_phone = '254' + clean_owner_phone[1:] %}
+                                        {% elif not clean_owner_phone.startswith('254') and clean_owner_phone|length == 9 %}
+                                            {% set clean_owner_phone = '254' + clean_owner_phone %}
+                                        {% endif %}
+                                        <a href="https://wa.me/{{ clean_owner_phone }}?text=Hello%20{{ item.owner_name|urlencode }}%2C%20this%20is%20Angaza%20Rentals%20Management.%20We%20have%20an%20applicant%20interested%20in%20your%20property%20{{ item.property_title|urlencode }}." target="_blank" class="btn btn-outline-success btn-sm py-0 px-2" title="WhatsApp Landlord">
+                                            <i class="bi bi-whatsapp"></i>
+                                        </a>
+
+                                        <!-- More Actions Dropdown -->
+                                        <div class="dropdown d-inline">
+                                            <button class="btn btn-outline-secondary btn-sm py-0 px-2 dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                More
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end shadow-sm small">
+                                                <li>
+                                                    <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#viewDetailsModal{{ item.id }}">
+                                                        <i class="bi bi-file-text me-1 text-primary"></i> View Raw Submission
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <form method="POST" action="{{ url_for('properties.onboard_external_to_managed', listing_id=item.id) }}" onsubmit="return confirm('Onboard {{ item.property_title }} as a permanent managed property in the system? This registers landlord {{ item.owner_name }} and adds units.');">
+                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                        <button type="submit" class="dropdown-item text-success">
+                                                            <i class="bi bi-building-check me-1"></i> Onboard as Managed Property
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li>
+                                                    <form method="POST" action="{{ url_for('properties.delete_external_listing', listing_id=item.id) }}" onsubmit="return confirm('Delete this listing?');">
+                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                        <button type="submit" class="dropdown-item text-danger">
+                                                            <i class="bi bi-trash me-1"></i> Delete Listing
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    <!-- Modal: Allocate House to Tenant -->
+                                    <div class="modal fade text-start" id="allocateModal{{ item.id }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header bg-light">
+                                                    <h5 class="modal-title fw-bold"><i class="bi bi-link-45deg text-primary me-2"></i> Allocate: {{ item.property_title }}</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <form method="POST" action="{{ url_for('properties.allocate_external_listing', listing_id=item.id) }}">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                    <div class="modal-body p-4">
+                                                        <div class="alert alert-info small mb-3">
+                                                            <i class="bi bi-info-circle-fill me-1"></i> Link this vacant house to an applicant who contacted Angaza Tenacity. This updates the listing and notifies team members.
+                                                        </div>
+
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-semibold">Quick-Select from Waitlist Seekers</label>
+                                                            <select class="form-select form-select-sm" onchange="
+                                                                if(this.value) {
+                                                                    var parts = this.value.split('|');
+                                                                    document.getElementById('alloc_name_{{ item.id }}').value = parts[0];
+                                                                    document.getElementById('alloc_phone_{{ item.id }}').value = parts[1];
+                                                                    document.getElementById('alloc_lead_id_{{ item.id }}').value = parts[2];
+                                                                }
+                                                            ">
+                                                                <option value="">-- Choose matching applicant or type below --</option>
+                                                                {% for ld in leads %}
+                                                                <option value="{{ ld.full_name }}|{{ ld.phone }}|{{ ld.id }}">
+                                                                    {{ ld.full_name }} ({{ ld.phone }}) — Budget: {{ ld.budget_display }} [{{ ld.preferred_unit_type or 'Any' }}]
+                                                                </option>
+                                                                {% endfor %}
+                                                            </select>
+                                                        </div>
+
+                                                        <input type="hidden" name="lead_id" id="alloc_lead_id_{{ item.id }}">
+
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-semibold">Tenant / Applicant Name *</label>
+                                                            <input type="text" name="tenant_name" id="alloc_name_{{ item.id }}" class="form-control" value="{{ item.allocated_tenant_name or '' }}" placeholder="e.g. Samuel Ochieng" required>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-semibold">Tenant Telephone / WhatsApp *</label>
+                                                            <input type="text" name="tenant_phone" id="alloc_phone_{{ item.id }}" class="form-control" value="{{ item.allocated_tenant_phone or '' }}" placeholder="e.g. +254 7XX XXX XXX" required>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-semibold">Agreement &amp; Placement Notes</label>
+                                                            <textarea name="allocation_notes" class="form-control" rows="2" placeholder="e.g. Physical viewing completed, keys handed over, placement fee settled...">{{ item.allocation_notes or '' }}</textarea>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                                        <button type="submit" class="btn btn-primary fw-semibold">
+                                                            <i class="bi bi-check2-circle me-1"></i> Save Allocation
+                                                        </button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Modal: Full Raw Landlord Submission Details -->
+                                    <div class="modal fade text-start" id="viewDetailsModal{{ item.id }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog modal-lg">
+                                            <div class="modal-content">
+                                                <div class="modal-header bg-light">
+                                                    <h5 class="modal-title fw-bold"><i class="bi bi-file-earmark-text text-primary me-2"></i> Landlord Submission Record</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body p-4">
+                                                    <div class="card bg-light border p-3 mb-3">
+                                                        <div class="row g-2 small">
+                                                            <div class="col-6"><span class="text-muted">Landlord Name:</span> <strong class="d-block fs-6 text-dark">{{ item.owner_name }}</strong></div>
+                                                            <div class="col-6"><span class="text-muted">Landlord Telephone:</span> <strong class="d-block fs-6 text-primary">{{ item.owner_phone }}</strong></div>
+                                                            <div class="col-6"><span class="text-muted">Landlord Email:</span> <strong>{{ item.owner_email or 'Not provided' }}</strong></div>
+                                                            <div class="col-6"><span class="text-muted">Submission Date:</span> <strong>{{ item.created_at.strftime('%d/%m/%Y %H:%M') }}</strong></div>
+                                                            <div class="col-6"><span class="text-muted">Target Monthly Rent:</span> <strong class="text-success fs-6">{{ item.rent_display }}</strong></div>
+                                                            <div class="col-6"><span class="text-muted">Deposit Required:</span> <strong>{{ item.deposit_display }}</strong></div>
+                                                            <div class="col-6"><span class="text-muted">Property Location:</span> <strong>{{ item.location }}</strong></div>
+                                                            <div class="col-6"><span class="text-muted">Bedrooms / Bathrooms:</span> <strong>{{ item.bedrooms }} Bed / {{ item.bathrooms }} Bath</strong></div>
+                                                            <div class="col-12"><span class="text-muted">Amenities:</span> <strong>{{ item.features or 'Standard' }}</strong></div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="border rounded p-3 bg-white">
+                                                        <h6 class="fw-bold mb-1">Landlord's Typed Notes / Description:</h6>
+                                                        <p class="small text-muted mb-0">{{ item.description or 'No extra notes provided.' }}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-5">
+                                    <i class="bi bi-building-add fs-1 text-secondary mb-2 d-block"></i>
+                                    <h5>No External Listings Found</h5>
+                                    <p class="small mb-0">Publish an outside apartment to market it on the public vacancies portal.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: House Seeker Waitlist Leads -->
+    <div class="tab-pane fade" id="tab-seekers" role="tabpanel">
+        <div class="card card-custom bg-white">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="fw-bold mb-0"><i class="bi bi-people-fill text-primary me-2"></i> Prospective Tenants Waiting for Matching Houses</h6>
+                    <small class="text-muted">Registered from public vacancies portal alert requests</small>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small">
+                            <tr>
+                                <th class="ps-3">Seeker Name</th>
+                                <th>Contact Number</th>
+                                <th>Desired Unit Type</th>
+                                <th>Target Locations</th>
+                                <th>Max Budget</th>
+                                <th>Preferred Channel</th>
+                                <th>Expected Move-In</th>
+                                <th class="text-end pe-3">Contact Seeker</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for lead in leads %}
+                            <tr>
+                                <td class="ps-3">
+                                    <div class="fw-bold text-dark">{{ lead.full_name }}</div>
+                                    <div class="text-muted" style="font-size: 0.75rem;">Registered: {{ lead.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
+                                </td>
+                                <td>
+                                    <a href="tel:{{ lead.phone }}" class="text-decoration-none">
+                                        <code>{{ lead.phone }}</code>
+                                    </a>
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                        {{ lead.preferred_unit_type or 'Any / Flexible' }}
+                                    </span>
+                                </td>
+                                <td>{{ lead.preferred_locations or 'Any location' }}</td>
+                                <td class="fw-bold text-success">{{ lead.budget_display }}</td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">
+                                        {{ lead.preferred_contact_method }}
+                                    </span>
+                                </td>
+                                <td>{{ lead.expected_move_in_date.strftime('%d/%m/%Y') if lead.expected_move_in_date else 'Flexible' }}</td>
+                                <td class="text-end pe-3">
+                                    {% set seeker_phone = lead.phone.replace(' ', '').replace('-', '').replace('+', '') %}
+                                    {% if seeker_phone.startswith('0') %}
+                                        {% set seeker_phone = '254' + seeker_phone[1:] %}
+                                    {% elif not seeker_phone.startswith('254') and seeker_phone|length == 9 %}
+                                        {% set seeker_phone = '254' + seeker_phone %}
+                                    {% endif %}
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="https://wa.me/{{ seeker_phone }}?text=Hello%20{{ lead.full_name|urlencode }}%2C%20we%20have%20available%20{{ lead.preferred_unit_type|urlencode }}%20vacant%20units%20in%20{{ lead.preferred_locations|urlencode }}%20matching%20your%20budget." target="_blank" class="btn btn-outline-success" title="WhatsApp Seeker">
+                                            <i class="bi bi-whatsapp"></i>
+                                        </a>
+                                        <a href="sms:{{ lead.phone }}?body=Hello%20{{ lead.full_name }}%2C%20we%20have%20vacant%20units%20available." class="btn btn-outline-primary" title="Send SMS">
+                                            <i class="bi bi-chat-text"></i>
+                                        </a>
+                                        <a href="tel:{{ lead.phone }}" class="btn btn-outline-secondary" title="Call Seeker">
+                                            <i class="bi bi-telephone"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-5">
+                                    <i class="bi bi-bell-slash fs-1 text-secondary mb-2 d-block"></i>
+                                    <h5>No Seeker Inquiries Yet</h5>
+                                    <p class="small mb-0">House seeker leads will appear here when visitors register on the vacancies page.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal: Publish External Apartment -->
+<div class="modal fade" id="createExternalModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold"><i class="bi bi-building-add text-primary me-2"></i> Publish External / Partner Apartment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('properties.create_external_listing') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body p-4">
+                    <div class="alert alert-info small mb-4">
+                        <i class="bi bi-info-circle-fill me-1"></i> Use this to publish an outside landlord's vacant apartment or building to market it directly on the public vacancies website.
+                    </div>
+
+                    <h6 class="fw-bold small text-uppercase text-primary border-bottom pb-1 mb-3">1. Apartment &amp; Location Details</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-8">
+                            <label class="form-label small fw-semibold">Property / Building Title *</label>
+                            <input type="text" name="property_title" class="form-control" placeholder="e.g. Riverside Executive Apartments — Unit 3B" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">House Type *</label>
+                            <select name="unit_type" class="form-select" required>
+                                {% for val, label in unit_types %}
+                                <option value="{{ val }}" {% if val == '2_BEDROOM' %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label small fw-semibold">Exact Location / Address *</label>
+                            <input type="text" name="location" class="form-control" placeholder="e.g. Wood Avenue, Kilimani, Nairobi" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-semibold">Bedrooms</label>
+                            <input type="number" name="bedrooms" class="form-control" value="2" min="0">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-semibold">Bathrooms</label>
+                            <input type="number" name="bathrooms" class="form-control" value="2" min="1">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Monthly Rent (KES) *</label>
+                            <input type="number" step="0.01" name="monthly_rent" class="form-control" placeholder="e.g. 55000" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Security Deposit (KES)</label>
+                            <input type="number" step="0.01" name="deposit" class="form-control" placeholder="e.g. 55000">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Key Amenities &amp; Features</label>
+                            <input type="text" name="features" class="form-control" placeholder="e.g. High-speed lift, Borehole water, Balcony, Solar water heating, Backup generator">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Description / Notes</label>
+                            <textarea name="description" class="form-control" rows="2" placeholder="Spacious master ensuite, executive finishes, ready for immediate occupation..."></textarea>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold small text-uppercase text-primary border-bottom pb-1 mb-3">2. Landlord / Property Owner Contact</h6>
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label small fw-semibold">Landlord / Owner Name *</label>
+                            <input type="text" name="owner_name" class="form-control" placeholder="Full Name" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Telephone / WhatsApp *</label>
+                            <input type="text" name="owner_phone" class="form-control" placeholder="+254 7XX XXX XXX" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Email Address</label>
+                            <input type="email" name="owner_email" class="form-control" placeholder="owner@email.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Publishing Status</label>
+                            <select name="status" class="form-select">
+                                <option value="PUBLISHED" selected>Publish Immediately to Public Website</option>
+                                <option value="PENDING">Save as Draft / Pending</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-custom fw-semibold">
+                        <i class="bi bi-broadcast me-1"></i> Publish on Public Website
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

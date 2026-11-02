@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+
+{% block title %}Internal Staff Communication & Requests - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h3 class="fw-bold mb-0">Internal Communication & Staff Requests</h3>
+        <p class="text-muted small mb-0">Direct communication channel between Caretakers, Property Managers, and Landlords for work requests, fund approvals, and incident alerts.</p>
+    </div>
+    <div>
+        <button type="button" class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#newRequestModal">
+            <i class="bi bi-send-plus-fill me-1"></i> New Request / Message
+        </button>
+    </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" id="commTabs">
+    <li class="nav-item">
+        <a class="nav-link fw-semibold {% if active_tab == 'inbox' %}active{% endif %}" href="{{ url_for('communication.index', tab='inbox') }}">
+            <i class="bi bi-inbox-fill me-1 text-primary"></i> Requests Inbox ({{ inbox|length }})
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link fw-semibold {% if active_tab == 'outbox' %}active{% endif %}" href="{{ url_for('communication.index', tab='outbox') }}">
+            <i class="bi bi-send-check-fill me-1 text-success"></i> My Sent Requests ({{ outbox|length }})
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link fw-semibold {% if active_tab == 'notifications' %}active{% endif %}" href="{{ url_for('communication.index', tab='notifications') }}">
+            <i class="bi bi-bell-fill me-1 text-warning"></i> Automated System Alerts ({{ notifications|length }})
+        </a>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <!-- Inbox Tab -->
+    {% if active_tab == 'inbox' %}
+    <div class="card card-custom bg-white">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light small">
+                        <tr>
+                            <th class="ps-3">Sender</th>
+                            <th>Subject & Type</th>
+                            <th>Property / Unit</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                            <th class="text-end pe-3">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="small">
+                        {% for m in inbox %}
+                        <tr>
+                            <td class="ps-3">
+                                <div class="fw-bold">{{ m.sender.full_name if m.sender else 'System' }}</div>
+                                <small class="text-muted">{{ m.sender.role.display_name if m.sender and m.sender.role else 'Staff' }}</small>
+                            </td>
+                            <td>
+                                <div class="fw-semibold text-dark">{{ m.subject }}</div>
+                                <span class="badge bg-light text-dark border">{{ m.message_type }}</span>
+                            </td>
+                            <td>
+                                {% if m.property %}
+                                <span class="fw-semibold">{{ m.property.name }}</span>
+                                {% if m.rental_unit %} • Unit {{ m.rental_unit.unit_number }}{% endif %}
+                                {% else %}
+                                <span class="text-muted">General</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge {% if m.priority == 'URGENT' %}bg-danger{% elif m.priority == 'HIGH' %}bg-warning text-dark{% else %}bg-secondary-subtle text-secondary{% endif %}">
+                                    {{ m.priority }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge {% if m.status == 'OPEN' %}bg-primary-subtle text-primary border border-primary-subtle{% elif m.status == 'RESOLVED' %}bg-success-subtle text-success border border-success-subtle{% else %}bg-secondary-subtle text-secondary{% endif %}">
+                                    {{ m.status }}
+                                </span>
+                            </td>
+                            <td class="text-muted">{{ m.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                            <td class="text-end pe-3">
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#viewMsgModal{{ m.id }}">
+                                    View & Reply
+                                </button>
+                            </td>
+                        </tr>
+
+                        <!-- View & Reply Modal -->
+                        <div class="modal fade" id="viewMsgModal{{ m.id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <div>
+                                            <h5 class="modal-title fw-bold mb-0">{{ m.subject }}</h5>
+                                            <small class="text-muted">From {{ m.sender.full_name if m.sender else 'Staff' }} on {{ m.created_at.strftime('%d %B %Y at %H:%M') }}</small>
+                                        </div>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="p-3 bg-light rounded border mb-3">
+                                            <div class="text-muted small fw-bold mb-1">MESSAGE / REQUEST DETAILS:</div>
+                                            <p class="mb-0 text-dark" style="white-space: pre-line;">{{ m.message }}</p>
+                                        </div>
+
+                                        {% if m.response %}
+                                        <div class="p-3 bg-success-subtle rounded border border-success-subtle mb-3">
+                                            <div class="text-success small fw-bold mb-1">OFFICIAL RESPONSE:</div>
+                                            <p class="mb-0 text-dark" style="white-space: pre-line;">{{ m.response }}</p>
+                                        </div>
+                                        {% endif %}
+
+                                        <form method="POST" action="{{ url_for('communication.reply_message', msg_id=m.id) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <div class="mb-3">
+                                                <label class="form-label small fw-semibold">Reply / Management Action</label>
+                                                <textarea name="response" class="form-control" rows="3" placeholder="Enter instructions, approval, or response for the caretaker/manager...">{{ m.response or '' }}</textarea>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label small fw-semibold">Update Request Status</label>
+                                                <select name="status" class="form-select">
+                                                    <option value="OPEN" {% if m.status == 'OPEN' %}selected{% endif %}>Keep OPEN</option>
+                                                    <option value="IN_PROGRESS" {% if m.status == 'IN_PROGRESS' %}selected{% endif %}>Mark IN PROGRESS</option>
+                                                    <option value="RESOLVED" {% if m.status == 'RESOLVED' %}selected{% endif %}>Mark RESOLVED</option>
+                                                    <option value="CLOSED" {% if m.status == 'CLOSED' %}selected{% endif %}>Mark CLOSED</option>
+                                                </select>
+                                            </div>
+                                            <div class="d-flex justify-content-end gap-2">
+                                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+                                                <button type="submit" class="btn btn-primary-custom">Save Response</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">No internal messages or requests found in inbox.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Outbox Tab -->
+    {% if active_tab == 'outbox' %}
+    <div class="card card-custom bg-white">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light small">
+                        <tr>
+                            <th class="ps-3">Recipient</th>
+                            <th>Subject</th>
+                            <th>Type</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Sent Date</th>
+                            <th>Response</th>
+                        </tr>
+                    </thead>
+                    <tbody class="small">
+                        {% for m in outbox %}
+                        <tr>
+                            <td class="ps-3 fw-semibold">
+                                {{ m.recipient.full_name if m.recipient else 'All Managers' }}
+                            </td>
+                            <td class="fw-bold">{{ m.subject }}</td>
+                            <td><span class="badge bg-light text-dark border">{{ m.message_type }}</span></td>
+                            <td>
+                                <span class="badge {% if m.priority == 'URGENT' %}bg-danger{% elif m.priority == 'HIGH' %}bg-warning text-dark{% else %}bg-secondary-subtle text-secondary{% endif %}">
+                                    {{ m.priority }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge {% if m.status == 'RESOLVED' %}bg-success-subtle text-success border border-success-subtle{% elif m.status == 'OPEN' %}bg-primary-subtle text-primary border border-primary-subtle{% else %}bg-secondary-subtle text-secondary{% endif %}">
+                                    {{ m.status }}
+                                </span>
+                            </td>
+                            <td class="text-muted">{{ m.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                            <td>
+                                {% if m.response %}
+                                <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i> Responded</span>
+                                {% else %}
+                                <span class="text-muted">Awaiting response</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">You have not dispatched any internal requests yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- System Notifications Tab -->
+    {% if active_tab == 'notifications' %}
+    <div class="card card-custom bg-white">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light small">
+                        <tr>
+                            <th class="ps-3">Alert Title</th>
+                            <th>Channel</th>
+                            <th>Message Content</th>
+                            <th>Date / Time</th>
+                            <th class="text-end pe-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="small">
+                        {% for n in notifications %}
+                        <tr>
+                            <td class="ps-3">
+                                <div class="fw-bold text-dark">{{ n.title }}</div>
+                                <span class="badge bg-light text-primary border">{{ n.notification_type }}</span>
+                            </td>
+                            <td>
+                                <span class="badge {% if n.channel == 'SMS' %}bg-info-subtle text-info border border-info-subtle{% elif n.channel == 'EMAIL' %}bg-warning-subtle text-warning border border-warning-subtle{% else %}bg-primary-subtle text-primary border border-primary-subtle{% endif %}">
+                                    {{ n.channel }}
+                                </span>
+                            </td>
+                            <td class="small" style="max-width: 450px;">
+                                <div class="text-truncate" style="max-height: 48px; white-space: pre-line;">{{ n.message }}</div>
+                            </td>
+                            <td class="text-muted">{{ n.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                            <td class="text-end pe-3">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle">{{ n.sent_status }}</span>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">No system notifications logged yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- New Request Modal -->
+<div class="modal fade" id="newRequestModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Send Direct Staff Request / Message</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('communication.send_message') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Recipient Staff / Role</label>
+                            <select name="recipient_id" class="form-select">
+                                <option value="">Send to All Property Managers & Admins</option>
+                                {% for r in recipients %}
+                                <option value="{{ r.id }}">{{ r.full_name }} ({{ r.role.display_name if r.role else 'Staff' }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Related Property (Optional)</label>
+                            <select name="property_id" class="form-select">
+                                <option value="">General / Multiple Properties</option>
+                                {% for p in properties %}
+                                <option value="{{ p.id }}">{{ p.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Request Category</label>
+                            <select name="message_type" class="form-select">
+                                <option value="REQUEST">Material / Expense Approval Request</option>
+                                <option value="MAINTENANCE">Urgent Maintenance Escalation</option>
+                                <option value="INCIDENT">Incident / Security Report</option>
+                                <option value="GENERAL">General Handover / Operational Note</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Priority Level</label>
+                            <select name="priority" class="form-select">
+                                <option value="NORMAL" selected>Normal</option>
+                                <option value="HIGH">High Priority</option>
+                                <option value="URGENT">Emergency / Immediate Action</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Subject *</label>
+                            <input type="text" name="subject" class="form-control" placeholder="e.g. Caretaker Request: Urgent plumbing seals needed for Unit B-201" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Detailed Message Content *</label>
+                            <textarea name="message" class="form-control" rows="4" placeholder="Describe the situation, required funds, supplies, or action needed from the manager or landlord..." required></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-custom">Dispatch Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

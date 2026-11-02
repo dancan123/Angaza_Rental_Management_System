@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Income & Expenditure (P&L) - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <div class="small text-muted mb-1"><a href="{{ url_for('reports.index') }}" class="text-decoration-none">&larr; Back to Reports Hub</a></div>
+        <h3 class="fw-bold mb-0">Income & Expenditure Statement (P&L)</h3>
+        <p class="text-muted small mb-0">Net rental operating income, operational expenses, maintenance costs, and portfolio profitability.</p>
+    </div>
+</div>
+
+<!-- Date & Property Filter -->
+<div class="card card-custom bg-white p-3 mb-4">
+    <form method="GET" action="{{ url_for('reports.income_statement') }}" class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label small text-muted mb-1">Start Date</label>
+            <input type="date" name="start_date" class="form-control form-control-sm" value="{{ start_date }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small text-muted mb-1">End Date</label>
+            <input type="date" name="end_date" class="form-control form-control-sm" value="{{ end_date }}">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label small text-muted mb-1">Property</label>
+            <select name="property_id" class="form-select form-select-sm">
+                <option value="">All Properties (Consolidated)</option>
+                {% for p in properties %}
+                <option value="{{ p.id }}" {% if selected_property == p.id %}selected{% endif %}>{{ p.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-primary-custom btn-sm w-100">
+                <i class="bi bi-funnel me-1"></i> Update Statement
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- P&L KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card card-custom p-3 bg-white">
+            <span class="text-muted small text-uppercase fw-semibold">Gross Rental Revenue</span>
+            <h4 class="fw-bold text-success mt-1 mb-0">{{ report.total_income_cents | currency }}</h4>
+            <span class="text-muted small">Rent collections received</span>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-custom p-3 bg-white">
+            <span class="text-muted small text-uppercase fw-semibold">Total Operating Expenses</span>
+            <h4 class="fw-bold text-danger mt-1 mb-0">{{ report.total_expenses_cents | currency }}</h4>
+            <span class="text-muted small">Repairs, utilities, services</span>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-custom p-3 bg-white border-primary border-start border-4">
+            <span class="text-muted small text-uppercase fw-semibold">Net Operating Income (NOI)</span>
+            <h4 class="fw-bold {% if report.net_operating_income_cents >= 0 %}text-primary{% else %}text-danger{% endif %} mt-1 mb-0">
+                {{ report.net_operating_income_cents | currency }}
+            </h4>
+            <span class="text-muted small">Net profitability</span>
+        </div>
+    </div>
+</div>
+
+<!-- Expense Breakdown by Category -->
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card card-custom bg-white p-4 h-100">
+            <h6 class="fw-bold mb-3">Expenses by Category</h6>
+            <div class="list-group list-group-flush">
+                {% for cat, cents in report.exp_by_category.items() %}
+                <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 small">
+                    <span class="fw-semibold">{{ cat }}</span>
+                    <span class="text-danger fw-bold">{{ cents | currency }}</span>
+                </div>
+                {% else %}
+                <div class="text-muted small py-3">No expenses recorded in this period.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Itemized Expenses Table -->
+    <div class="col-lg-7">
+        <div class="card card-custom bg-white p-3 h-100">
+            <h6 class="fw-bold mb-3">Itemized Expense Ledger</h6>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light small">
+                        <tr>
+                            <th>Date</th>
+                            <th>Property</th>
+                            <th>Category</th>
+                            <th>Description</th>
+                            <th class="text-end">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody class="small">
+                        {% for e in report.expenses %}
+                        <tr>
+                            <td>{{ e.expense_date.strftime('%d/%m/%Y') }}</td>
+                            <td>{{ e.property.name }}</td>
+                            <td><span class="badge bg-light text-dark border">{{ e.category }}</span></td>
+                            <td>{{ e.description }}</td>
+                            <td class="text-end fw-bold text-danger">{{ e.amount_display }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">No expense items found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

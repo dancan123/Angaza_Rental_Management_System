@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}My Profile - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h3 class="fw-bold mb-0">My Profile</h3>
+        <p class="text-muted small mb-0">Update your personal information and change your account password.</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Profile Card -->
+    <div class="col-lg-4">
+        <div class="card card-custom bg-white p-4 text-center">
+            <div class="mx-auto mb-3 rounded-circle bg-primary text-white fw-bold d-flex align-items-center justify-content-center"
+                 style="width: 80px; height: 80px; font-size: 2rem;">
+                {{ current_user.full_name[0] if current_user.full_name else 'U' }}
+            </div>
+            <h5 class="fw-bold mb-1">{{ current_user.full_name }}</h5>
+            <p class="text-muted small mb-1">@{{ current_user.username }}</p>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                {{ current_user.role.display_name if current_user.role else 'User' }}
+            </span>
+            <hr class="my-3">
+            <div class="text-start small">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Email</span>
+                    <span class="fw-semibold">{{ current_user.email }}</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Phone</span>
+                    <span class="fw-semibold">{{ current_user.phone or '—' }}</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Last Login</span>
+                    <span class="fw-semibold">
+                        {% if current_user.last_login_at %}
+                        {{ current_user.last_login_at.strftime('%d %b %Y %H:%M') }}
+                        {% else %}
+                        First session
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Account Status</span>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Password Form -->
+    <div class="col-lg-8">
+        <div class="card card-custom bg-white">
+            <div class="card-header bg-white border-bottom py-3 px-4">
+                <h6 class="fw-bold mb-0"><i class="bi bi-shield-lock me-2 text-primary"></i>Change Account Password</h6>
+                <p class="text-muted small mb-0 mt-1">Use a strong password of at least 8 characters with a mix of letters, numbers, and symbols.</p>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('users.change_password') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Current Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white"><i class="bi bi-lock text-muted"></i></span>
+                            <input type="password" name="current_password" class="form-control" 
+                                   placeholder="Enter your current password" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">New Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white"><i class="bi bi-lock-fill text-muted"></i></span>
+                            <input type="password" name="new_password" id="newPwd" class="form-control" 
+                                   placeholder="Enter new password (min. 8 characters)" required minlength="8">
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label small fw-semibold">Confirm New Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white"><i class="bi bi-lock-fill text-muted"></i></span>
+                            <input type="password" name="confirm_password" id="confirmPwd" class="form-control" 
+                                   placeholder="Repeat new password" required minlength="8">
+                        </div>
+                        <div id="pwdMatchMsg" class="form-text text-danger d-none">Passwords do not match.</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary-custom px-4" id="changePwdBtn">
+                        <i class="bi bi-shield-check me-1"></i> Update Password
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Permissions Card -->
+        <div class="card card-custom bg-white mt-4">
+            <div class="card-header bg-white border-bottom py-3 px-4">
+                <h6 class="fw-bold mb-0"><i class="bi bi-key me-2 text-warning"></i>My Access Permissions</h6>
+            </div>
+            <div class="card-body p-4">
+                {% if current_user.role %}
+                <p class="text-muted small mb-3">
+                    Role: <strong>{{ current_user.role.display_name }}</strong> — 
+                    You have access to the following modules:
+                </p>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for perm in current_user.role.permissions %}
+                    <span class="badge bg-light border text-dark small py-2 px-3">
+                        <i class="bi bi-check-circle-fill text-success me-1"></i>{{ perm.description or perm.code }}
+                    </span>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted small">No role assigned. Contact the system administrator.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Real-time password confirmation check
+const newPwd = document.getElementById('newPwd');
+const confirmPwd = document.getElementById('confirmPwd');
+const matchMsg = document.getElementById('pwdMatchMsg');
+const btn = document.getElementById('changePwdBtn');
+
+function checkMatch() {
+    if (confirmPwd.value.length > 0 && newPwd.value !== confirmPwd.value) {
+        matchMsg.classList.remove('d-none');
+        btn.disabled = true;
+    } else {
+        matchMsg.classList.add('d-none');
+        btn.disabled = false;
+    }
+}
+
+newPwd.addEventListener('input', checkMatch);
+confirmPwd.addEventListener('input', checkMatch);
+</script>
+{% endblock %}
+

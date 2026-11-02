@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+
+{% block title %}Water & Meter Utilities - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h2 class="fw-bold mb-1">Water &amp; Electricity Meter Management</h2>
+        <p class="text-muted small mb-0">Register utility sub-meters, record periodic readings, and automatically generate utility bills for tenants.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('utilities.caretaker_entry') }}" class="btn btn-outline-primary">
+            <i class="bi bi-phone me-1"></i> Caretaker Quick Entry
+        </a>
+        <button type="button" class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#registerMeterModal">
+            <i class="bi bi-plus-lg me-1"></i> Register New Meter
+        </button>
+    </div>
+</div>
+
+<!-- Filters Bar -->
+<div class="card card-custom bg-white p-3 mb-4">
+    <form method="GET" action="{{ url_for('utilities.index') }}" class="row g-2 align-items-center">
+        <div class="col-md-5">
+            <label class="form-label small fw-semibold text-muted mb-1">Filter by Property</label>
+            <select name="property_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="">All Properties ({{ properties|length }})</option>
+                {% for p in properties %}
+                <option value="{{ p.id }}" {% if selected_property == p.id %}selected{% endif %}>{{ p.name }} ({{ p.ref_number }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label small fw-semibold text-muted mb-1">Utility Type</label>
+            <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="">All Utilities</option>
+                <option value="WATER" {% if selected_type == 'WATER' %}selected{% endif %}>Water Sub-meters</option>
+                <option value="ELECTRICITY" {% if selected_type == 'ELECTRICITY' %}selected{% endif %}>Electricity Sub-meters</option>
+            </select>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+            <a href="{{ url_for('utilities.index') }}" class="btn btn-sm btn-light border w-100 mt-md-4">Reset Filters</a>
+        </div>
+    </form>
+</div>
+
+<!-- Nav Tabs -->
+<ul class="nav nav-tabs mb-4" id="meterTab" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link active fw-semibold" id="meters-tab" data-bs-toggle="tab" data-bs-target="#tab-meters" type="button">
+            <i class="bi bi-speedometer me-1 text-primary"></i> Registered Meters ({{ meters|length }})
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link fw-semibold" id="readings-tab" data-bs-toggle="tab" data-bs-target="#tab-readings" type="button">
+            <i class="bi bi-clock-history me-1 text-primary"></i> Recent Readings &amp; Bills ({{ readings|length }})
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="meterTabContent">
+    <!-- Tab 1: Registered Meters -->
+    <div class="tab-pane fade show active" id="tab-meters" role="tabpanel">
+        <div class="card card-custom bg-white">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small">
+                            <tr>
+                                <th class="ps-3">Meter Number</th>
+                                <th>Utility</th>
+                                <th>Property &amp; Unit</th>
+                                <th>Current Tenant</th>
+                                <th>Billing Rate</th>
+                                <th>Last Recorded Reading</th>
+                                <th class="text-end pe-3">Record Reading</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for m in meters %}
+                            <tr>
+                                <td class="ps-3 fw-bold text-dark">
+                                    <i class="bi {% if m.meter_type == 'WATER' %}bi-droplet-fill text-info{% else %}bi-lightning-charge-fill text-warning{% endif %} me-1"></i>
+                                    {{ m.meter_number }}
+                                </td>
+                                <td>
+                                    <span class="badge {% if m.meter_type == 'WATER' %}bg-info-subtle text-info border border-info-subtle{% else %}bg-warning-subtle text-warning border border-warning-subtle{% endif %}">
+                                        {{ m.meter_type }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="fw-semibold">{{ m.property.name if m.property else '—' }}</div>
+                                    <small class="text-muted">Unit: <strong>{{ m.rental_unit.unit_number if m.rental_unit else 'N/A' }}</strong></small>
+                                </td>
+                                <td>
+                                    {% if m.rental_unit and m.rental_unit.current_tenant %}
+                                    <div class="fw-semibold text-primary">{{ m.rental_unit.current_tenant.full_name }}</div>
+                                    <small class="text-muted">{{ m.rental_unit.current_tenant.phone }}</small>
+                                    {% else %}
+                                    <span class="badge bg-light text-muted border">Vacant</span>
+                                    {% endif %}
+                                </td>
+                                <td class="fw-semibold">{{ m.rate_display }} <small class="text-muted">/ unit</small></td>
+                                <td>
+                                    <span class="badge bg-secondary-subtle text-dark fs-6">{{ m.last_reading }}</span>
+                                </td>
+                                <td class="text-end pe-3">
+                                    <button class="btn btn-sm btn-primary-custom" data-bs-toggle="modal" data-bs-target="#recordReadingModal{{ m.id }}">
+                                        <i class="bi bi-pencil-square me-1"></i> Log Reading
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <!-- Modal: Log Reading for this Meter -->
+                            <div class="modal fade" id="recordReadingModal{{ m.id }}" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title fw-bold">Record {{ m.meter_type }} Reading</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <form method="POST" action="{{ url_for('utilities.record_reading') }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <input type="hidden" name="meter_id" value="{{ m.id }}"/>
+                                            <input type="hidden" name="next_url" value="{{ request.full_path }}"/>
+                                            <div class="modal-body">
+                                                <div class="p-3 bg-light rounded mb-3 small border">
+                                                    <div><strong>Meter Number:</strong> {{ m.meter_number }} ({{ m.meter_type }})</div>
+                                                    <div><strong>Unit:</strong> {{ m.rental_unit.unit_number }} ({{ m.property.name }})</div>
+                                                    <div><strong>Current Rate:</strong> {{ m.rate_display }} per unit</div>
+                                                    <div><strong>Previous Reading:</strong> <span class="fw-bold text-danger">{{ m.last_reading }}</span></div>
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label small fw-semibold">Current Meter Reading Value</label>
+                                                    <input type="number" step="0.01" name="current_reading" class="form-control" min="{{ m.last_reading }}" placeholder="Must be &gt;= {{ m.last_reading }}" required>
+                                                    <div class="form-text small">Enter the current cumulative reading on the dial.</div>
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label small fw-semibold">Reading Date</label>
+                                                    <input type="date" name="reading_date" class="form-control" value="{{ date.today().strftime('%Y-%m-%d') }}" required>
+                                                </div>
+
+                                                <div class="form-check form-switch mb-3">
+                                                    <input class="form-check-input" type="checkbox" name="auto_bill" value="1" id="autoBill{{ m.id }}" checked>
+                                                    <label class="form-check-label small" for="autoBill{{ m.id }}">
+                                                        <strong>Automatically generate utility bill invoice</strong> for tenant's account
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="btn btn-primary-custom">Save Reading &amp; Bill</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">No utility sub-meters registered yet. Click 'Register New Meter' to add one.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: Recent Readings -->
+    <div class="tab-pane fade" id="tab-readings" role="tabpanel">
+        <div class="card card-custom bg-white">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small">
+                            <tr>
+                                <th class="ps-3">Reading Date</th>
+                                <th>Meter</th>
+                                <th>Unit / Property</th>
+                                <th>Previous</th>
+                                <th>Current</th>
+                                <th>Units Consumed</th>
+                                <th>Total Cost</th>
+                                <th>Billed Invoice</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for r in readings %}
+                            <tr>
+                                <td class="ps-3 fw-semibold">{{ r.reading_date.strftime('%d/%m/%Y') }}</td>
+                                <td>
+                                    <span class="badge {% if r.meter.meter_type == 'WATER' %}bg-info-subtle text-info{% else %}bg-warning-subtle text-warning{% endif %}">
+                                        {{ r.meter.meter_type }}
+                                    </span>
+                                    <span class="fw-semibold ms-1">{{ r.meter.meter_number }}</span>
+                                </td>
+                                <td>
+                                    {{ r.meter.rental_unit.unit_number }} ({{ r.meter.property.name }})
+                                </td>
+                                <td class="text-muted">{{ r.previous_reading }}</td>
+                                <td class="fw-bold">{{ r.current_reading }}</td>
+                                <td><span class="badge bg-light text-dark border">{{ r.units_consumed }} units</span></td>
+                                <td class="fw-bold text-primary">{{ r.cost_display }}</td>
+                                <td>
+                                    {% if r.rent_charge %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">{{ r.rent_charge.invoice_number }}</span>
+                                    {% else %}
+                                    <span class="badge bg-light text-muted">Unbilled</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">No meter readings recorded yet.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Register Meter -->
+<div class="modal fade" id="registerMeterModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Register New Utility Sub-Meter</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('utilities.create_meter') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Property</label>
+                        <select name="property_id" id="modalPropertySelect" class="form-select" required onchange="filterUnitsByProperty(this.value)">
+                            <option value="">Select Property...</option>
+                            {% for p in properties %}
+                            <option value="{{ p.id }}">{{ p.name }} ({{ p.ref_number }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Rental Unit</label>
+                        <select name="rental_unit_id" id="modalUnitSelect" class="form-select" required>
+                            <option value="">Select Unit...</option>
+                            {% for p in properties %}
+                                {% for u in p.rental_units %}
+                                <option value="{{ u.id }}" data-property="{{ p.id }}">{{ p.name }} — Unit {{ u.unit_number }} ({{ u.unit_type }})</option>
+                                {% endfor %}
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Utility Type</label>
+                            <select name="meter_type" class="form-select" required>
+                                <option value="WATER">Water Sub-meter</option>
+                                <option value="ELECTRICITY">Electricity Sub-meter</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Meter Serial / No</label>
+                            <input type="text" name="meter_number" class="form-control" placeholder="e.g. WTR-0045" required>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Rate per Unit ({{ currency }})</label>
+                            <input type="number" step="0.01" name="rate_per_unit" class="form-control" value="150.00" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Initial Dial Reading</label>
+                            <input type="number" step="0.01" name="initial_reading" class="form-control" value="0.00" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-custom">Register Meter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function filterUnitsByProperty(propId) {
+    const unitSelect = document.getElementById('modalUnitSelect');
+    const options = unitSelect.querySelectorAll('option');
+    options.forEach(opt => {
+        if (!opt.value) return;
+        if (!propId || opt.getAttribute('data-property') === propId) {
+            opt.style.display = 'block';
+        } else {
+            opt.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}
+

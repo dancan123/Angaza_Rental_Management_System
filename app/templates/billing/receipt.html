@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receipt {{ payment.receipt_number }} - {{ business_name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f1f5f9;
+            color: #1e293b;
+            padding: 2rem 1rem;
+        }
+        .receipt-card {
+            max-width: 680px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+            padding: 2.5rem;
+            border: 1px solid #e2e8f0;
+            position: relative;
+        }
+        .watermark {
+            position: absolute;
+            top: 45%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 5rem;
+            font-weight: 800;
+            color: rgba(16, 185, 129, 0.08);
+            text-transform: uppercase;
+            pointer-events: none;
+            user-select: none;
+        }
+        .receipt-header {
+            border-bottom: 2px solid var(--primary-color, #1a56db);
+            padding-bottom: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .receipt-card {
+                box-shadow: none;
+                border: none;
+                padding: 1rem;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Print / Action Bar -->
+    <div class="d-flex justify-content-center gap-2 mb-4 no-print">
+        <a href="{{ url_for('billing.index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i> Back to Billing
+        </a>
+        <button onclick="window.print();" class="btn btn-primary btn-sm">
+            <i class="bi bi-printer me-1"></i> Print Receipt
+        </button>
+        <a href="{{ url_for('billing.download_receipt_pdf', payment_id=payment.id) }}" class="btn btn-danger btn-sm">
+            <i class="bi bi-file-earmark-pdf me-1"></i> Download PDF
+        </a>
+    </div>
+
+    <div class="receipt-card">
+        <div class="watermark">PAID</div>
+
+        <!-- Receipt Header -->
+        <div class="receipt-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+                <h4 class="fw-bold mb-1 text-primary">{{ business_name }}</h4>
+                <p class="text-muted small mb-0">{{ sys_settings.get('business_address', 'Nairobi, Kenya') }}</p>
+                <p class="text-muted small mb-0">Tel: {{ sys_settings.get('business_phone', '+254 700 000 000') }} | Email: {{ sys_settings.get('business_email', '') }}</p>
+                {% if sys_settings.get('tax_pin') %}
+                <p class="text-muted small mb-0">Tax PIN: <code>{{ sys_settings.get('tax_pin') }}</code></p>
+                {% endif %}
+            </div>
+            <div class="text-end">
+                <span class="badge bg-primary fs-6 px-3 py-2 mb-2">OFFICIAL RECEIPT</span>
+                <div class="fw-bold fs-5 text-dark">{{ payment.receipt_number }}</div>
+                <div class="text-muted small">Date: <strong>{{ payment.payment_date.strftime('%d/%m/%Y') }}</strong></div>
+            </div>
+        </div>
+
+        <!-- Received From Block -->
+        <div class="row g-3 mb-4 bg-light p-3 rounded border">
+            <div class="col-md-6">
+                <div class="text-muted small text-uppercase">Received From:</div>
+                <h5 class="fw-bold mb-0 text-dark">{{ payment.tenant.full_name }}</h5>
+                <div class="small text-muted">ID/Passport: <code>{{ payment.tenant.id_passport_number }}</code></div>
+                <div class="small text-muted">Tel: {{ payment.tenant.phone }}</div>
+            </div>
+            <div class="col-md-6 text-md-end">
+                <div class="text-muted small text-uppercase">Rental Unit / Property:</div>
+                <h5 class="fw-bold mb-0 text-primary">{{ payment.rental_unit.unit_number }}</h5>
+                <div class="small text-muted">{{ payment.rental_unit.property.name }}</div>
+                <div class="small text-muted">{{ payment.rental_unit.unit_type }}</div>
+            </div>
+        </div>
+
+        <!-- Payment Details Summary -->
+        <div class="row g-2 mb-4 small">
+            <div class="col-6 col-md-3">
+                <span class="text-muted d-block">Payment Method</span>
+                <strong class="text-dark">{{ payment.payment_method }}</strong>
+            </div>
+            <div class="col-6 col-md-3">
+                <span class="text-muted d-block">Transaction Ref</span>
+                <code>{{ payment.transaction_reference or '—' }}</code>
+            </div>
+            <div class="col-6 col-md-3">
+                <span class="text-muted d-block">Verification Status</span>
+                <span class="badge bg-success-subtle text-success">VERIFIED & CONFIRMED</span>
+            </div>
+            <div class="col-6 col-md-3 text-md-end">
+                <span class="text-muted d-block">Recorded By</span>
+                <span class="text-dark">{{ payment.recorded_by.full_name if payment.recorded_by else 'System' }}</span>
+            </div>
+        </div>
+
+        <!-- Breakdown / Allocations Table -->
+        <h6 class="fw-bold small text-uppercase text-muted border-bottom pb-1 mb-2">Payment Breakdown & Allocations</h6>
+        <div class="table-responsive mb-4">
+            <table class="table table-bordered align-middle mb-0">
+                <thead class="table-light small">
+                    <tr>
+                        <th>Particulars / Description</th>
+                        <th>Period</th>
+                        <th>Charge Type</th>
+                        <th class="text-end">Amount Allocated</th>
+                    </tr>
+                </thead>
+                <tbody class="small">
+                    {% for a in payment.allocations %}
+                    <tr>
+                        <td>{{ a.rent_charge.description }}</td>
+                        <td>{{ a.rent_charge.period_month }}/{{ a.rent_charge.period_year }}</td>
+                        <td><span class="badge bg-light text-dark border">{{ a.rent_charge.charge_type }}</span></td>
+                        <td class="text-end fw-bold">{{ a.amount_display }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="3">{{ payment.description or 'General Rent Collection' }}</td>
+                        <td class="text-end fw-bold">{{ payment.amount_display }}</td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="table-light">
+                        <td colspan="3" class="fw-bold text-uppercase text-end">Total Amount Received:</td>
+                        <td class="text-end fw-bold fs-5 text-primary">{{ payment.amount_display }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Signature / Stamp -->
+        <div class="row align-items-end mt-4 pt-4 border-top">
+            <div class="col-6">
+                <div class="text-muted small" style="font-size: 0.75rem;">
+                    <strong>Issued electronically by:</strong><br/>
+                    {{ business_name }} Automated Financial Ledger
+                </div>
+            </div>
+            <div class="col-6 text-end">
+                <div class="d-inline-block text-center">
+                    <div style="border-bottom: 1px solid #94a3b8; width: 180px; height: 35px;"></div>
+                    <span class="text-muted" style="font-size: 0.75rem;">Authorized Signature / Stamp</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer Notice -->
+        <div class="text-center text-muted mt-4 pt-3 border-top small" style="font-size: 0.8rem;">
+            <em>{{ sys_settings.get('receipt_footer', 'Thank you for your business. Rent is payable on or before the 5th of every month.') }}</em>
+        </div>
+    </div>
+
+</body>
+</html>
+

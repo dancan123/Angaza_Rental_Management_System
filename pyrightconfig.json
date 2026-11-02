@@ -1,0 +1,30 @@
+{
+    "include": [
+        "app",
+        "tests",
+        "*.py"
+    ],
+    "exclude": [
+        "**/node_modules",
+        "**/__pycache__",
+        "**/.pytest_cache",
+        "instance"
+    ],
+    "typeCheckingMode": "off",
+    "reportMissingImports": "none",
+    "reportMissingModuleSource": "none",
+    "reportGeneralTypeIssues": "none",
+    "reportAttributeAccessIssue": "none",
+    "reportOptionalMemberAccess": "none",
+    "reportOptionalOperand": "none",
+    "reportOptionalSubscript": "none",
+    "reportUnusedImport": "none",
+    "reportUnusedVariable": "none",
+    "reportMissingTypeStubs": "none",
+    "reportUndefinedVariable": "none",
+    "reportConstantRedefinition": "none",
+    "reportIncompatibleMethodOverride": "none",
+    "reportIncompatibleVariableOverride": "none",
+    "pythonVersion": "3.8",
+    "pythonPlatform": "Windows"
+}

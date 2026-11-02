@@ -1,0 +1,34 @@
+{
+    "python.defaultInterpreterPath": "C:\\Users\\Angaza Computecs\\AppData\\Local\\Programs\\Python\\Python38-32\\python.exe",
+    "python.analysis.typeCheckingMode": "off",
+    "python.analysis.autoSearchPaths": true,
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}",
+        "${workspaceFolder}/app"
+    ],
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportMissingImports": "none",
+        "reportMissingModuleSource": "none",
+        "reportGeneralTypeIssues": "none",
+        "reportOptionalMemberAccess": "none",
+        "reportOptionalSubscript": "none",
+        "reportOptionalOperand": "none",
+        "reportAttributeAccessIssue": "none",
+        "reportUndefinedVariable": "none",
+        "reportUnusedImport": "none",
+        "reportUnusedVariable": "none",
+        "reportCallIssue": "none",
+        "reportArgumentType": "none"
+    },
+    "files.associations": {
+        "*.html": "jinja-html",
+        "*.j2": "jinja-html",
+        "*.jinja": "jinja-html",
+        "*.jinja2": "jinja-html"
+    },
+    "html.validate.scripts": false,
+    "html.validate.styles": false,
+    "css.validate": false,
+    "scss.validate": false,
+    "less.validate": false
+}
