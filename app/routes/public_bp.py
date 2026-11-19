@@ -443,6 +443,9 @@ def tenant_site(slug):
         from flask import abort
         abort(404, description=f"Organization website '{slug}' not found.")
 
+    if org.is_suspended:
+        return render_template('public/suspended_site.html', org=org), 503
+
     # 1. Properties belonging exclusively to this organization
     properties = Property.query.filter_by(organization_id=org.id, management_status='ACTIVE').all()
     property_ids = [p.id for p in properties]
@@ -490,6 +493,10 @@ def tenant_inquire(slug):
     if not org:
         flash('Invalid property management organization.', 'danger')
         return redirect(url_for('public.vacancies'))
+
+    if org.is_suspended:
+        flash('Inquiries for this organization are temporarily paused due to administrative maintenance.', 'warning')
+        return redirect(url_for('public.tenant_site', slug=slug))
 
     unit_id = request.form.get('unit_id', type=int)
     full_name = request.form.get('full_name', '').strip()
@@ -567,6 +574,10 @@ def tenant_airbnb_inquire(slug):
     if not org:
         flash('Invalid property management organization.', 'danger')
         return redirect(url_for('public.vacancies'))
+
+    if org.is_suspended:
+        flash('Inquiries for this organization are temporarily paused due to administrative maintenance.', 'warning')
+        return redirect(url_for('public.tenant_site', slug=slug))
 
     unit_id = request.form.get('unit_id', type=int)
     guest_name = request.form.get('guest_name', '').strip()

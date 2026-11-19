@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from typing import Any, cast
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
@@ -138,12 +139,69 @@ def update_organization_status(org_id):
     if not org:
         from flask import abort; abort(404)
 
-    new_status = request.form.get('subscription_status', 'ACTIVE')
+    new_status = request.form.get('subscription_status', 'ACTIVE').strip().upper()
+    suspension_reason = request.form.get('suspension_reason', '').strip()
+    premium_amount = request.form.get('premium_amount', type=float)
+    extend_days = request.form.get('extend_days', type=int)
+
     org.subscription_status = new_status
-    org.is_active = (new_status in ['ACTIVE', 'TRIAL'])
+    if new_status in ('ACTIVE', 'TRIAL'):
+        org.is_active = True
+        if new_status == 'ACTIVE' and not suspension_reason:
+            org.suspension_reason = None
+        if extend_days and extend_days > 0:
+            from datetime import timedelta
+            now = datetime.utcnow()
+            base_date = org.subscription_expires_at if (org.subscription_expires_at and org.subscription_expires_at > now) else now
+            org.subscription_expires_at = base_date + timedelta(days=extend_days)
+    else:
+        # SUSPENDED or EXPIRED
+        org.is_active = False
+        org.suspension_reason = suspension_reason or 'Unpaid Monthly System Subscription Premium'
+
+    if premium_amount is not None and premium_amount >= 0:
+        org.premium_amount_cents = int(round(premium_amount * 100))
+
     db.session.commit()
 
-    flash(f"Organization '{org.name}' status updated to {new_status}.", 'success')
+    if org.is_active:
+        flash(f"System access for '{org.name}' has been ACTIVATED (Status: {new_status}). All users can now access the platform.", 'success')
+    else:
+        flash(f"System access for '{org.name}' has been DEACTIVATED/SUSPENDED. Reason: {org.suspension_reason}.", 'warning')
+
+    return redirect(url_for('platform.organizations'))
+
+@platform_bp.route('/organizations/<int:org_id>/toggle-status', methods=['POST'])
+@login_required
+def toggle_organization_status(org_id):
+    """Quick 1-click toggle between ACTIVE and SUSPENDED."""
+    if not superadmin_only():
+        return redirect(url_for('dashboard.index'))
+
+    org = db.session.get(Organization, org_id)
+    if not org:
+        from flask import abort; abort(404)
+
+    from datetime import timedelta
+    if org.is_suspended:
+        # Reactivate
+        org.subscription_status = 'ACTIVE'
+        org.is_active = True
+        org.suspension_reason = None
+        # If expiry was in the past, give 30 days of active premium
+        now = datetime.utcnow()
+        if not org.subscription_expires_at or org.subscription_expires_at < now:
+            org.subscription_expires_at = now + timedelta(days=30)
+        flash(f"'{org.name}' has been ACTIVATED successfully. Full access granted for 30 days.", 'success')
+    else:
+        # Suspend for unpaid premium
+        reason = request.form.get('suspension_reason', '').strip() or 'Unpaid Monthly System Subscription Premium'
+        org.subscription_status = 'SUSPENDED'
+        org.is_active = False
+        org.suspension_reason = reason
+        flash(f"'{org.name}' has been DEACTIVATED/SUSPENDED. Reason: {reason}.", 'warning')
+
+    db.session.commit()
     return redirect(url_for('platform.organizations'))
 
 @platform_bp.route('/organizations/<int:org_id>/subscription', methods=['POST'])

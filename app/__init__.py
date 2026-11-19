@@ -152,21 +152,16 @@ def create_app(config_name=None):
                         )
                         return redirect(url_for('auth.login'))
 
-            if org and org.subscription_status == 'SUSPENDED':
+            if org and (org.subscription_status in ('SUSPENDED', 'EXPIRED') or not org.is_active):
                 if req.endpoint not in ('auth.login', 'auth.logout'):
+                    from flask_login import logout_user
+                    reason = getattr(org, 'suspension_reason', None) or 'Payment of monthly system usage premium is pending.'
                     flash(
-                        'Your organization account has been suspended. '
-                        'Please contact Angaza platform support to restore access.',
+                        f"Access Suspended: System access for '{org.name}' is currently deactivated. "
+                        f"Reason: {reason}. Please settle your premium or contact Angaza platform support.",
                         'danger'
                     )
-                    return redirect(url_for('auth.login'))
-            if org and org.subscription_status == 'EXPIRED':
-                if req.endpoint not in ('auth.login', 'auth.logout'):
-                    flash(
-                        'Your organization subscription has expired. '
-                        'Please renew your subscription to continue using the platform.',
-                        'warning'
-                    )
+                    logout_user()
                     return redirect(url_for('auth.login'))
         except Exception:
             pass

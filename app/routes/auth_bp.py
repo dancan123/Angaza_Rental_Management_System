@@ -71,6 +71,19 @@ def login():
             if not user.is_active:
                 flash('Your account has been deactivated. Please contact the administrator.', 'danger')
                 return render_template('auth/login.html')
+
+            # Check Organization subscription / payment active status
+            if user.organization and not user.is_superadmin():
+                org = user.organization
+                if org.is_suspended or org.subscription_status in ('SUSPENDED', 'EXPIRED') or not org.is_active:
+                    reason = getattr(org, 'suspension_reason', None) or 'Payment of monthly system usage premium is pending.'
+                    flash(
+                        f"Access Suspended: System access for '{org.name}' is currently deactivated. "
+                        f"Reason: {reason}. "
+                        "Please settle your premium or contact platform administration to restore access.",
+                        'danger'
+                    )
+                    return render_template('auth/login.html')
                 
             login_user(user, remember=remember)
             user.last_login_at = datetime.utcnow()

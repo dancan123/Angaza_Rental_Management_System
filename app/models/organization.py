@@ -43,6 +43,8 @@ class Organization(db.Model):
     # Status: ACTIVE, TRIAL, SUSPENDED, EXPIRED
     subscription_status = db.Column(db.String(20), nullable=False, default='ACTIVE', index=True)
     subscription_expires_at = db.Column(db.DateTime)
+    suspension_reason = db.Column(db.String(255))
+    premium_amount_cents = db.Column(db.Integer, default=0)
 
     # Entitlement Limits
     max_properties = db.Column(db.Integer, default=50)
@@ -66,6 +68,14 @@ class Organization(db.Model):
     @property
     def is_trial(self) -> bool:
         return self.subscription_status == 'TRIAL'
+
+    @property
+    def is_suspended(self) -> bool:
+        return self.subscription_status in ('SUSPENDED', 'EXPIRED') or not self.is_active
+
+    @property
+    def can_operate(self) -> bool:
+        return bool(self.is_active and self.subscription_status in ('ACTIVE', 'TRIAL'))
 
     @property
     def days_remaining(self) -> int:
