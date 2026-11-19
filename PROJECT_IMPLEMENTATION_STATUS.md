@@ -130,10 +130,57 @@ Each component in the codebase has been audited and classified according to the 
 - [x] Add Module Switcher in `base.html` allowing one-click toggle between Rental Management Suite and Hospitality Suite.
 - [x] Automated test suite (`tests/test_phase15_hospitality.py` — 6/6 passing).
 
-### Phase 5: Quality Assurance & Full Regression Verification (DONE)
-- [x] Full test suite executed: **57 out of 57 tests passing** (48 existing regression tests + 6 Hospitality tests + 3 Multi-tenancy tests).
-- [x] Zero pyflakes linter errors.
-- [x] All database operations safely non-destructive.
+### Phase 5: Platform Super Admin Control Plane (DONE)
+- [x] Control Plane Blueprint (`app/routes/platform_bp.py`):
+  - `/platform/organizations` — Organization directory, metrics, tier filters, search.
+  - `/platform/organizations/create` — Customer organization onboarding with custom property/unit/user limits.
+  - `/platform/organizations/<id>/status` — Account suspension and reactivation.
+  - `/platform/organizations/<id>/subscription` — Subscription tier updates (`RENTAL_STANDARD`, `HOSPITALITY_STANDARD`, `COMBINED_SUITE`, `ENTERPRISE`).
+  - `/platform/organizations/<id>/users` — Personnel directory per customer organization.
+  - `/platform/organizations/<id>/assign-user` — Assign unallocated users to organizations.
+  - `/platform/analytics` — Platform-wide cross-tenant analytics: managed units, tier breakdown, enforcement status, MTD gross processed volume (rental + hospitality), and SMS delivery counts.
+- [x] Subscription enforcement middleware in `app/__init__.py`:
+  - Intercepts requests for accounts with `SUSPENDED` or `EXPIRED` status and blocks access with informative guidance.
+- [x] Automated test suite (`tests/test_phase17_platform_admin.py` — 5/5 passing).
+
+### Phase 6: Shared Services — Consolidated Commercial Executive P&L (DONE)
+- [x] Consolidated Financial Summary (`ReportService.get_consolidated_financial_summary()`):
+  - Aggregates long-term rental revenue (verified `Payment` records).
+  - Aggregates short-stay hospitality revenue (`HospitalityReservation` records).
+  - Deducts combined operating expenses (`Expense` records).
+  - Computes Net Operating Income (NOI), operating profit margin %, and module revenue share.
+- [x] Route & Executive Template:
+  - `/reports/consolidated` (`app/routes/reports_bp.py`).
+  - `app/templates/reports/consolidated.html` — Full audit-grade P&L statement with metric cards, revenue breakdown chart, and printable ledger.
+- [x] Automated test suite (`tests/test_phase18_consolidated_reports.py` — 2/2 passing).
+
+### Phase 7: Dynamic & Seasonal Pricing Engine (DONE)
+- [x] Dynamic Pricing Model (`app/models/pricing.py` — `RoomPricingRule`):
+  - Rule categories: `PEAK_SEASON`, `LOW_SEASON`, `WEEKEND_PREMIUM`, `HOLIDAY`, `EVENT`, `DISCOUNT`, `CUSTOM`.
+  - Adjustment types: Percentage multiplier (e.g. `1.5` = +50%) or fixed flat rate daily override.
+  - Day-of-week mask (e.g. `FRI,SAT,SUN` for weekend premiums).
+  - Unit-specific vs global application priority.
+- [x] Pricing Routes & Views:
+  - `/hospitality/pricing` — Rules directory, add rule modal, toggle activation, deletion.
+  - Integration with `HospitalityService.create_reservation()` to automatically calculate multi-day rates based on active pricing rules.
+- [x] Automated test suite (`tests/test_phase19_pricing_and_calendar.py` — 4/4 passing).
+
+### Phase 8: Multi-Room Availability Calendar (DONE)
+- [x] Interactive Booking Calendar (`/hospitality/calendar`):
+  - 30-day rolling grid showing all rooms/units.
+  - Real-time status indicators: Available (green), Checked In (red), Confirmed (yellow), Leased (gray).
+  - Quick navigation by start date.
+
+### Phase 9: SMS Delivery Logs & Gateway History (DONE)
+- [x] SMS Delivery History Dashboard (`/communication/sms-history`):
+  - Paginated audit log of all transactional SMS transmissions.
+  - Status tracking: `SENT`, `FAILED`, `PENDING`, and `SIMULATED`.
+  - Type filters: rent payment receipts, booking confirmations, guest check-in SMS, and bulk broadcasts.
+
+### Phase 10: Quality Assurance & Full Regression Verification (DONE)
+- [x] Full test suite executed: **68 out of 68 tests passing** across 19 comprehensive test phases.
+- [x] Zero pyflakes linter errors across all models, services, blueprints, and utilities.
+- [x] All database operations safely backward-compatible and non-destructive.
 
 ---
 
@@ -144,3 +191,6 @@ Each component in the codebase has been audited and classified according to the 
 - **2026-11-19 07:02**: Implemented Twilio SMS integration (`SmsService`), automated payment & booking SMS, and bulk SMS broadcasting.
 - **2026-11-19 07:04**: Implemented Module B (Hospitality and Short-Stay Management): `Guest`, `HospitalityReservation`, `HousekeepingTask`, `HospitalityService`, `hospitality_bp`, dashboard, ADR/RevPAR, and turnover housekeeping automation.
 - **2026-11-19 07:06**: Implemented SaaS Multi-Tenancy (`Organization`) with modular subscription tiers and unit limits. Full test suite passing at **57/57 tests**.
+- **2026-11-19 07:45**: Implemented Platform Super Admin Control Plane (`platform_bp`), account suspension enforcement middleware, user organization assignments, and cross-tenant platform usage analytics.
+- **2026-11-19 07:48**: Implemented Consolidated Commercial P&L Report (`reports.consolidated`), Dynamic Seasonal Pricing (`RoomPricingRule`), Multi-Room Booking Calendar (`hospitality.calendar`), and SMS Delivery History (`communication.sms_history`).
+- **2026-11-19 07:54**: Full test suite verified at **68 out of 68 passing tests** (zero regressions across all 19 test phases). All changes staged and committed.

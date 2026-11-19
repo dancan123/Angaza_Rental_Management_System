@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}Platform Analytics &bull; Super Admin - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-dark px-3 py-1 text-uppercase fw-bold"><i class="bi bi-shield-lock-fill me-1"></i> Control Plane</span>
+            <h3 class="fw-bold mb-0">Platform Usage &amp; Commercial Analytics</h3>
+        </div>
+        <p class="text-muted small mb-0">Cross-tenant infrastructure metrics, subscription breakdown, communication volumes, and consolidated gross processing volume.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('platform.organizations') }}" class="btn btn-outline-dark">
+            <i class="bi bi-buildings me-1"></i> Manage Organizations
+        </a>
+        <a href="{{ url_for('reports.consolidated') }}" class="btn btn-primary">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i> Executive P&amp;L
+        </a>
+    </div>
+</div>
+
+<!-- Commercial Top-Level KPIs -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-primary">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase">Total Organizations</span>
+                    <h3 class="fw-bold my-1 text-primary">{{ total_orgs }}</h3>
+                    <span class="badge bg-success-subtle text-success">{{ active_orgs }} Active</span>
+                </div>
+                <div class="stat-card-icon bg-primary-subtle text-primary">
+                    <i class="bi bi-buildings-fill"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-info">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase">Managed Units</span>
+                    <h3 class="fw-bold my-1 text-info">{{ total_units }}</h3>
+                    <span class="text-muted small">{{ total_properties }} Properties</span>
+                </div>
+                <div class="stat-card-icon bg-info-subtle text-info">
+                    <i class="bi bi-door-open-fill"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-success">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase">Platform MTD Volume</span>
+                    <h3 class="fw-bold my-1 text-success">{{ combined_revenue_mtd }}</h3>
+                    <span class="text-muted small">Rental + Hospitality Gross</span>
+                </div>
+                <div class="stat-card-icon bg-success-subtle text-success">
+                    <i class="bi bi-cash-stack"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-warning">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase">SMS Dispatched (30d)</span>
+                    <h3 class="fw-bold my-1 text-warning">{{ sms_sent }}</h3>
+                    <span class="text-danger small">{{ sms_failed }} Failed</span>
+                </div>
+                <div class="stat-card-icon bg-warning-subtle text-warning">
+                    <i class="bi bi-chat-left-dots-fill"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Metrics Grids -->
+<div class="row g-4 mb-4">
+    <!-- Subscriptions by Tier -->
+    <div class="col-lg-6">
+        <div class="card card-custom h-100 shadow-sm border-0">
+            <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-pie-chart-fill text-primary me-2"></i>Subscriptions by Tier</h5>
+                <span class="badge bg-light text-muted border">Tier Distribution</span>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Subscription Tier</th>
+                                <th class="text-center">Organizations</th>
+                                <th>Access Rights</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <span class="badge bg-primary px-3 py-2">COMBINED_SUITE</span>
+                                </td>
+                                <td class="text-center fw-bold fs-5">{{ org_tier_breakdown.COMBINED_SUITE }}</td>
+                                <td class="small text-muted">Rental Property + Hospitality &amp; Short-Stay Suite</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="badge bg-dark px-3 py-2">ENTERPRISE</span>
+                                </td>
+                                <td class="text-center fw-bold fs-5">{{ org_tier_breakdown.ENTERPRISE }}</td>
+                                <td class="small text-muted">Full Platform Suite + Custom Entitlements &amp; Priority SLA</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="badge bg-info text-dark px-3 py-2">RENTAL_STANDARD</span>
+                                </td>
+                                <td class="text-center fw-bold fs-5">{{ org_tier_breakdown.RENTAL_STANDARD }}</td>
+                                <td class="small text-muted">Residential &amp; Commercial Rental Operations Only</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="badge bg-warning text-dark px-3 py-2">HOSPITALITY_STANDARD</span>
+                                </td>
+                                <td class="text-center fw-bold fs-5">{{ org_tier_breakdown.HOSPITALITY_STANDARD }}</td>
+                                <td class="small text-muted">Airbnb, Serviced Apartments &amp; Lodges Only</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subscriptions by Status -->
+    <div class="col-lg-6">
+        <div class="card card-custom h-100 shadow-sm border-0">
+            <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-activity text-success me-2"></i>Account Status &amp; Compliance</h5>
+                <span class="badge bg-light text-muted border">Enforcement Status</span>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Account Status</th>
+                                <th class="text-center">Count</th>
+                                <th>Platform Access Policy</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="badge bg-success px-3 py-2">ACTIVE</span></td>
+                                <td class="text-center fw-bold fs-5 text-success">{{ org_status_breakdown.ACTIVE }}</td>
+                                <td class="small text-muted">Full read/write system access enabled</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-info px-3 py-2 text-dark">TRIAL</span></td>
+                                <td class="text-center fw-bold fs-5">{{ org_status_breakdown.TRIAL }}</td>
+                                <td class="small text-muted">Complimentary evaluation period active</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-danger px-3 py-2">SUSPENDED</span></td>
+                                <td class="text-center fw-bold fs-5 text-danger">{{ org_status_breakdown.SUSPENDED }}</td>
+                                <td class="small text-danger fw-semibold">Login blocked by subscription middleware</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-secondary px-3 py-2">EXPIRED</span></td>
+                                <td class="text-center fw-bold fs-5 text-secondary">{{ org_status_breakdown.EXPIRED }}</td>
+                                <td class="small text-warning fw-semibold">Pending renewal; access restricted</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Revenue Split & Platform Users -->
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card card-custom shadow-sm border-0 p-3">
+            <h5 class="fw-bold mb-3"><i class="bi bi-cash-coin text-success me-2"></i>MTD Gross Billing Volume Split</h5>
+            <div class="list-group list-group-flush">
+                <div class="list-group-item d-flex justify-content-between align-items-center py-3">
+                    <div>
+                        <h6 class="mb-0 fw-bold">Long-Term Rental Collections</h6>
+                        <small class="text-muted">Tenancy invoices, rent payments, deposits &amp; utility charges</small>
+                    </div>
+                    <span class="fs-5 fw-bold text-dark">{{ rental_revenue_mtd }}</span>
+                </div>
+                <div class="list-group-item d-flex justify-content-between align-items-center py-3">
+                    <div>
+                        <h6 class="mb-0 fw-bold">Hospitality &amp; Short-Stay Bookings</h6>
+                        <small class="text-muted">Direct guest reservations &amp; online booking gross value</small>
+                    </div>
+                    <span class="fs-5 fw-bold text-dark">{{ hosp_revenue_mtd }}</span>
+                </div>
+                <div class="list-group-item d-flex justify-content-between align-items-center py-3 bg-light rounded mt-2">
+                    <div>
+                        <h6 class="mb-0 fw-bold text-success">Total Platform Processed Volume (MTD)</h6>
+                        <small class="text-muted">Combined across all active organizations</small>
+                    </div>
+                    <span class="fs-4 fw-bold text-success">{{ combined_revenue_mtd }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card card-custom shadow-sm border-0 p-3">
+            <h5 class="fw-bold mb-3"><i class="bi bi-people text-primary me-2"></i>Platform Scale &amp; Footprint</h5>
+            <div class="row g-3">
+                <div class="col-6">
+                    <div class="p-3 bg-light rounded border text-center">
+                        <div class="display-6 fw-bold text-dark">{{ total_users }}</div>
+                        <span class="text-muted small fw-semibold">Platform Users</span>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="p-3 bg-light rounded border text-center">
+                        <div class="display-6 fw-bold text-dark">{{ total_tenants }}</div>
+                        <span class="text-muted small fw-semibold">Active Tenants</span>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="p-3 bg-light rounded border text-center">
+                        <div class="display-6 fw-bold text-dark">{{ total_properties }}</div>
+                        <span class="text-muted small fw-semibold">Properties / Estates</span>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="p-3 bg-light rounded border text-center">
+                        <div class="display-6 fw-bold text-dark">{{ total_units }}</div>
+                        <span class="text-muted small fw-semibold">Rental &amp; Stay Units</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

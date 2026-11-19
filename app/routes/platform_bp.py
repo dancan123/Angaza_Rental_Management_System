@@ -5,7 +5,9 @@ from app.extensions import db
 from app.models.organization import Organization
 from app.models.property import Property, RentalUnit
 
+
 platform_bp = Blueprint('platform', __name__, url_prefix='/platform')
+
 
 def superadmin_only():
     user = cast(Any, current_user)
@@ -141,3 +143,137 @@ def update_organization_subscription(org_id):
 
     flash(f"Organization '{org.name}' subscription updated to {tier} (Limit: {max_units} units).", 'success')
     return redirect(url_for('platform.organizations'))
+
+
+@platform_bp.route('/analytics')
+@login_required
+def analytics():
+    """Platform-level usage analytics dashboard for superadmin."""
+    if not superadmin_only():
+        return redirect(url_for('dashboard.index'))
+
+    from datetime import date, timedelta
+    from app.models.communication import Notification
+    from app.models.finance import Payment
+    from app.models.hospitality import HospitalityReservation
+    from app.models.user import User
+    from app.models.tenant import Tenant
+
+    today = date.today()
+    first_of_month = date(today.year, today.month, 1)
+    last_30 = today - timedelta(days=30)
+
+    # Organization breakdown
+    all_orgs = Organization.query.order_by(Organization.created_at.desc()).all()
+    org_tier_breakdown = {
+        'RENTAL_STANDARD': sum(1 for o in all_orgs if o.subscription_tier == 'RENTAL_STANDARD'),
+        'HOSPITALITY_STANDARD': sum(1 for o in all_orgs if o.subscription_tier == 'HOSPITALITY_STANDARD'),
+        'COMBINED_SUITE': sum(1 for o in all_orgs if o.subscription_tier == 'COMBINED_SUITE'),
+        'ENTERPRISE': sum(1 for o in all_orgs if o.subscription_tier == 'ENTERPRISE'),
+    }
+    org_status_breakdown = {
+        'ACTIVE': sum(1 for o in all_orgs if o.subscription_status == 'ACTIVE'),
+        'TRIAL': sum(1 for o in all_orgs if o.subscription_status == 'TRIAL'),
+        'SUSPENDED': sum(1 for o in all_orgs if o.subscription_status == 'SUSPENDED'),
+        'EXPIRED': sum(1 for o in all_orgs if o.subscription_status == 'EXPIRED'),
+    }
+
+    # Platform usage metrics
+    total_users = User.query.count()
+    total_properties = Property.query.count()
+    total_units = RentalUnit.query.count()
+    total_tenants = Tenant.query.count()
+
+    # SMS metrics (last 30 days)
+    sms_sent = Notification.query.filter(
+        Notification.channel == 'SMS',
+        Notification.sent_status == 'SENT',
+        Notification.created_at >= last_30
+    ).count()
+    sms_failed = Notification.query.filter(
+        Notification.channel == 'SMS',
+        Notification.sent_status == 'FAILED',
+        Notification.created_at >= last_30
+    ).count()
+
+    # Rental revenue (MTD)
+    rental_payments_mtd = Payment.query.filter(
+        Payment.payment_date >= first_of_month
+    ).all()
+    rental_revenue_mtd_cents = sum(p.amount_cents for p in rental_payments_mtd)
+
+    # Hospitality revenue (MTD)
+    hosp_res_mtd = HospitalityReservation.query.filter(
+        HospitalityReservation.check_in_date >= first_of_month,
+        HospitalityReservation.status.in_(['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'])
+    ).all()
+    hosp_revenue_mtd_cents = sum(r.total_stay_cents for r in hosp_res_mtd)
+
+    from app.utils.currency import format_currency
+
+    return render_template(
+        'platform/analytics.html',
+        all_orgs=all_orgs,
+        total_orgs=len(all_orgs),
+        active_orgs=org_status_breakdown['ACTIVE'],
+        org_tier_breakdown=org_tier_breakdown,
+        org_status_breakdown=org_status_breakdown,
+        total_users=total_users,
+        total_properties=total_properties,
+        total_units=total_units,
+        total_tenants=total_tenants,
+        sms_sent=sms_sent,
+        sms_failed=sms_failed,
+        rental_revenue_mtd=format_currency(rental_revenue_mtd_cents),
+        hosp_revenue_mtd=format_currency(hosp_revenue_mtd_cents),
+        combined_revenue_mtd=format_currency(rental_revenue_mtd_cents + hosp_revenue_mtd_cents),
+        today=today,
+        first_of_month=first_of_month
+    )
+
+
+@platform_bp.route('/organizations/<int:org_id>/users')
+@login_required
+def organization_users(org_id):
+    """List and manage users assigned to a specific organization."""
+    if not superadmin_only():
+        return redirect(url_for('dashboard.index'))
+
+    from app.models.user import User
+    org = db.session.get(Organization, org_id)
+    if not org:
+        from flask import abort; abort(404)
+
+    org_users = User.query.filter_by(organization_id=org_id).all()
+    unassigned_users = User.query.filter_by(organization_id=None).all()
+
+    return render_template(
+        'platform/org_users.html',
+        org=org,
+        org_users=org_users,
+        unassigned_users=unassigned_users
+    )
+
+
+@platform_bp.route('/organizations/<int:org_id>/assign-user', methods=['POST'])
+@login_required
+def assign_user_to_org(org_id):
+    """Assign an existing user to an organization."""
+    if not superadmin_only():
+        return redirect(url_for('dashboard.index'))
+
+    from app.models.user import User
+    org = db.session.get(Organization, org_id)
+    if not org:
+        from flask import abort; abort(404)
+
+    user_id = request.form.get('user_id', type=int)
+    user = db.session.get(User, user_id) if user_id else None
+    if not user:
+        flash('User not found.', 'danger')
+        return redirect(url_for('platform.organization_users', org_id=org_id))
+
+    user.organization_id = org_id
+    db.session.commit()
+    flash(f"User '{user.full_name}' assigned to organization '{org.name}'.", 'success')
+    return redirect(url_for('platform.organization_users', org_id=org_id))

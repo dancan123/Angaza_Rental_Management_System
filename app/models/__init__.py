@@ -12,6 +12,7 @@ from app.models.utility import Meter, MeterReading
 from app.models.lead import HouseSeekerLead, ExternalPropertyListing
 from app.models.hospitality import Guest, HospitalityReservation, HousekeepingTask
 from app.models.organization import Organization
+from app.models.pricing import RoomPricingRule
 
 __all__ = [
     'Role', 'Permission', 'RolePermission', 'Landlord', 'LandlordUser', 'User',
@@ -27,6 +28,7 @@ __all__ = [
     'SystemSetting', 'AuditLog', 'DatabaseBackup',
     'Meter', 'MeterReading',
     'HouseSeekerLead', 'ExternalPropertyListing',
-    'Guest', 'HospitalityReservation', 'HousekeepingTask'
+    'Guest', 'HospitalityReservation', 'HousekeepingTask',
+    'RoomPricingRule'
 ]
 

@@ -75,6 +75,46 @@ def create_app(config_name=None):
             pass
         return dict(date=date, datetime=datetime, now=datetime.utcnow(),
                     pending_inquiry_count=pending_inquiry_count)
+
+    # Subscription suspension enforcement middleware
+    @app.before_request
+    def enforce_subscription_status():
+        from flask import request as req, redirect, url_for, flash
+        from flask_login import current_user as cu
+        # Skip static files, login/logout, auth routes, portal, public, and suspension page
+        exempted_prefixes = ('/static/', '/auth/', '/portal/', '/public/', '/mpesa/callback')
+        exempted_endpoints = ('auth.login', 'auth.logout', 'platform.organizations',
+                              'platform.update_organization_status', 'platform.update_organization_subscription',
+                              'platform.create_organization', 'platform.analytics')
+        if any(req.path.startswith(p) for p in exempted_prefixes):
+            return None
+        if req.endpoint in exempted_endpoints:
+            return None
+        if not cu or not cu.is_authenticated:
+            return None
+        if cu.is_superadmin():
+            return None
+        try:
+            org = getattr(cu, 'active_organization', None)
+            if org and org.subscription_status == 'SUSPENDED':
+                if req.endpoint not in ('auth.login', 'auth.logout'):
+                    flash(
+                        'Your organization account has been suspended. '
+                        'Please contact Angaza platform support to restore access.',
+                        'danger'
+                    )
+                    return redirect(url_for('auth.login'))
+            if org and org.subscription_status == 'EXPIRED':
+                if req.endpoint not in ('auth.login', 'auth.logout'):
+                    flash(
+                        'Your organization subscription has expired. '
+                        'Please renew your subscription to continue using the platform.',
+                        'warning'
+                    )
+                    return redirect(url_for('auth.login'))
+        except Exception:
+            pass
+        return None
         
     @app.template_filter('currency')
     def currency_filter(cents, currency=None):

@@ -100,12 +100,42 @@ class HospitalityService:
         )
 
         num_nights = (check_out_date - check_in_date).days
-        rate_cents = to_cents(daily_rate) if daily_rate is not None else unit.daily_rate_cents
-        if rate_cents <= 0:
+        base_rate_cents = to_cents(daily_rate) if daily_rate is not None else unit.daily_rate_cents
+        if base_rate_cents <= 0:
             # Fallback: estimate from monthly rent (rent / 30)
-            rate_cents = max(200000, unit.rent_amount_cents // 30)
+            base_rate_cents = max(200000, unit.rent_amount_cents // 30)
 
-        total_cents = rate_cents * num_nights
+        # Apply seasonal/pricing rules — compute rate per night
+        try:
+            from app.models.pricing import RoomPricingRule
+            active_rules = RoomPricingRule.query.filter_by(is_active=True).all()
+        except Exception:
+            active_rules = []
+
+        total_cents = 0
+        rate_cents = base_rate_cents  # representative rate for display
+        from datetime import timedelta
+        current_day = check_in_date
+        while current_day < check_out_date:
+            night_rate = base_rate_cents
+            # Find applicable rule (unit-specific first, then global)
+            unit_rule = None
+            global_rule = None
+            for r in active_rules:
+                if not r.applies_on_date(current_day):
+                    continue
+                if r.rental_unit_id == unit.id:
+                    unit_rule = r
+                elif r.rental_unit_id is None:
+                    global_rule = r
+            applicable = unit_rule or global_rule
+            if applicable:
+                night_rate = applicable.compute_rate_cents(base_rate_cents)
+            total_cents += night_rate
+            current_day = current_day + timedelta(days=1)
+
+        if total_cents <= 0:
+            total_cents = base_rate_cents * num_nights
         res_code = f"STAY-{datetime.utcnow().strftime('%Y%m')}-{HospitalityReservation.query.count() + 1:04d}"
 
         reservation = HospitalityReservation(

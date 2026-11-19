@@ -175,6 +175,9 @@
                             {% endif %}
                         </td>
                         <td class="text-end pe-3">
+                            <a href="{{ url_for('platform.organization_users', org_id=org.id) }}" class="btn btn-outline-primary btn-sm py-0 px-2" title="View &amp; Assign Users">
+                                <i class="bi bi-people me-1"></i> Users
+                            </a>
                             <button type="button" class="btn btn-outline-dark btn-sm py-0 px-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#planModal{{ org.id }}">
                                 <i class="bi bi-sliders me-1"></i> Plan &amp; Limits
                             </button>

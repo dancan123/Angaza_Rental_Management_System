@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Availability Calendar &bull; Hospitality - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('hospitality.index') }}">Hospitality</a></li>
+                <li class="breadcrumb-item active">Availability Calendar</li>
+            </ol>
+        </nav>
+        <h3 class="fw-bold mb-0"><i class="bi bi-calendar3 text-primary me-2"></i>Multi-Room Booking &amp; Availability Calendar</h3>
+        <p class="text-muted small mb-0">Interactive 30-day view of room occupancy, upcoming guest arrivals, and vacancy slots.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('hospitality.reservations') }}" class="btn btn-primary">
+            <i class="bi bi-calendar-plus me-1"></i> New Reservation
+        </a>
+        <a href="{{ url_for('hospitality.pricing_rules') }}" class="btn btn-outline-warning text-dark">
+            <i class="bi bi-tags me-1"></i> Dynamic Pricing
+        </a>
+    </div>
+</div>
+
+<!-- Calendar Navigation Bar -->
+<div class="card card-custom shadow-sm border-0 mb-3 p-3 bg-white">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <span class="fw-bold fs-5 text-dark">
+                {{ start_date.strftime('%d %b %Y') }} &mdash; {{ end_date.strftime('%d %b %Y') }}
+            </span>
+            <span class="badge bg-light text-muted border">30-Day Rolling Window</span>
+        </div>
+        <div class="d-flex gap-3 align-items-center">
+            <div class="d-flex gap-2 align-items-center small">
+                <span class="d-inline-block rounded bg-success" style="width: 14px; height: 14px;"></span>
+                <span>Available</span>
+                <span class="d-inline-block rounded bg-danger" style="width: 14px; height: 14px;"></span>
+                <span>Checked In</span>
+                <span class="d-inline-block rounded bg-warning text-dark" style="width: 14px; height: 14px;"></span>
+                <span>Confirmed</span>
+                <span class="d-inline-block rounded bg-secondary" style="width: 14px; height: 14px;"></span>
+                <span>Long-Term Leased</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Calendar Grid -->
+<div class="card card-custom shadow-sm border-0 mb-4">
+    <div class="card-body p-0">
+        <div class="table-responsive" style="max-height: 650px;">
+            <table class="table table-bordered table-sm mb-0 align-middle text-center" style="font-size: 0.82rem; min-width: 1100px;">
+                <thead class="table-light sticky-top" style="z-index: 2;">
+                    <tr>
+                        <th class="ps-3 text-start bg-light" style="min-width: 140px; position: sticky; left: 0; z-index: 3;">Room / Unit</th>
+                        {% for day in calendar_days %}
+                        <th class="p-1 {% if day == today %}bg-primary text-white{% endif %}" style="min-width: 32px;">
+                            <div style="font-size: 0.7rem;">{{ day.strftime('%a')[0] }}</div>
+                            <div>{{ day.strftime('%d') }}</div>
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for room in rooms %}
+                    <tr>
+                        <td class="ps-3 text-start fw-bold bg-white" style="position: sticky; left: 0; z-index: 1;">
+                            Unit {{ room.unit_number }}
+                            <div class="small text-muted fw-normal">{{ room.operational_type }}</div>
+                        </td>
+                        {% for day in calendar_days %}
+                            {% set key = (room.id, day.isoformat()) %}
+                            {% set res = cal_map.get(key) %}
+                            {% if room.current_tenant_id %}
+                                <td class="p-1 bg-secondary text-white small" title="Long-term tenant occupied">
+                                    <i class="bi bi-person-fill"></i>
+                                </td>
+                            {% elif res %}
+                                {% if res.status == 'CHECKED_IN' %}
+                                    <td class="p-1 bg-danger text-white small" title="{{ res.reservation_code }} - {{ res.guest.full_name }} (Checked In)">
+                                        <i class="bi bi-door-closed-fill"></i>
+                                    </td>
+                                {% elif res.status == 'CONFIRMED' %}
+                                    <td class="p-1 bg-warning text-dark small" title="{{ res.reservation_code }} - {{ res.guest.full_name }} (Confirmed)">
+                                        <i class="bi bi-clock-fill"></i>
+                                    </td>
+                                {% else %}
+                                    <td class="p-1 bg-info-subtle small" title="{{ res.reservation_code }} ({{ res.status }})">
+                                        &bull;
+                                    </td>
+                                {% endif %}
+                            {% else %}
+                                <td class="p-1 bg-success-subtle text-success small" title="Unit {{ room.unit_number }} - Available on {{ day.strftime('%d %b') }}">
+                                    <i class="bi bi-check text-success"></i>
+                                </td>
+                            {% endif %}
+                        {% endfor %}
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="31" class="text-center py-5 text-muted">
+                            No units registered in the system.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

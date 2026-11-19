@@ -197,3 +197,49 @@ def send_bulk_sms():
     flash(f"Bulk SMS broadcast queued and dispatched to {count} active tenant(s).", 'success')
     return redirect(url_for('communication.index', tab='bulk'))
 
+
+@communication_bp.route('/sms-history')
+@login_required
+def sms_history():
+    """SMS delivery history and status report."""
+    page = request.args.get('page', 1, type=int)
+    status_filter = request.args.get('status', '')
+    ntype_filter = request.args.get('type', '')
+    search = request.args.get('q', '').strip()
+
+    query = Notification.query.filter(Notification.channel == 'SMS')
+    if status_filter:
+        query = query.filter(Notification.sent_status == status_filter)
+    if ntype_filter:
+        query = query.filter(Notification.notification_type == ntype_filter)
+    if search:
+        query = query.filter(
+            Notification.message.ilike(f'%{search}%') |
+            Notification.title.ilike(f'%{search}%')
+        )
+
+    pagination = query.order_by(Notification.created_at.desc()).paginate(page=page, per_page=25, error_out=False)
+    sms_logs = pagination.items
+
+    # Summary stats
+    total_sent = Notification.query.filter_by(channel='SMS', sent_status='SENT').count()
+    total_failed = Notification.query.filter_by(channel='SMS', sent_status='FAILED').count()
+    total_pending = Notification.query.filter_by(channel='SMS', sent_status='PENDING').count()
+    total_simulated = Notification.query.filter(
+        Notification.channel == 'SMS',
+        Notification.error_details.ilike('%simulated%')
+    ).count()
+
+    return render_template(
+        'communication/sms_history.html',
+        sms_logs=sms_logs,
+        pagination=pagination,
+        total_sent=total_sent,
+        total_failed=total_failed,
+        total_pending=total_pending,
+        total_simulated=total_simulated,
+        status_filter=status_filter,
+        ntype_filter=ntype_filter,
+        search=search
+    )
+

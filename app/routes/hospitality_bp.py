@@ -286,3 +286,140 @@ def update_room_config(unit_id):
 
     flash(f"Room configuration for Unit {unit.unit_number} updated ({op_type}).", 'success')
     return redirect(url_for('hospitality.rooms'))
+
+
+# ─── Seasonal / Pricing Rules ────────────────────────────────────────────────
+
+@hospitality_bp.route('/pricing')
+@login_required
+@permission_required('properties.manage')
+def pricing_rules():
+    """Seasonal and event-based pricing rules management."""
+    from app.models.pricing import RoomPricingRule
+    rules = RoomPricingRule.query.order_by(RoomPricingRule.start_date.desc()).all()
+    units = RentalUnit.query.order_by(RentalUnit.unit_number.asc()).all()
+    return render_template('hospitality/pricing.html', rules=rules, units=units)
+
+
+@hospitality_bp.route('/pricing/create', methods=['POST'])
+@login_required
+@permission_required('properties.manage')
+def create_pricing_rule():
+    from app.models.pricing import RoomPricingRule
+    from datetime import date as _date
+
+    name = request.form.get('name', '').strip()
+    unit_id = request.form.get('rental_unit_id', type=int) or None
+    start_str = request.form.get('start_date', '')
+    end_str = request.form.get('end_date', '')
+    rule_type = request.form.get('rule_type', 'MULTIPLIER')
+    multiplier = float(request.form.get('multiplier', 1.0))
+    flat_rate = float(request.form.get('flat_rate', 0))
+    days_of_week = request.form.get('days_of_week', '')
+    category = request.form.get('category', 'CUSTOM')
+    notes = request.form.get('notes', '').strip()
+
+    if not name or not start_str or not end_str:
+        flash('Rule name, start date and end date are required.', 'danger')
+        return redirect(url_for('hospitality.pricing_rules'))
+
+    try:
+        start_date = _date.fromisoformat(start_str)
+        end_date = _date.fromisoformat(end_str)
+        if end_date < start_date:
+            flash('End date must be after start date.', 'danger')
+            return redirect(url_for('hospitality.pricing_rules'))
+    except ValueError:
+        flash('Invalid date format.', 'danger')
+        return redirect(url_for('hospitality.pricing_rules'))
+
+    rule = RoomPricingRule(
+        name=name,
+        rental_unit_id=unit_id,
+        start_date=start_date,
+        end_date=end_date,
+        rule_type=rule_type,
+        multiplier=multiplier,
+        flat_rate_cents=to_cents(flat_rate),
+        days_of_week=days_of_week,
+        category=category,
+        notes=notes if notes else None
+    )
+    db.session.add(rule)
+    db.session.commit()
+    flash(f"Pricing rule '{name}' created for {start_date} → {end_date}.", 'success')
+    return redirect(url_for('hospitality.pricing_rules'))
+
+
+@hospitality_bp.route('/pricing/<int:rule_id>/toggle', methods=['POST'])
+@login_required
+@permission_required('properties.manage')
+def toggle_pricing_rule(rule_id):
+    from app.models.pricing import RoomPricingRule
+    rule = db.session.get(RoomPricingRule, rule_id)
+    if not rule:
+        from flask import abort; abort(404)
+    rule.is_active = not rule.is_active
+    db.session.commit()
+    status_txt = 'activated' if rule.is_active else 'deactivated'
+    flash(f"Pricing rule '{rule.name}' {status_txt}.", 'success')
+    return redirect(url_for('hospitality.pricing_rules'))
+
+
+@hospitality_bp.route('/pricing/<int:rule_id>/delete', methods=['POST'])
+@login_required
+@permission_required('properties.manage')
+def delete_pricing_rule(rule_id):
+    from app.models.pricing import RoomPricingRule
+    rule = db.session.get(RoomPricingRule, rule_id)
+    if not rule:
+        from flask import abort; abort(404)
+    db.session.delete(rule)
+    db.session.commit()
+    flash(f"Pricing rule '{rule.name}' deleted.", 'success')
+    return redirect(url_for('hospitality.pricing_rules'))
+
+
+# ─── Booking Calendar View ───────────────────────────────────────────────────
+
+@hospitality_bp.route('/calendar')
+@login_required
+@permission_required('bookings.view')
+def calendar():
+    """Visual booking availability calendar — 30-day rolling view."""
+    from datetime import date as _date, timedelta
+    today = _date.today()
+    start_date = _date.fromisoformat(request.args.get('start', today.isoformat()))
+    days_range = 30
+    end_date = start_date + timedelta(days=days_range - 1)
+
+    rooms = RentalUnit.query.order_by(RentalUnit.unit_number.asc()).all()
+
+    # Fetch reservations in range
+    reservations = HospitalityReservation.query.filter(
+        HospitalityReservation.check_in_date <= end_date,
+        HospitalityReservation.check_out_date >= start_date,
+        HospitalityReservation.status.in_(['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'])
+    ).all()
+
+    # Build a lookup: (unit_id, date_str) -> reservation
+    cal_map = {}
+    for res in reservations:
+        d = res.check_in_date
+        while d < res.check_out_date:
+            if start_date <= d <= end_date:
+                cal_map[(res.rental_unit_id, d.isoformat())] = res
+            d = d + timedelta(days=1)
+
+    calendar_days = [start_date + timedelta(days=i) for i in range(days_range)]
+
+    return render_template(
+        'hospitality/calendar.html',
+        rooms=rooms,
+        calendar_days=calendar_days,
+        cal_map=cal_map,
+        start_date=start_date,
+        end_date=end_date,
+        today=today,
+        days_range=days_range
+    )
