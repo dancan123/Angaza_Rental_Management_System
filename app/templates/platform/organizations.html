@@ -121,6 +121,7 @@
                         <th class="ps-3">Organization</th>
                         <th>Slug Identifier</th>
                         <th>Subscription Plan</th>
+                        <th>Module Checkpoints</th>
                         <th>Limits &amp; Entitlements</th>
                         <th>Primary Contact</th>
                         <th>Status</th>
@@ -153,6 +154,26 @@
                             {% else %}
                                 <span class="badge bg-dark">Enterprise</span>
                             {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex flex-column gap-1" style="min-width: 145px;">
+                                <form method="POST" action="{{ url_for('platform.toggle_organization_module', org_id=org.id) }}" class="m-0">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <input type="hidden" name="module" value="rentals"/>
+                                    <button type="submit" class="btn btn-xs py-1 px-2 w-100 text-start d-flex justify-content-between align-items-center {{ 'btn-success text-white' if org.enable_rentals else 'btn-outline-secondary' }}" title="Click to toggle Rentals Module ON/OFF">
+                                        <span><i class="bi bi-building me-1"></i> Rentals</span>
+                                        <span class="badge {{ 'bg-white text-success' if org.enable_rentals else 'bg-secondary text-white' }}">{{ 'ON' if org.enable_rentals else 'OFF' }}</span>
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('platform.toggle_organization_module', org_id=org.id) }}" class="m-0">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <input type="hidden" name="module" value="hospitality"/>
+                                    <button type="submit" class="btn btn-xs py-1 px-2 w-100 text-start d-flex justify-content-between align-items-center {{ 'btn-danger text-white' if org.enable_hospitality else 'btn-outline-secondary' }}" title="Click to toggle Airbnb/Hospitality Module ON/OFF">
+                                        <span><i class="bi bi-cup-hot me-1"></i> Airbnb</span>
+                                        <span class="badge {{ 'bg-white text-danger' if org.enable_hospitality else 'bg-secondary text-white' }}">{{ 'ON' if org.enable_hospitality else 'OFF' }}</span>
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                         <td>
                             <div>Properties: <strong>{{ prop_count }}</strong> / {{ org.max_properties }}</div>
@@ -209,6 +230,21 @@
                                 <form method="POST" action="{{ url_for('platform.update_organization_subscription', org_id=org.id) }}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                     <div class="modal-body">
+                                        <div class="card bg-light p-3 border mb-3">
+                                            <div class="fw-bold small text-uppercase mb-2 text-muted"><i class="bi bi-toggles me-1"></i> Module Checkpoints</div>
+                                            <div class="form-check form-switch mb-2">
+                                                <input class="form-check-input" type="checkbox" name="enable_rentals" value="1" id="er{{ org.id }}" {% if org.enable_rentals %}checked{% endif %}>
+                                                <label class="form-check-label fw-semibold" for="er{{ org.id }}">
+                                                    <i class="bi bi-building text-primary me-1"></i> Enable Rentals Management Module
+                                                </label>
+                                            </div>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" name="enable_hospitality" value="1" id="eh{{ org.id }}" {% if org.enable_hospitality %}checked{% endif %}>
+                                                <label class="form-check-label fw-semibold" for="eh{{ org.id }}">
+                                                    <i class="bi bi-cup-hot text-danger me-1"></i> Enable Airbnb &amp; Short-Stay Module
+                                                </label>
+                                            </div>
+                                        </div>
                                         <div class="mb-3">
                                             <label class="form-label small fw-semibold">Subscription Plan Tier *</label>
                                             <select name="subscription_tier" class="form-select">
@@ -356,7 +392,7 @@
                     </div>
                     {% else %}
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-5">
+                        <td colspan="8" class="text-center text-muted py-5">
                             <i class="bi bi-buildings fs-2 d-block mb-2 text-secondary"></i>
                             No organizations found. Click "Register New Organization" to add one.
                         </td>
@@ -420,6 +456,30 @@
                         <div class="col-md-4">
                             <label class="form-label small fw-semibold">Max Staff Users</label>
                             <input type="number" name="max_users" class="form-control" value="15">
+                        </div>
+                        <div class="col-12">
+                            <div class="card bg-light p-3 border">
+                                <div class="fw-bold small text-uppercase mb-2 text-muted"><i class="bi bi-toggles me-1"></i> Enabled Modules (Checkpoints)</div>
+                                <div class="row g-2">
+                                    <div class="col-sm-6">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" name="enable_rentals" value="1" id="new_enable_rentals" checked>
+                                            <label class="form-check-label fw-semibold" for="new_enable_rentals">
+                                                <i class="bi bi-building text-primary me-1"></i> Long-Term Rentals Module
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" name="enable_hospitality" value="1" id="new_enable_hospitality" checked>
+                                            <label class="form-check-label fw-semibold" for="new_enable_hospitality">
+                                                <i class="bi bi-cup-hot text-danger me-1"></i> Airbnb / Short-Stay Module
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-text small text-muted mt-1">You can toggle these modules ON or OFF at any time with 1 click.</div>
+                            </div>
                         </div>
                     </div>
                 </div>

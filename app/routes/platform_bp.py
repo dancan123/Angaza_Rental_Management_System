@@ -75,6 +75,28 @@ def create_organization():
     max_units = request.form.get('max_units', type=int) or 250
     max_users = request.form.get('max_users', type=int) or 15
 
+    # Checkpoint module toggles
+    if 'enable_rentals' in request.form or 'enable_hospitality' in request.form:
+        enable_rentals = request.form.get('enable_rentals') in ('1', 'true', 'on', 'yes')
+        enable_hospitality = request.form.get('enable_hospitality') in ('1', 'true', 'on', 'yes')
+        if not enable_rentals and not enable_hospitality:
+            enable_rentals = True
+        if enable_rentals and enable_hospitality:
+            tier = 'COMBINED_SUITE'
+        elif enable_rentals:
+            tier = 'RENTAL_STANDARD'
+        else:
+            tier = 'HOSPITALITY_STANDARD'
+    elif tier == 'RENTAL_STANDARD':
+        enable_rentals = True
+        enable_hospitality = False
+    elif tier == 'HOSPITALITY_STANDARD':
+        enable_rentals = False
+        enable_hospitality = True
+    else:
+        enable_rentals = True
+        enable_hospitality = True
+
     if not name or not slug:
         flash('Organization name and unique slug are required.', 'danger')
         return redirect(url_for('platform.organizations'))
@@ -94,7 +116,9 @@ def create_organization():
         subscription_status='ACTIVE',
         max_properties=max_props,
         max_units=max_units,
-        max_users=max_users
+        max_users=max_users,
+        enable_rentals=enable_rentals,
+        enable_hospitality=enable_hospitality
     )
     db.session.add(org)
     db.session.commit()
@@ -135,14 +159,76 @@ def update_organization_subscription(org_id):
     max_units = request.form.get('max_units', type=int) or org.max_units
     max_users = request.form.get('max_users', type=int) or org.max_users
 
+    # Checkpoint toggles
+    if 'enable_rentals' in request.form or 'enable_hospitality' in request.form:
+        enable_rentals = request.form.get('enable_rentals') in ('1', 'true', 'on', 'yes')
+        enable_hospitality = request.form.get('enable_hospitality') in ('1', 'true', 'on', 'yes')
+        org.enable_rentals = enable_rentals
+        org.enable_hospitality = enable_hospitality
+        if enable_rentals and enable_hospitality:
+            tier = 'COMBINED_SUITE'
+        elif enable_rentals and not enable_hospitality:
+            tier = 'RENTAL_STANDARD'
+        elif enable_hospitality and not enable_rentals:
+            tier = 'HOSPITALITY_STANDARD'
+        else:
+            tier = 'RENTAL_STANDARD'
+            org.enable_rentals = True
+    elif tier:
+        if tier == 'RENTAL_STANDARD':
+            org.enable_rentals = True
+            org.enable_hospitality = False
+        elif tier == 'HOSPITALITY_STANDARD':
+            org.enable_rentals = False
+            org.enable_hospitality = True
+        else:
+            org.enable_rentals = True
+            org.enable_hospitality = True
+
     org.subscription_tier = tier
     org.max_properties = max_props
     org.max_units = max_units
     org.max_users = max_users
     db.session.commit()
 
-    flash(f"Organization '{org.name}' subscription updated to {tier} (Limit: {max_units} units).", 'success')
+    flash(f"Premises '{org.name}' checkpoints updated: Rentals={'ON' if org.enable_rentals else 'OFF'}, Airbnb={'ON' if org.enable_hospitality else 'OFF'} ({tier}).", 'success')
     return redirect(url_for('platform.organizations'))
+
+
+@platform_bp.route('/organizations/<int:org_id>/toggle-module', methods=['POST'])
+@login_required
+def toggle_organization_module(org_id):
+    """1-click module checkpoint toggle for superadmin."""
+    if not superadmin_only():
+        return redirect(url_for('dashboard.index'))
+
+    org = db.session.get(Organization, org_id)
+    if not org:
+        from flask import abort; abort(404)
+
+    mod = request.form.get('module')  # 'rentals' or 'hospitality'
+    if mod == 'rentals':
+        org.enable_rentals = not org.enable_rentals
+        if not org.enable_rentals and not org.enable_hospitality:
+            # Ensure at least one module is always enabled
+            org.enable_hospitality = True
+    elif mod == 'hospitality':
+        org.enable_hospitality = not org.enable_hospitality
+        if not org.enable_rentals and not org.enable_hospitality:
+            # Ensure at least one module is always enabled
+            org.enable_rentals = True
+
+    # Synchronize subscription_tier with the active modules
+    if org.enable_rentals and org.enable_hospitality:
+        org.subscription_tier = 'COMBINED_SUITE'
+    elif org.enable_rentals and not org.enable_hospitality:
+        org.subscription_tier = 'RENTAL_STANDARD'
+    elif org.enable_hospitality and not org.enable_rentals:
+        org.subscription_tier = 'HOSPITALITY_STANDARD'
+
+    db.session.commit()
+    flash(f"Premises '{org.name}' checkpoint changed: Rentals={'ON' if org.enable_rentals else 'OFF'}, Airbnb={'ON' if org.enable_hospitality else 'OFF'}.", "success")
+    return redirect(request.referrer or url_for('platform.organizations'))
 
 
 @platform_bp.route('/organizations/<int:org_id>/add-sms', methods=['POST'])

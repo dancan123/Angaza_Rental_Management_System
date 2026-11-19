@@ -28,6 +28,8 @@ class Organization(db.Model):
     max_units = db.Column(db.Integer, default=250)
     max_users = db.Column(db.Integer, default=15)
     sms_credits = db.Column(db.Integer, default=50)
+    enable_rentals = db.Column(db.Boolean, default=True)
+    enable_hospitality = db.Column(db.Boolean, default=True)
     is_active = db.Column(db.Boolean, default=True, index=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -49,9 +51,13 @@ class Organization(db.Model):
         return max(0, diff)
 
     def can_access_rental_module(self) -> bool:
+        if self.enable_rentals is False:
+            return False
         return self.subscription_tier in ['RENTAL_STANDARD', 'COMBINED_SUITE', 'ENTERPRISE']
 
     def can_access_hospitality_module(self) -> bool:
+        if self.enable_hospitality is False:
+            return False
         return self.subscription_tier in ['HOSPITALITY_STANDARD', 'COMBINED_SUITE', 'ENTERPRISE']
 
     def is_within_unit_limit(self, current_units_count: int) -> bool:

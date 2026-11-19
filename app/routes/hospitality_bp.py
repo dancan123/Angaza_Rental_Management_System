@@ -306,8 +306,9 @@ def create_room():
     user = cast(Any, current_user)
     if user.active_organization and not user.is_superadmin():
         org = user.active_organization
-        if not org.can_add_unit():
-            flash(f"Unit limit reached ({org.unit_count}/{org.max_units}). Please upgrade your subscription tier.", "danger")
+        current_unit_count = RentalUnit.query.join(Property).filter(Property.organization_id == org.id).count()
+        if not org.is_within_unit_limit(current_unit_count):
+            flash(f"Unit limit reached ({current_unit_count}/{org.max_units}). Please upgrade your subscription tier.", "danger")
             return redirect(url_for('hospitality.rooms'))
 
     unit = RentalUnit(

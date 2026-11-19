@@ -227,6 +227,23 @@ Each component in the codebase has been audited and classified according to the 
   - **Direct Room SMS (`POST /hospitality/rooms/<id>/send-sms`)**: Dispatches SMS messages with one-click templates (Check-in directions & keybox code, WiFi credentials & house rules, Checkout reminder).
 - [x] Automated test suite (`tests/test_phase21_hospitality_rooms_tabular.py` — 4/4 passing).
 
+### Phase 22: Per-Premises Module Checkpoints & Dynamic Sidebar Navigation (DONE)
+- [x] **Superadmin Module Checkpoints per Organization**:
+  - `Organization` model upgraded with `enable_rentals` (boolean) and `enable_hospitality` (boolean) checkpoint flags.
+  - Organization directory (`/platform/organizations`) equipped with dedicated **Module Checkpoints** column displaying live status pills.
+  - **1-Click Checkpoint Toggles (`POST /platform/organizations/<id>/toggle-module`)**: Superadmin can toggle Rentals or Airbnb ON/OFF in 1 click per organization.
+  - Subscription tier automatically synchronizes (`COMBINED_SUITE`, `RENTAL_STANDARD`, or `HOSPITALITY_STANDARD`) ensuring consistent billing and quotas.
+  - Subscription edit modal and new organization registration modal updated with explicit toggle switches.
+- [x] **Simplified, Clutter-Free Sidebar Navigation**:
+  - Sidebar dynamically hides irrelevant module operations based on the active organization's enabled modules.
+  - Organizations with **Rentals Only** see only long-term rental operations (Properties & Units, Occupancy Grid, Tenants, Leases), hiding all Airbnb/hospitality menus to keep the window panel clean and focused.
+  - Organizations with **Airbnb / Hospitality Only** see only hospitality operations (Hospitality Dashboard, Short-Stay Bookings, Housekeeping, Daily Rates & Inventory, Availability Calendar, Dynamic Pricing), hiding all long-term rental options.
+  - Organizations with **Combined Suite** have full access to both modules seamlessly.
+  - Superadmin accounts retain full visibility and oversight across all modules.
+- [x] **Automated Test Suite**:
+  - `tests/test_phase22_module_checkpoints.py` with 6/6 tests passing.
+  - Full test suite verified at **85/85 tests passing**.
+
 ---
 
 ## 5. Current Progress Log
@@ -241,3 +258,5 @@ Each component in the codebase has been audited and classified according to the 
 - **2026-11-19 07:54**: Full test suite verified at **68 out of 68 passing tests** (zero regressions across all 19 test phases). All changes staged and committed.
 - **2026-11-19 08:35**: Phase 20 completed: Commercial self-onboarding portal, 14-day free trial engine, user impersonation for superadmin, SMS credits wallet and billing, subscription timeline management. Full test suite verified at **72 out of 72 passing tests** (zero regressions across all 20 test phases).
 - **2026-11-19 08:57**: Phase 21 completed: Tabular Airbnb room inventory, custom room renaming by landlords, daily/monthly/total collected financial columns, live occupancy timelines, 1-click booking, 1-click cleaning status toggle, and direct guest SMS communication. Full test suite verified at **76 out of 76 passing tests** (zero regressions across all 21 test phases).
+- **2026-11-19 09:40**: Automated turnover logic (cleaning status = DIRTY on guest walkout/checkout) and room creation inventory route implemented. Full test suite verified at **79 out of 79 passing tests**.
+- **2026-11-19 10:40**: Phase 22 completed: Superadmin per-premises module checkpoints (1-click Rentals/Airbnb toggle), auto tier synchronization, simplified clutter-free sidebar navigation for single-module customers. Full test suite verified at **85 out of 85 passing tests**.

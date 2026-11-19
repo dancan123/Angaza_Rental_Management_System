@@ -55,6 +55,10 @@ def initialize_database():
             org_cols = [r[1] for r in cursor.fetchall()]
             if 'sms_credits' not in org_cols:
                 cursor.execute("ALTER TABLE organizations ADD COLUMN sms_credits INTEGER DEFAULT 50")
+            if 'enable_rentals' not in org_cols:
+                cursor.execute("ALTER TABLE organizations ADD COLUMN enable_rentals BOOLEAN DEFAULT 1")
+            if 'enable_hospitality' not in org_cols:
+                cursor.execute("ALTER TABLE organizations ADD COLUMN enable_hospitality BOOLEAN DEFAULT 1")
 
             conn.commit()
         except Exception as e:

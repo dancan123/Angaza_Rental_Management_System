@@ -345,10 +345,12 @@
             </a>
 
             <div class="nav-item-header">Facilities & Reports</div>
+            {% if not current_user.active_organization or current_user.active_organization.can_access_rental_module() or current_user.is_superadmin() %}
             <a href="{{ url_for('leases.index') }}" class="sidebar-nav-link {% if 'leases' in request.endpoint %}active{% endif %}">
                 <i class="bi bi-file-text-fill"></i>
                 <span>Lease Agreements</span>
             </a>
+            {% endif %}
             <a href="{{ url_for('maintenance.index') }}" class="sidebar-nav-link {% if 'maintenance' in request.endpoint %}active{% endif %}">
                 <i class="bi bi-tools"></i>
                 <span>Maintenance & Expenses</span>
