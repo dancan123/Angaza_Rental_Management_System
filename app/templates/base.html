@@ -256,7 +256,7 @@
 
     <!-- Sidebar Navigation -->
     <aside class="sidebar" id="sidebar">
-        <a href="{{ url_for('dashboard.index') }}" class="sidebar-brand">
+        <a href="{{ url_for('hospitality.index') if current_mode == 'AIRBNB' else url_for('dashboard.index') }}" class="sidebar-brand">
             {% if logo_url %}
             <img src="{{ logo_url }}" alt="Logo" onerror="this.style.display='none'; document.getElementById('brand-fallback-icon').style.display='inline-block';">
             <i class="bi bi-buildings-fill fs-2 text-primary" id="brand-fallback-icon" style="display: none;"></i>
@@ -266,18 +266,101 @@
             <div class="sidebar-brand-title">{{ app_name }}</div>
         </a>
 
+        {# ── Mode Switcher at top of sidebar (if organization/user has both modules) ── #}
+        {% set can_rentals = current_user.is_superadmin() or not current_user.active_organization or current_user.active_organization.can_access_rental_module() %}
+        {% set can_airbnb = current_user.is_superadmin() or not current_user.active_organization or current_user.active_organization.can_access_hospitality_module() %}
+
+        {% if can_rentals and can_airbnb %}
+        <div class="px-3 pt-2 pb-1">
+            <div class="bg-light p-1 rounded-pill border d-flex gap-1 shadow-sm">
+                <a href="{{ url_for('dashboard.switch_mode', mode='rentals') }}"
+                   class="btn btn-sm flex-fill rounded-pill py-1 fw-bold text-decoration-none {% if current_mode == 'RENTALS' %}btn-primary text-white shadow-sm{% else %}text-muted{% endif %}"
+                   style="font-size: 0.76rem;" title="Switch to Long-Term Rental Management">
+                    <i class="bi bi-building me-1"></i> Rentals
+                </a>
+                <a href="{{ url_for('dashboard.switch_mode', mode='airbnb') }}"
+                   class="btn btn-sm flex-fill rounded-pill py-1 fw-bold text-decoration-none {% if current_mode == 'AIRBNB' %}btn-danger text-white shadow-sm{% else %}text-muted{% endif %}"
+                   style="font-size: 0.76rem;" title="Switch to Airbnb &amp; Short-Stay Management">
+                    <i class="bi bi-cup-hot-fill me-1"></i> Airbnb
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
         <div class="sidebar-menu">
+            {# ══════════════════════════════════════════════════════════════════════
+               AIRBNB / HOSPITALITY WORKSPACE
+            ══════════════════════════════════════════════════════════════════════ #}
+            {% if can_airbnb and current_mode == 'AIRBNB' %}
+            <div class="nav-item-header text-danger"><i class="bi bi-cup-hot-fill me-1"></i> Hospitality &amp; Short-Stay</div>
+            <a href="{{ url_for('hospitality.index') }}" class="sidebar-nav-link {% if request.endpoint == 'hospitality.index' %}active{% endif %}">
+                <i class="bi bi-speedometer text-danger"></i>
+                <span>Airbnb Dashboard</span>
+            </a>
+            <a href="{{ url_for('hospitality.calendar') }}" class="sidebar-nav-link {% if request.endpoint == 'hospitality.calendar' %}active{% endif %}">
+                <i class="bi bi-calendar3 text-danger"></i>
+                <span>Availability Calendar</span>
+            </a>
+            <a href="{{ url_for('hospitality.rooms') }}" class="sidebar-nav-link {% if request.endpoint == 'hospitality.rooms' %}active{% endif %}">
+                <i class="bi bi-door-open-fill text-danger"></i>
+                <span>Daily Rates &amp; Inventory</span>
+            </a>
+            <a href="{{ url_for('hospitality.housekeeping') }}" class="sidebar-nav-link {% if request.endpoint == 'hospitality.housekeeping' %}active{% endif %}">
+                <i class="bi bi-stars text-danger"></i>
+                <span>Housekeeping &amp; Rooms</span>
+            </a>
+            <a href="{{ url_for('hospitality.reservations') }}" class="sidebar-nav-link {% if request.endpoint == 'hospitality.reservations' %}active{% endif %}">
+                <i class="bi bi-calendar-heart text-danger"></i>
+                <span>Short-Stay Bookings</span>
+            </a>
+            <a href="{{ url_for('hospitality.pricing_rules') }}" class="sidebar-nav-link {% if request.endpoint == 'hospitality.pricing_rules' %}active{% endif %}">
+                <i class="bi bi-tags-fill text-danger"></i>
+                <span>Dynamic Pricing</span>
+            </a>
+
+            <div class="nav-item-header">Finances &amp; Collections</div>
+            <a href="{{ url_for('mpesa.index') }}" class="sidebar-nav-link {% if 'mpesa' in request.endpoint %}active{% endif %}">
+                <i class="bi bi-phone-fill"></i>
+                <span>M-Pesa Integration</span>
+            </a>
+            <a href="{{ url_for('banking.index') }}" class="sidebar-nav-link {% if 'banking' in request.endpoint %}active{% endif %}">
+                <i class="bi bi-bank2"></i>
+                <span>Bank Reconciliation</span>
+            </a>
+
+            <div class="nav-item-header">Operations &amp; Staff</div>
+            <a href="{{ url_for('maintenance.index') }}" class="sidebar-nav-link {% if 'maintenance' in request.endpoint %}active{% endif %}">
+                <i class="bi bi-tools"></i>
+                <span>Turnover Maintenance</span>
+            </a>
+            <a href="{{ url_for('reports.index') }}" class="sidebar-nav-link {% if 'reports' in request.endpoint %}active{% endif %}">
+                <i class="bi bi-file-earmark-bar-graph-fill"></i>
+                <span>Financial Reports</span>
+            </a>
+            <a href="{{ url_for('communication.index') }}" class="sidebar-nav-link {% if request.endpoint == 'communication.index' %}active{% endif %}">
+                <i class="bi bi-chat-left-text-fill"></i>
+                <span>Staff Communication</span>
+            </a>
+            <a href="{{ url_for('communication.sms_history') }}" class="sidebar-nav-link {% if request.endpoint == 'communication.sms_history' %}active{% endif %}">
+                <i class="bi bi-chat-dots-fill"></i>
+                <span>SMS Delivery Logs</span>
+            </a>
+            {% endif %}
+
+            {# ══════════════════════════════════════════════════════════════════════
+               LONG-TERM RENTALS WORKSPACE
+            ══════════════════════════════════════════════════════════════════════ #}
+            {% if can_rentals and current_mode == 'RENTALS' %}
             <div class="nav-item-header">Overview</div>
             <a href="{{ url_for('dashboard.index') }}" class="sidebar-nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
                 <i class="bi bi-speedometer2"></i>
                 <span>Executive Dashboard</span>
             </a>
 
-            {% if not current_user.active_organization or current_user.active_organization.can_access_rental_module() or current_user.is_superadmin() %}
             <div class="nav-item-header">Property Operations</div>
             <a href="{{ url_for('properties.index') }}" class="sidebar-nav-link {% if request.endpoint in ['properties.index', 'properties.detail'] %}active{% endif %}">
                 <i class="bi bi-building"></i>
-                <span>Properties & Units</span>
+                <span>Properties &amp; Units</span>
             </a>
             <a href="{{ url_for('properties.occupancy_grid') }}" class="sidebar-nav-link {% if request.endpoint == 'properties.occupancy_grid' %}active{% endif %}">
                 <i class="bi bi-grid-3x3-gap-fill"></i>
@@ -285,7 +368,7 @@
             </a>
             <a href="{{ url_for('properties.marketplace') }}" class="sidebar-nav-link {% if 'marketplace' in request.endpoint or 'external-listings' in request.endpoint %}active{% endif %}">
                 <i class="bi bi-shop-window"></i>
-                <span>Marketplace & Listings</span>
+                <span>Marketplace &amp; Listings</span>
             </a>
             <a href="{{ url_for('tenants.index') }}" class="sidebar-nav-link {% if 'tenants' in request.endpoint %}active{% endif %}">
                 <i class="bi bi-people-fill"></i>
@@ -299,41 +382,11 @@
                 <span class="badge bg-warning text-dark rounded-pill ms-auto" style="font-size:0.7rem;">{{ _pending_count }}</span>
                 {% endif %}
             </a>
-            {% endif %}
 
-            <!-- Module B: Hospitality & Short-Stay Management -->
-            {% if not current_user.active_organization or current_user.active_organization.can_access_hospitality_module() or current_user.is_superadmin() %}
-            <div class="nav-item-header text-danger"><i class="bi bi-cup-hot-fill me-1"></i> Hospitality &amp; Short-Stay</div>
-            <a href="{{ url_for('hospitality.index') }}" class="sidebar-nav-link {% if request.endpoint == 'hospitality.index' %}active{% endif %}">
-                <i class="bi bi-speedometer text-danger"></i>
-                <span>Hospitality Dashboard</span>
-            </a>
-            <a href="{{ url_for('hospitality.reservations') }}" class="sidebar-nav-link {% if request.endpoint == 'hospitality.reservations' %}active{% endif %}">
-                <i class="bi bi-calendar-heart text-danger"></i>
-                <span>Short-Stay Bookings</span>
-            </a>
-            <a href="{{ url_for('hospitality.housekeeping') }}" class="sidebar-nav-link {% if request.endpoint == 'hospitality.housekeeping' %}active{% endif %}">
-                <i class="bi bi-stars text-danger"></i>
-                <span>Housekeeping &amp; Rooms</span>
-            </a>
-            <a href="{{ url_for('hospitality.rooms') }}" class="sidebar-nav-link {% if request.endpoint == 'hospitality.rooms' %}active{% endif %}">
-                <i class="bi bi-door-open-fill text-danger"></i>
-                <span>Daily Rates &amp; Inventory</span>
-            </a>
-            <a href="{{ url_for('hospitality.calendar') }}" class="sidebar-nav-link {% if request.endpoint == 'hospitality.calendar' %}active{% endif %}">
-                <i class="bi bi-calendar3 text-danger"></i>
-                <span>Availability Calendar</span>
-            </a>
-            <a href="{{ url_for('hospitality.pricing_rules') }}" class="sidebar-nav-link {% if request.endpoint == 'hospitality.pricing_rules' %}active{% endif %}">
-                <i class="bi bi-tags-fill text-danger"></i>
-                <span>Dynamic Pricing</span>
-            </a>
-            {% endif %}
-
-            <div class="nav-item-header">Finances & Billing</div>
+            <div class="nav-item-header">Finances &amp; Billing</div>
             <a href="{{ url_for('billing.index') }}" class="sidebar-nav-link {% if 'billing' in request.endpoint %}active{% endif %}">
                 <i class="bi bi-cash-stack"></i>
-                <span>Rent Billing & Receipts</span>
+                <span>Rent Billing &amp; Receipts</span>
             </a>
             <a href="{{ url_for('mpesa.index') }}" class="sidebar-nav-link {% if 'mpesa' in request.endpoint %}active{% endif %}">
                 <i class="bi bi-phone-fill"></i>
@@ -344,16 +397,14 @@
                 <span>Bank Reconciliation</span>
             </a>
 
-            <div class="nav-item-header">Facilities & Reports</div>
-            {% if not current_user.active_organization or current_user.active_organization.can_access_rental_module() or current_user.is_superadmin() %}
+            <div class="nav-item-header">Facilities &amp; Reports</div>
             <a href="{{ url_for('leases.index') }}" class="sidebar-nav-link {% if 'leases' in request.endpoint %}active{% endif %}">
                 <i class="bi bi-file-text-fill"></i>
                 <span>Lease Agreements</span>
             </a>
-            {% endif %}
             <a href="{{ url_for('maintenance.index') }}" class="sidebar-nav-link {% if 'maintenance' in request.endpoint %}active{% endif %}">
                 <i class="bi bi-tools"></i>
-                <span>Maintenance & Expenses</span>
+                <span>Maintenance &amp; Expenses</span>
             </a>
             <a href="{{ url_for('utilities.index') }}" class="sidebar-nav-link {% if 'utilities' in request.endpoint %}active{% endif %}">
                 <i class="bi bi-speedometer2"></i>
@@ -371,6 +422,7 @@
                 <i class="bi bi-chat-dots-fill"></i>
                 <span>SMS Delivery Logs</span>
             </a>
+            {% endif %}
 
             {% if current_user.has_permission('users.manage') or current_user.has_permission('settings.manage') %}
             <div class="nav-item-header">Administration</div>
@@ -442,14 +494,14 @@
         </div>
 
         <div class="d-flex align-items-center gap-3">
-            <!-- Commercial Suite Module Switcher -->
-            {% if current_user.is_superadmin() or (current_user.active_organization and current_user.active_organization.can_access_rental_module() and current_user.active_organization.can_access_hospitality_module()) %}
-            <div class="btn-group btn-group-sm d-none d-lg-inline-flex border rounded shadow-sm" role="group">
-                <a href="{{ url_for('dashboard.index') }}" class="btn btn-sm {% if not request.endpoint.startswith('hospitality') %}btn-primary fw-semibold{% else %}btn-light text-muted{% endif %}" title="Switch to Long-Term Rental Management">
-                    <i class="bi bi-building me-1"></i> Rental Suite
+            <!-- Dual-Mode Workspace Switcher -->
+            {% if can_rentals and can_airbnb %}
+            <div class="btn-group btn-group-sm d-none d-lg-inline-flex border rounded-pill p-1 bg-light shadow-sm" role="group">
+                <a href="{{ url_for('dashboard.switch_mode', mode='rentals') }}" class="btn btn-sm rounded-pill px-3 py-1 {% if current_mode == 'RENTALS' %}btn-primary text-white fw-bold shadow-sm{% else %}btn-light text-muted border-0{% endif %}" title="Switch to Long-Term Rental Management">
+                    <i class="bi bi-building me-1"></i> Rentals Mode
                 </a>
-                <a href="{{ url_for('hospitality.index') }}" class="btn btn-sm {% if request.endpoint.startswith('hospitality') %}btn-danger fw-semibold{% else %}btn-light text-danger{% endif %}" title="Switch to Hospitality & Airbnb Management">
-                    <i class="bi bi-cup-hot-fill me-1"></i> Hospitality Suite
+                <a href="{{ url_for('dashboard.switch_mode', mode='airbnb') }}" class="btn btn-sm rounded-pill px-3 py-1 {% if current_mode == 'AIRBNB' %}btn-danger text-white fw-bold shadow-sm{% else %}btn-light text-muted border-0{% endif %}" title="Switch to Airbnb &amp; Short-Stay Management">
+                    <i class="bi bi-cup-hot-fill me-1"></i> Airbnb Mode
                 </a>
             </div>
             {% endif %}

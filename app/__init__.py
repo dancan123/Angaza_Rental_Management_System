@@ -65,6 +65,7 @@ def create_app(config_name=None):
     @app.context_processor
     def inject_globals():
         from datetime import date, datetime
+        from flask import session as _sess, request as _req
         from flask_login import current_user
         pending_inquiry_count = 0
         try:
@@ -73,8 +74,32 @@ def create_app(config_name=None):
                 pending_inquiry_count = Booking.query.filter_by(status='PENDING').count()
         except Exception:
             pass
-        return dict(date=date, datetime=datetime, now=datetime.utcnow(),
-                    pending_inquiry_count=pending_inquiry_count)
+
+        # Resolve Dual-Mode Workspace: 'RENTALS' vs 'AIRBNB'
+        current_mode = 'RENTALS'
+        endpoint = _req.endpoint or ''
+        if endpoint.startswith('hospitality.'):
+            current_mode = 'AIRBNB'
+            _sess['active_mode'] = 'AIRBNB'
+        else:
+            org = getattr(current_user, 'active_organization', None) if (current_user and current_user.is_authenticated) else None
+            can_rent = (not org or org.can_access_rental_module() or current_user.is_superadmin()) if (current_user and current_user.is_authenticated) else True
+            can_airbnb = (not org or org.can_access_hospitality_module() or current_user.is_superadmin()) if (current_user and current_user.is_authenticated) else True
+
+            if can_airbnb and not can_rent:
+                current_mode = 'AIRBNB'
+            elif can_rent and not can_airbnb:
+                current_mode = 'RENTALS'
+            else:
+                current_mode = _sess.get('active_mode', 'RENTALS')
+
+        return dict(
+            date=date,
+            datetime=datetime,
+            now=datetime.utcnow(),
+            pending_inquiry_count=pending_inquiry_count,
+            current_mode=current_mode
+        )
 
     # Subscription suspension enforcement middleware
     @app.before_request

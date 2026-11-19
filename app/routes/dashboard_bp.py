@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, session, redirect, url_for, flash
 from flask_login import login_required, current_user
 from app.models.property import Property, Building, RentalUnit
 from app.models.tenant import Tenant
@@ -9,6 +9,34 @@ from app.utils.currency import format_currency
 from datetime import datetime
 
 dashboard_bp = Blueprint('dashboard', __name__)
+
+@dashboard_bp.route('/switch-mode/<mode>')
+@login_required
+def switch_mode(mode):
+    """
+    Dedicated Mode Switcher:
+    Toggles between 'RENTALS' (Long-term residential & commercial)
+    and 'AIRBNB' (Short-stay & hospitality room management).
+    """
+    mode_upper = (mode or '').upper()
+    if mode_upper in ['AIRBNB', 'HOSPITALITY']:
+        session['active_mode'] = 'AIRBNB'
+        flash('Switched to Airbnb & Short-Stay Management Workspace.', 'info')
+        return redirect(url_for('hospitality.index'))
+    else:
+        session['active_mode'] = 'RENTALS'
+        flash('Switched to Long-Term Rentals Workspace.', 'info')
+        return redirect(url_for('dashboard.index'))
+
+@dashboard_bp.route('/airbnb')
+@login_required
+def airbnb_mode():
+    return switch_mode('airbnb')
+
+@dashboard_bp.route('/rentals')
+@login_required
+def rentals_mode():
+    return switch_mode('rentals')
 
 @dashboard_bp.route('/')
 @dashboard_bp.route('/dashboard')
