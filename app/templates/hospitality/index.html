@@ -1,34 +1,47 @@
 {% extends "base.html" %}
 
-{% block title %}Hospitality & Short-Stay Dashboard - {{ app_name }}{% endblock %}
+{% block title %}Airbnb &amp; Short-Stay Management — {{ app_name }}{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+
+{# ═══════════════════════════════════════════════════════════════
+   PAGE HEADER + ACTION BUTTONS
+═══════════════════════════════════════════════════════════════ #}
+<div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
     <div>
-        <div class="d-flex align-items-center gap-2">
-            <span class="badge bg-danger px-3 py-1 text-uppercase fw-bold" style="letter-spacing:0.05em;">Module B</span>
-            <h3 class="fw-bold mb-0">Hospitality &amp; Short-Stay Management</h3>
+        <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+            <span class="badge bg-danger px-3 py-1 text-uppercase fw-bold" style="letter-spacing:.05em;">Module B</span>
+            <span class="badge bg-dark px-2 py-1 small fw-normal">Airbnb Control Center</span>
+            <h3 class="fw-bold mb-0">Airbnb &amp; Short-Stay Management</h3>
         </div>
         <p class="text-muted small mb-0">Operational headquarters for Airbnb, serviced apartments, guest houses, and daily accommodation.</p>
     </div>
-    <div class="d-flex gap-2">
-        <a href="{{ url_for('hospitality.rooms') }}" class="btn btn-outline-dark">
+    <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#quickBookModal">
+            <i class="bi bi-calendar-plus me-1"></i> Quick Book
+        </button>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#recordPaymentModal" id="headerRecordPayBtn"
+            data-res-id="" data-guest="" data-room="" data-balance="">
+            <i class="bi bi-cash-stack me-1"></i> Record Money In
+        </button>
+        <button class="btn btn-outline-dark" data-bs-toggle="modal" data-bs-target="#dailyCollectionsModal">
+            <i class="bi bi-receipt me-1"></i> Daily Collections
+        </button>
+        <a href="{{ url_for('hospitality.rooms') }}" class="btn btn-outline-secondary">
             <i class="bi bi-door-open-fill me-1 text-danger"></i> Room Inventory
         </a>
         <a href="{{ url_for('hospitality.housekeeping') }}" class="btn btn-outline-secondary">
-            <i class="bi bi-stars me-1 text-warning"></i> Housekeeping Board
-        </a>
-        <a href="{{ url_for('hospitality.reservations') }}" class="btn btn-danger">
-            <i class="bi bi-calendar-plus me-1"></i> New Short-Stay Booking
+            <i class="bi bi-stars me-1 text-warning"></i> Housekeeping
         </a>
     </div>
 </div>
 
+{# ── No rooms warning ── #}
 {% if kpis.total_units == 0 %}
 <div class="alert alert-warning border-warning shadow-sm mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
     <div>
-        <div class="fw-bold fs-6"><i class="bi bi-info-circle-fill me-2 text-warning"></i> No Short-Stay / Airbnb Rooms Configured Yet</div>
-        <div class="small text-muted">You have property units in the system, but none are currently configured as Short-Stay / Airbnb rooms. Add a short-stay room or designate existing units in Inventory to begin tracking daily rates, occupancy, and guest bookings!</div>
+        <div class="fw-bold fs-6"><i class="bi bi-info-circle-fill me-2 text-warning"></i>No Short-Stay / Airbnb Rooms Configured Yet</div>
+        <div class="small text-muted">Add a short-stay room or designate existing units in Inventory to begin tracking daily rates, occupancy, and guest bookings!</div>
     </div>
     <div class="d-flex gap-2">
         <a href="{{ url_for('hospitality.rooms') }}" class="btn btn-danger btn-sm fw-semibold">
@@ -41,19 +54,21 @@
 </div>
 {% endif %}
 
-<!-- Hospitality KPI Cards Row -->
-<div class="row g-3 mb-4">
-    <!-- Today's Arrivals -->
-    <div class="col-sm-6 col-xl-3">
+{# ═══════════════════════════════════════════════════════════════
+   KPI SUMMARY CARDS — Row 1 (operational metrics)
+═══════════════════════════════════════════════════════════════ #}
+<div class="row g-3 mb-3">
+    {# Today's Arrivals #}
+    <div class="col-6 col-sm-4 col-xl-2">
         <a href="#arrivalsSection" class="text-decoration-none">
-            <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-primary shadow-sm hover-shadow transition">
+            <div class="card h-100 p-3 bg-white border-start border-4 border-primary shadow-sm">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <span class="text-muted small fw-semibold text-uppercase">Today's Arrivals</span>
-                        <h3 class="fw-bold my-1 text-primary">{{ kpis.arrivals_today }}</h3>
-                        <span class="text-muted small">Guests checking in today &darr;</span>
+                        <div class="text-muted small fw-semibold text-uppercase" style="font-size:.7rem;">Today's Arrivals</div>
+                        <div class="fw-bold fs-3 text-primary lh-1 my-1">{{ kpis.arrivals_today }}</div>
+                        <div class="text-muted" style="font-size:.72rem;">Checking in today</div>
                     </div>
-                    <div class="stat-card-icon bg-primary-subtle text-primary">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center bg-primary-subtle text-primary" style="width:42px;height:42px;font-size:1.2rem;">
                         <i class="bi bi-box-arrow-in-right"></i>
                     </div>
                 </div>
@@ -61,17 +76,17 @@
         </a>
     </div>
 
-    <!-- Today's Departures -->
-    <div class="col-sm-6 col-xl-3">
+    {# Today's Departures #}
+    <div class="col-6 col-sm-4 col-xl-2">
         <a href="#inHouseSection" class="text-decoration-none">
-            <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-warning shadow-sm hover-shadow transition">
+            <div class="card h-100 p-3 bg-white border-start border-4 border-warning shadow-sm">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <span class="text-muted small fw-semibold text-uppercase">Today's Departures</span>
-                        <h3 class="fw-bold my-1 text-warning">{{ kpis.departures_today }}</h3>
-                        <span class="text-muted small">Check-outs &amp; turnovers &darr;</span>
+                        <div class="text-muted small fw-semibold text-uppercase" style="font-size:.7rem;">Today's Departures</div>
+                        <div class="fw-bold fs-3 text-warning lh-1 my-1">{{ kpis.departures_today }}</div>
+                        <div class="text-muted" style="font-size:.72rem;">Check-outs &amp; turnovers</div>
                     </div>
-                    <div class="stat-card-icon bg-warning-subtle text-warning">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center bg-warning-subtle text-warning" style="width:42px;height:42px;font-size:1.2rem;">
                         <i class="bi bi-box-arrow-right"></i>
                     </div>
                 </div>
@@ -79,17 +94,17 @@
         </a>
     </div>
 
-    <!-- Occupancy Rate % -->
-    <div class="col-sm-6 col-xl-3">
+    {# Occupancy Rate #}
+    <div class="col-6 col-sm-4 col-xl-2">
         <a href="{{ url_for('hospitality.rooms') }}" class="text-decoration-none">
-            <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-success shadow-sm hover-shadow transition">
+            <div class="card h-100 p-3 bg-white border-start border-4 border-success shadow-sm">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <span class="text-muted small fw-semibold text-uppercase">Occupancy Rate</span>
-                        <h3 class="fw-bold my-1 text-success">{{ kpis.occupancy_pct }}%</h3>
-                        <span class="text-muted small">{{ kpis.in_house_count }} of {{ kpis.total_units }} short-stay units &rarr;</span>
+                        <div class="text-muted small fw-semibold text-uppercase" style="font-size:.7rem;">Occupancy Rate</div>
+                        <div class="fw-bold fs-3 text-success lh-1 my-1">{{ kpis.occupancy_pct }}%</div>
+                        <div class="text-muted" style="font-size:.72rem;">{{ kpis.in_house_count }} of {{ kpis.total_units }} short-stay units</div>
                     </div>
-                    <div class="stat-card-icon bg-success-subtle text-success">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center bg-success-subtle text-success" style="width:42px;height:42px;font-size:1.2rem;">
                         <i class="bi bi-pie-chart-fill"></i>
                     </div>
                 </div>
@@ -97,35 +112,304 @@
         </a>
     </div>
 
-    <!-- ADR & RevPAR (Hospitality Gold Standards) -->
-    <div class="col-sm-6 col-xl-3">
+    {# ADR / RevPAR #}
+    <div class="col-6 col-sm-4 col-xl-2">
         <a href="{{ url_for('hospitality.pricing_rules') }}" class="text-decoration-none">
-            <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-danger shadow-sm hover-shadow transition">
+            <div class="card h-100 p-3 bg-white border-start border-4 border-danger shadow-sm">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <span class="text-muted small fw-semibold text-uppercase">ADR / RevPAR</span>
-                        <h4 class="fw-bold my-1 text-danger">{{ kpis.adr_display }}</h4>
-                        <span class="text-muted small">RevPAR: <strong>{{ kpis.revpar_display }}</strong> &rarr;</span>
+                        <div class="text-muted small fw-semibold text-uppercase" style="font-size:.7rem;">ADR / RevPAR</div>
+                        <div class="fw-bold fs-5 text-danger lh-1 my-1">{{ kpis.adr_display }}</div>
+                        <div class="text-muted" style="font-size:.72rem;">RevPAR: {{ kpis.revpar_display }}</div>
                     </div>
-                    <div class="stat-card-icon bg-danger-subtle text-danger">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center bg-danger-subtle text-danger" style="width:42px;height:42px;font-size:1.2rem;">
                         <i class="bi bi-cash-coin"></i>
                     </div>
                 </div>
             </div>
         </a>
     </div>
+
+    {# Booked / Occupied #}
+    <div class="col-6 col-sm-4 col-xl-2">
+        <div class="card h-100 p-3 border-start border-4 shadow-sm" style="background:#fff5f5;border-color:#dc3545!important;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small fw-semibold text-uppercase" style="font-size:.7rem;">Booked Rooms</div>
+                    <div class="fw-bold fs-3 text-danger lh-1 my-1">{{ booked_count }}</div>
+                    <div class="text-muted" style="font-size:.72rem;">Currently occupied</div>
+                </div>
+                <div class="rounded-circle d-flex align-items-center justify-content-center bg-danger text-white" style="width:42px;height:42px;font-size:1.2rem;">
+                    <i class="bi bi-person-fill-lock"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# Vacant / Available #}
+    <div class="col-6 col-sm-4 col-xl-2">
+        <div class="card h-100 p-3 border-start border-4 shadow-sm" style="background:#f0fff4;border-color:#198754!important;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small fw-semibold text-uppercase" style="font-size:.7rem;">Vacant Rooms</div>
+                    <div class="fw-bold fs-3 text-success lh-1 my-1">{{ vacant_count }}</div>
+                    <div class="text-muted" style="font-size:.72rem;">Available to book</div>
+                </div>
+                <div class="rounded-circle d-flex align-items-center justify-content-center bg-success text-white" style="width:42px;height:42px;font-size:1.2rem;">
+                    <i class="bi bi-door-open"></i>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
-<!-- Housekeeping Snapshot & Quick Operations -->
+{# ═══════════════════════════════════════════════════════════════
+   AIRBNB ROOM OPERATIONS BOARD — Card Grid
+═══════════════════════════════════════════════════════════════ #}
+<div class="card bg-white shadow-sm mb-4">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2 py-3">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-grid-3x3-gap-fill fs-5 text-danger"></i>
+            <span class="fw-bold fs-6">Airbnb Room Operations Board</span>
+            <span class="badge bg-danger ms-1">{{ kpis.total_units }} rooms</span>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="text-white-50 small d-none d-sm-inline">Sort:</span>
+            <a href="{{ url_for('hospitality.index', sort='name') }}"
+               class="btn btn-sm {{ 'btn-light text-dark fw-bold' if sort_by == 'name' else 'btn-outline-light' }}">
+                <i class="bi bi-sort-alpha-down me-1"></i>Name
+            </a>
+            <a href="{{ url_for('hospitality.index', sort='income_desc') }}"
+               class="btn btn-sm {{ 'btn-light text-dark fw-bold' if sort_by == 'income_desc' else 'btn-outline-light' }}">
+                <i class="bi bi-sort-numeric-down-alt me-1"></i>Highest Income
+            </a>
+            <a href="{{ url_for('hospitality.index', sort='income_asc') }}"
+               class="btn btn-sm {{ 'btn-light text-dark fw-bold' if sort_by == 'income_asc' else 'btn-outline-light' }}">
+                <i class="bi bi-sort-numeric-up me-1"></i>Lowest Income
+            </a>
+        </div>
+    </div>
+
+    <div class="card-body p-3">
+        {% if decorated_rooms %}
+        <div class="row g-3">
+            {% for room in decorated_rooms %}
+            {% set u = room.unit %}
+            {% set res = room.active_reservation %}
+            {% set is_occupied = room.is_occupied %}
+
+            <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+                <div class="card h-100 shadow-sm border-0 position-relative overflow-hidden
+                    {{ 'border-danger' if is_occupied else 'border-success' }}"
+                    style="border-left: 4px solid {{ '#dc3545' if is_occupied else ('#ffc107' if u.cleaning_status == 'DIRTY' else '#198754') }} !important;
+                           border-left-width: 4px !important;">
+
+                    {# ── Status ribbon top-right ── #}
+                    <div class="position-absolute top-0 end-0 mt-2 me-2">
+                        {% if is_occupied %}
+                            <span class="badge bg-danger text-white fw-bold px-2 py-1">
+                                <i class="bi bi-person-fill me-1"></i>Occupied
+                            </span>
+                        {% elif u.cleaning_status == 'DIRTY' %}
+                            <span class="badge bg-warning text-dark fw-bold px-2 py-1">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>Dirty
+                            </span>
+                        {% elif u.cleaning_status == 'OUT_OF_SERVICE' %}
+                            <span class="badge bg-secondary text-white fw-bold px-2 py-1">
+                                <i class="bi bi-tools me-1"></i>Offline
+                            </span>
+                        {% elif u.cleaning_status == 'INSPECTED' %}
+                            <span class="badge bg-primary text-white fw-bold px-2 py-1">
+                                <i class="bi bi-patch-check-fill me-1"></i>Inspected
+                            </span>
+                        {% else %}
+                            <span class="badge bg-success text-white fw-bold px-2 py-1">
+                                <i class="bi bi-check-circle-fill me-1"></i>Vacant
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <div class="card-body p-3 pb-2">
+                        {# ── Room number & property ── #}
+                        <div class="mb-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fw-bold fs-5 text-dark">{{ u.unit_number }}</span>
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle small">Airbnb</span>
+                            </div>
+                            {% if u.property %}
+                            <div class="text-muted small"><i class="bi bi-building me-1"></i>{{ u.property.name }}</div>
+                            {% endif %}
+                        </div>
+
+                        <hr class="my-2">
+
+                        {# ── Occupant Details (if occupied) or How to Book (if vacant) ── #}
+                        {% if is_occupied and res %}
+                        <div class="p-2 rounded bg-danger-subtle border border-danger-subtle mb-2">
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <div class="fw-bold text-danger small">
+                                    <i class="bi bi-person-fill text-danger me-1"></i>{{ res.guest.full_name }}
+                                </div>
+                                <span class="badge bg-light text-dark border smaller">{{ res.booking_source }}</span>
+                            </div>
+                            <div class="text-muted" style="font-size:0.75rem;">
+                                <i class="bi bi-telephone me-1"></i>{{ res.guest.phone }}
+                            </div>
+                            <div class="text-muted mt-1" style="font-size:0.75rem;">
+                                <i class="bi bi-calendar-range me-1"></i>{{ res.check_in_date.strftime('%d %b') }} &rarr; <strong>{{ res.check_out_date.strftime('%d %b %Y') }}</strong>
+                                <span class="text-dark fw-bold">({{ res.num_nights }}N)</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top small" style="font-size:0.75rem;">
+                                <span>Paid: <strong class="text-success">{{ res.paid_amount_display }}</strong></span>
+                                {% if res.balance_cents > 0 %}
+                                    <span class="text-danger fw-bold">Bal: {{ res.balance_display }}</span>
+                                {% else %}
+                                    <span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i>Settled</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% elif is_occupied %}
+                        <div class="p-2 rounded bg-warning-subtle text-warning-emphasis small mb-2 fst-italic">
+                            <i class="bi bi-person-lock me-1"></i> Occupied (Guest details pending)
+                        </div>
+                        {% else %}
+                        {# ── How to Book Guide for Vacant Room ── #}
+                        <div class="p-2 rounded bg-success-subtle border border-success-subtle mb-2 text-success small">
+                            <div class="fw-bold"><i class="bi bi-check-circle-fill me-1"></i>Vacant &amp; Ready</div>
+                            <div class="text-muted" style="font-size: 0.74rem;">
+                                Click <strong>Book Room Now</strong> below to record arrival dates &amp; occupant info.
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <hr class="my-2">
+
+                        {# ── Financial row: Nightly / Monthly / All-Time Collected ── #}
+                        <div class="row g-0 text-center mb-2" style="font-size:.75rem;">
+                            <div class="col-4 border-end">
+                                <div class="text-muted">Per Night</div>
+                                <div class="fw-bold text-dark">
+                                    {% if room.daily_rate_cents > 0 %}
+                                        {{ room.daily_rate_display }}
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-4 border-end">
+                                <div class="text-muted">Per Month</div>
+                                <div class="fw-bold text-dark">{{ room.monthly_potential_display }}</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="text-muted">Collected</div>
+                                <div class="fw-bold {{ 'text-success' if room.total_collected_cents > 0 else 'text-muted' }}">
+                                    {{ room.total_collected_display }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {# ── Action Buttons Footer ── #}
+                    <div class="card-footer bg-transparent pt-0 pb-3 px-3 d-flex gap-2 flex-wrap">
+                        {% if is_occupied and res %}
+                            {# Record Money In / Payment #}
+                            <button class="btn btn-success btn-sm flex-grow-1 fw-semibold"
+                                data-bs-toggle="modal" data-bs-target="#recordPaymentModal"
+                                data-res-id="{{ res.id }}"
+                                data-guest="{{ res.guest.full_name }}"
+                                data-room="{{ u.unit_number }}"
+                                data-balance="{{ res.balance_display }}">
+                                <i class="bi bi-cash me-1"></i>Pay
+                            </button>
+                            {# Automatic Receipt Generation with Occupant Details #}
+                            <a href="{{ url_for('hospitality.view_receipt', res_id=res.id) }}"
+                               class="btn btn-outline-primary btn-sm fw-semibold" title="Generate &amp; Print Guest Receipt">
+                                <i class="bi bi-receipt-cutoff me-1"></i>Receipt
+                            </a>
+                            {# Check Out & Turnover #}
+                            <form method="POST" action="{{ url_for('hospitality.check_out', res_id=res.id) }}"
+                                  class="d-inline"
+                                  onsubmit="return confirm('Check out {{ res.guest.full_name }} from Room {{ u.unit_number }}?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="btn btn-warning btn-sm" title="Check Out &amp; Turnover">
+                                    <i class="bi bi-box-arrow-right"></i>
+                                </button>
+                            </form>
+                        {% else %}
+                            {# Book Room Now button #}
+                            <button class="btn btn-danger btn-sm flex-grow-1 fw-semibold py-2"
+                                data-bs-toggle="modal" data-bs-target="#quickBookModal"
+                                data-unit-id="{{ u.id }}"
+                                data-unit-number="{{ u.unit_number }}"
+                                data-daily-rate="{{ (u.daily_rate_cents // 100) if u.daily_rate_cents else 0 }}">
+                                <i class="bi bi-calendar-plus me-1"></i>Book Room Now
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {# ── Summary Footer Bar with Amounts Generated ── #}
+        <div class="mt-4 p-3 rounded d-flex flex-wrap gap-4 align-items-center" style="background:#f8f9fa; border:1px solid #dee2e6;">
+            <div class="d-flex align-items-center gap-2">
+                <span class="rounded-circle bg-dark d-inline-flex align-items-center justify-content-center text-white" style="width:34px;height:34px;font-size:.85rem;"><i class="bi bi-grid"></i></span>
+                <div><div class="text-muted small">Total Rooms</div><div class="fw-bold fs-6">{{ kpis.total_units }}</div></div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="rounded-circle bg-danger d-inline-flex align-items-center justify-content-center text-white" style="width:34px;height:34px;font-size:.85rem;"><i class="bi bi-person-fill"></i></span>
+                <div><div class="text-muted small">Occupied</div><div class="fw-bold fs-6 text-danger">{{ booked_count }}</div></div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="rounded-circle bg-success d-inline-flex align-items-center justify-content-center text-white" style="width:34px;height:34px;font-size:.85rem;"><i class="bi bi-door-open"></i></span>
+                <div><div class="text-muted small">Vacant &amp; Ready</div><div class="fw-bold fs-6 text-success">{{ vacant_count }}</div></div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="rounded-circle bg-warning d-inline-flex align-items-center justify-content-center text-dark" style="width:34px;height:34px;font-size:.85rem;"><i class="bi bi-exclamation-triangle"></i></span>
+                <div><div class="text-muted small">Needs Turnover</div><div class="fw-bold fs-6 text-warning">{{ kpis.cleaning_counts.DIRTY }}</div></div>
+            </div>
+            <div class="ms-auto d-flex flex-wrap gap-4 align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="rounded-circle bg-primary-subtle text-primary d-inline-flex align-items-center justify-content-center" style="width:34px;height:34px;font-size:.85rem;"><i class="bi bi-graph-up-arrow"></i></span>
+                    <div>
+                        <div class="text-muted small">Total All-Time Income</div>
+                        <div class="fw-bold fs-6 text-primary">{{ total_all_time_income_display }}</div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="rounded-circle bg-success d-inline-flex align-items-center justify-content-center text-white" style="width:34px;height:34px;font-size:.85rem;"><i class="bi bi-cash-stack"></i></span>
+                    <div>
+                        <div class="text-muted small">Today's Collections</div>
+                        <div class="fw-bold fs-5 text-success">{{ today_collections_display }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-grid fs-1 d-block mb-2 text-secondary"></i>
+            <div class="fw-semibold">No rooms found.</div>
+            <div class="small">Add Airbnb / Short-Stay rooms from Room Inventory to get started.</div>
+            <a href="{{ url_for('hospitality.rooms') }}" class="btn btn-danger btn-sm mt-3">
+                <i class="bi bi-plus-circle me-1"></i>Add Airbnb Rooms
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════
+   IN-HOUSE GUESTS + HOUSEKEEPING MATRIX
+═══════════════════════════════════════════════════════════════ #}
 <div class="row g-4 mb-4">
     <div class="col-lg-8" id="inHouseSection">
-        <!-- In-House Guests / Today's Action Center -->
-        <div class="card card-custom bg-white p-4">
+        <div class="card bg-white shadow-sm p-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="fw-bold mb-0"><i class="bi bi-door-open-fill text-danger me-2"></i> Current In-House Guests ({{ in_house|length }})</h5>
+                <h5 class="fw-bold mb-0"><i class="bi bi-door-open-fill text-danger me-2"></i>Current In-House Guests ({{ in_house|length }})</h5>
                 <a href="{{ url_for('hospitality.reservations', status='CHECKED_IN') }}" class="btn btn-outline-secondary btn-sm">View All</a>
             </div>
-            
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light small">
@@ -146,14 +430,10 @@
                                 <div class="text-muted">{{ r.guest.phone }}</div>
                             </td>
                             <td>
-                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold">
-                                    {{ r.rental_unit.unit_number }}
-                                </span>
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold">{{ r.rental_unit.unit_number }}</span>
                                 <small class="text-muted d-block">{{ r.rental_unit.property.name if r.rental_unit.property else '' }}</small>
                             </td>
-                            <td>
-                                <div>{{ r.check_in_date.strftime('%d %b') }} &rarr; <strong>{{ r.check_out_date.strftime('%d %b %Y') }}</strong></div>
-                            </td>
+                            <td><div>{{ r.check_in_date.strftime('%d %b') }} &rarr; <strong>{{ r.check_out_date.strftime('%d %b %Y') }}</strong></div></td>
                             <td>{{ r.num_nights }} night(s)</td>
                             <td>
                                 {% if r.balance_cents > 0 %}
@@ -163,18 +443,33 @@
                                 {% endif %}
                             </td>
                             <td class="text-end">
-                                <form method="POST" action="{{ url_for('hospitality.check_out', res_id=r.id) }}" class="d-inline" onsubmit="return confirm('Check out guest {{ r.guest.full_name }} from Room {{ r.rental_unit.unit_number }}?');">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                    <button type="submit" class="btn btn-warning btn-sm fw-semibold">
-                                        <i class="bi bi-box-arrow-right me-1"></i> Check-Out
+                                <div class="d-flex justify-content-end gap-1">
+                                    <button class="btn btn-success btn-sm"
+                                        data-bs-toggle="modal" data-bs-target="#recordPaymentModal"
+                                        data-res-id="{{ r.id }}"
+                                        data-guest="{{ r.guest.full_name }}"
+                                        data-room="{{ r.rental_unit.unit_number }}"
+                                        data-balance="{{ r.balance_display }}"
+                                        title="Record Payment">
+                                        <i class="bi bi-cash"></i>
                                     </button>
-                                </form>
+                                    <a href="{{ url_for('hospitality.view_receipt', res_id=r.id) }}" class="btn btn-outline-secondary btn-sm" title="Receipt">
+                                        <i class="bi bi-receipt"></i>
+                                    </a>
+                                    <form method="POST" action="{{ url_for('hospitality.check_out', res_id=r.id) }}" class="d-inline"
+                                          onsubmit="return confirm('Check out {{ r.guest.full_name }} from Room {{ r.rental_unit.unit_number }}?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                        <button type="submit" class="btn btn-warning btn-sm fw-semibold">
+                                            <i class="bi bi-box-arrow-right me-1"></i>Check Out &amp; Turnover
+                                        </button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                         {% else %}
                         <tr>
                             <td colspan="6" class="text-center text-muted py-4">
-                                <i class="bi bi-door-closed fs-3 d-block mb-1 text-secondary"></i> No in-house guests at this moment.
+                                <i class="bi bi-door-closed fs-3 d-block mb-1 text-secondary"></i>No in-house guests at this moment.
                             </td>
                         </tr>
                         {% endfor %}
@@ -184,50 +479,51 @@
         </div>
     </div>
 
-    <!-- Housekeeping Quick Matrix -->
+    {# Housekeeping Quick Matrix #}
     <div class="col-lg-4">
-        <div class="card card-custom bg-white p-4 h-100">
-            <h5 class="fw-bold mb-3"><i class="bi bi-stars text-warning me-2"></i> Room Status &amp; Housekeeping</h5>
+        <div class="card bg-white shadow-sm p-4 h-100">
+            <h5 class="fw-bold mb-3"><i class="bi bi-stars text-warning me-2"></i>Room Status &amp; Housekeeping</h5>
             <div class="d-flex flex-column gap-3 mb-4">
                 <a href="{{ url_for('hospitality.rooms') }}" class="text-decoration-none">
-                    <div class="d-flex justify-content-between align-items-center p-2 rounded bg-success-subtle text-success hover-shadow transition">
-                        <span class="fw-semibold"><i class="bi bi-check-circle-fill me-2"></i> Clean &amp; Ready</span>
+                    <div class="d-flex justify-content-between align-items-center p-3 rounded bg-success-subtle text-success">
+                        <span class="fw-semibold"><i class="bi bi-check-circle-fill me-2"></i>Clean &amp; Ready</span>
                         <span class="badge bg-success rounded-pill fs-6">{{ kpis.cleaning_counts.CLEAN }}</span>
                     </div>
                 </a>
                 <a href="{{ url_for('hospitality.housekeeping') }}" class="text-decoration-none">
-                    <div class="d-flex justify-content-between align-items-center p-2 rounded bg-danger-subtle text-danger hover-shadow transition">
-                        <span class="fw-semibold"><i class="bi bi-exclamation-triangle-fill me-2"></i> Dirty (Needs Turnover)</span>
+                    <div class="d-flex justify-content-between align-items-center p-3 rounded bg-danger-subtle text-danger">
+                        <span class="fw-semibold"><i class="bi bi-exclamation-triangle-fill me-2"></i>Dirty (Needs Turnover)</span>
                         <span class="badge bg-danger rounded-pill fs-6">{{ kpis.cleaning_counts.DIRTY }}</span>
                     </div>
                 </a>
                 <a href="{{ url_for('hospitality.housekeeping') }}" class="text-decoration-none">
-                    <div class="d-flex justify-content-between align-items-center p-2 rounded bg-primary-subtle text-primary hover-shadow transition">
-                        <span class="fw-semibold"><i class="bi bi-search me-2"></i> Inspected &amp; Verified</span>
+                    <div class="d-flex justify-content-between align-items-center p-3 rounded bg-primary-subtle text-primary">
+                        <span class="fw-semibold"><i class="bi bi-search me-2"></i>Inspected &amp; Verified</span>
                         <span class="badge bg-primary rounded-pill fs-6">{{ kpis.cleaning_counts.INSPECTED }}</span>
                     </div>
                 </a>
                 <a href="{{ url_for('hospitality.housekeeping') }}" class="text-decoration-none">
-                    <div class="d-flex justify-content-between align-items-center p-2 rounded bg-secondary-subtle text-secondary hover-shadow transition">
-                        <span class="fw-semibold"><i class="bi bi-tools me-2"></i> Out of Service</span>
+                    <div class="d-flex justify-content-between align-items-center p-3 rounded bg-secondary-subtle text-secondary">
+                        <span class="fw-semibold"><i class="bi bi-tools me-2"></i>Out of Service</span>
                         <span class="badge bg-secondary rounded-pill fs-6">{{ kpis.cleaning_counts.OUT_OF_SERVICE }}</span>
                     </div>
                 </a>
             </div>
-            <a href="{{ url_for('hospitality.housekeeping') }}" class="btn btn-outline-warning w-100 mt-auto fw-semibold">
-                <i class="bi bi-clipboard2-check me-1"></i> Open Housekeeping Board
+            <a href="{{ url_for('hospitality.housekeeping') }}" class="btn btn-outline-warning w-100 fw-semibold mt-auto">
+                <i class="bi bi-clipboard2-check me-1"></i>Open Housekeeping Board
             </a>
         </div>
     </div>
 </div>
 
-<!-- Arrivals Pending Check-In -->
-<div class="card card-custom bg-white p-4" id="arrivalsSection">
+{# ═══════════════════════════════════════════════════════════════
+   SCHEDULED ARRIVALS TODAY
+═══════════════════════════════════════════════════════════════ #}
+<div class="card bg-white shadow-sm p-4" id="arrivalsSection">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="fw-bold mb-0"><i class="bi bi-box-arrow-in-right text-primary me-2"></i> Scheduled Arrivals Today ({{ arrivals|length }})</h5>
+        <h5 class="fw-bold mb-0"><i class="bi bi-box-arrow-in-right text-primary me-2"></i>Scheduled Arrivals Today ({{ arrivals|length }})</h5>
         <span class="text-muted small">Guests due to check-in on {{ today.strftime('%d %B %Y') }}</span>
     </div>
-    
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light small">
@@ -236,7 +532,7 @@
                     <th>Guest Details</th>
                     <th>Unit / Room</th>
                     <th>Nights</th>
-                    <th>Booking Source</th>
+                    <th>Source</th>
                     <th>Total Amount</th>
                     <th class="text-end">Action</th>
                 </tr>
@@ -261,7 +557,7 @@
                         <form method="POST" action="{{ url_for('hospitality.check_in', res_id=a.id) }}" class="d-inline">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                             <button type="submit" class="btn btn-success btn-sm fw-semibold">
-                                <i class="bi bi-check-circle me-1"></i> Check In
+                                <i class="bi bi-check-circle me-1"></i>Check In
                             </button>
                         </form>
                     </td>
@@ -275,4 +571,293 @@
         </table>
     </div>
 </div>
+
+
+{# ═══════════════════════════════════════════════════════════════
+   MODALS
+═══════════════════════════════════════════════════════════════ #}
+
+{# ── Modal: Quick Book Airbnb ── #}
+<div class="modal fade" id="quickBookModal" tabindex="-1" aria-labelledby="quickBookModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title fw-bold" id="quickBookModalLabel">
+                    <i class="bi bi-calendar-plus me-2"></i>Quick Book — Airbnb Room
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('hospitality.create_reservation') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Room / Unit <span class="text-danger">*</span></label>
+                            <select name="rental_unit_id" id="quickBookUnitId" class="form-select" required>
+                                <option value="">— Select Airbnb Room —</option>
+                                {% for unit in available_units %}
+                                <option value="{{ unit.id }}"
+                                    data-rate="{{ (unit.daily_rate_cents // 100) if unit.daily_rate_cents else 0 }}">
+                                    {{ unit.unit_number }}{% if unit.property %} — {{ unit.property.name }}{% endif %}
+                                    {% if unit.daily_rate_cents %} (KES {{ unit.daily_rate_cents // 100 }}/night){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Booking Source</label>
+                            <select name="booking_source" class="form-select">
+                                <option value="DIRECT">Direct / Walk-In</option>
+                                <option value="AIRBNB">Airbnb</option>
+                                <option value="BOOKING_COM">Booking.com</option>
+                                <option value="WEBSITE">Website</option>
+                                <option value="WALK_IN">Walk-In</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Guest First Name <span class="text-danger">*</span></label>
+                            <input type="text" name="first_name" class="form-control" placeholder="e.g. John" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Guest Last Name <span class="text-danger">*</span></label>
+                            <input type="text" name="last_name" class="form-control" placeholder="e.g. Doe" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Phone Number <span class="text-danger">*</span></label>
+                            <input type="text" name="phone" class="form-control" placeholder="+254..." required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Email (optional)</label>
+                            <input type="email" name="email" class="form-control" placeholder="guest@email.com">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Check-In Date <span class="text-danger">*</span></label>
+                            <input type="date" name="check_in_date" id="quickBookCheckIn" class="form-control"
+                                value="{{ today.isoformat() }}" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Check-Out Date <span class="text-danger">*</span></label>
+                            <input type="date" name="check_out_date" id="quickBookCheckOut" class="form-control" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Daily Rate (KES) <span class="text-danger">*</span></label>
+                            <input type="number" name="daily_rate" id="quickBookRate" class="form-control" min="0" step="1" placeholder="e.g. 3500" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">No. of Guests</label>
+                            <input type="number" name="num_guests" class="form-control" min="1" value="1">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Special Requests</label>
+                            <input type="text" name="special_requests" class="form-control" placeholder="e.g. Early check-in">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger fw-semibold">
+                        <i class="bi bi-calendar-check me-1"></i>Confirm Booking
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{# ── Modal: Record Money In / Payment ── #}
+<div class="modal fade" id="recordPaymentModal" tabindex="-1" aria-labelledby="recordPaymentLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold" id="recordPaymentLabel">
+                    <i class="bi bi-cash-stack me-2"></i>Record Money In / Payment
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="" id="recordPaymentForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <div class="alert alert-success py-2 mb-3 d-flex align-items-center gap-2">
+                        <i class="bi bi-person-circle fs-5"></i>
+                        <div>
+                            <div class="fw-bold small" id="payGuestName">—</div>
+                            <div class="text-muted small">Room: <span id="payRoomNumber">—</span> &nbsp;|&nbsp; Outstanding Balance: <strong id="payBalance" class="text-danger">—</strong></div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Amount (KES) <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text fw-bold">KES</span>
+                            <input type="number" name="amount" class="form-control form-control-lg fw-bold" min="1" step="1" placeholder="0" required>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Payment Method</label>
+                            <select name="payment_method" class="form-select">
+                                <option value="MPESA">M-Pesa</option>
+                                <option value="CASH">Cash</option>
+                                <option value="BANK">Bank Transfer</option>
+                                <option value="CARD">Card</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Reference / Code</label>
+                            <input type="text" name="payment_reference" class="form-control" placeholder="e.g. QKB7X2...">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success fw-semibold">
+                        <i class="bi bi-check-circle me-1"></i>Record Payment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{# ── Modal: Daily Collections & Receipts ── #}
+<div class="modal fade" id="dailyCollectionsModal" tabindex="-1" aria-labelledby="dailyCollectionsLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold" id="dailyCollectionsLabel">
+                    <i class="bi bi-receipt me-2"></i>Daily Collections &amp; Summary
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <div class="display-6 fw-bold text-success">{{ today_collections_display }}</div>
+                    <div class="text-muted small">Total collected today ({{ today.strftime('%d %B %Y') }})</div>
+                </div>
+                <div class="row g-3 text-center mb-3">
+                    <div class="col-4">
+                        <div class="p-3 rounded bg-danger-subtle">
+                            <div class="fw-bold fs-4 text-danger">{{ booked_count }}</div>
+                            <div class="text-muted small">Occupied</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-3 rounded bg-success-subtle">
+                            <div class="fw-bold fs-4 text-success">{{ vacant_count }}</div>
+                            <div class="text-muted small">Vacant</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-3 rounded bg-warning-subtle">
+                            <div class="fw-bold fs-4 text-warning">{{ kpis.cleaning_counts.DIRTY }}</div>
+                            <div class="text-muted small">Needs Clean</div>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between small mb-1">
+                    <span class="text-muted">Monthly Revenue ({{ today.strftime('%B %Y') }}):</span>
+                    <strong class="text-success">{{ kpis.monthly_revenue_display }}</strong>
+                </div>
+                <div class="d-flex justify-content-between small mb-1">
+                    <span class="text-muted">Average Daily Rate (ADR):</span>
+                    <strong>{{ kpis.adr_display }}</strong>
+                </div>
+                <div class="d-flex justify-content-between small">
+                    <span class="text-muted">RevPAR:</span>
+                    <strong>{{ kpis.revpar_display }}</strong>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <a href="{{ url_for('hospitality.reservations') }}" class="btn btn-dark">
+                    <i class="bi bi-list-ul me-1"></i>View All Reservations
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════
+   JAVASCRIPT — Modal population & Quick Book prefill
+═══════════════════════════════════════════════════════════════ #}
+<script>
+(function () {
+    'use strict';
+
+    // ── Record Payment Modal: populate from trigger button data ──
+    var payModal = document.getElementById('recordPaymentModal');
+    if (payModal) {
+        payModal.addEventListener('show.bs.modal', function (event) {
+            var btn = event.relatedTarget;
+            if (!btn) return;
+            var resId   = btn.getAttribute('data-res-id')   || '';
+            var guest   = btn.getAttribute('data-guest')    || '—';
+            var room    = btn.getAttribute('data-room')     || '—';
+            var balance = btn.getAttribute('data-balance')  || '—';
+
+            document.getElementById('payGuestName').textContent   = guest;
+            document.getElementById('payRoomNumber').textContent  = room;
+            document.getElementById('payBalance').textContent     = balance;
+
+            var form = document.getElementById('recordPaymentForm');
+            if (resId) {
+                form.action = '/hospitality/reservations/' + resId + '/record-payment';
+            }
+        });
+    }
+
+    // ── Quick Book Modal: prefill unit + rate from button data ──
+    var bookModal = document.getElementById('quickBookModal');
+    if (bookModal) {
+        bookModal.addEventListener('show.bs.modal', function (event) {
+            var btn = event.relatedTarget;
+            if (!btn) return;
+            var unitId  = btn.getAttribute('data-unit-id')     || '';
+            var unitNum = btn.getAttribute('data-unit-number') || '';
+            var rate    = btn.getAttribute('data-daily-rate')  || '';
+
+            var unitSelect = document.getElementById('quickBookUnitId');
+            if (unitId && unitSelect) {
+                unitSelect.value = unitId;
+            }
+            var rateInput = document.getElementById('quickBookRate');
+            if (rate && rateInput) {
+                rateInput.value = rate;
+            }
+        });
+
+        // Auto-set tomorrow as default check-out
+        var ciInput = document.getElementById('quickBookCheckIn');
+        var coInput = document.getElementById('quickBookCheckOut');
+        if (ciInput && coInput) {
+            function setMinCheckout() {
+                var ciVal = ciInput.value;
+                if (ciVal) {
+                    var d = new Date(ciVal);
+                    d.setDate(d.getDate() + 1);
+                    var iso = d.toISOString().slice(0,10);
+                    coInput.min = iso;
+                    if (!coInput.value || coInput.value <= ciVal) {
+                        coInput.value = iso;
+                    }
+                }
+            }
+            ciInput.addEventListener('change', setMinCheckout);
+            setMinCheckout();
+        }
+    }
+
+    // ── Auto-fill rate from selected unit in quick book modal ──
+    var unitSelect = document.getElementById('quickBookUnitId');
+    var rateInput  = document.getElementById('quickBookRate');
+    if (unitSelect && rateInput) {
+        unitSelect.addEventListener('change', function () {
+            var opt = this.options[this.selectedIndex];
+            var rate = opt.getAttribute('data-rate');
+            if (rate) rateInput.value = rate;
+        });
+    }
+})();
+</script>
+
 {% endblock %}

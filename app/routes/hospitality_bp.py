@@ -7,6 +7,7 @@ from app.models.property import RentalUnit, Property
 from app.models.hospitality import Guest, HospitalityReservation, HousekeepingTask
 from app.models.user import User
 from app.services.hospitality_service import HospitalityService
+from app.services.audit_service import AuditService
 from app.utils.decorators import permission_required
 from app.utils.currency import to_cents
 
@@ -21,6 +22,7 @@ def index():
     ADR, RevPAR, Occupancy %, Today's Arrivals & Departures, Room Status Board.
     """
     from app.utils.decorators import multi_tenant_scoped
+    from app.utils.currency import format_currency
     user = cast(Any, current_user)
     org_id = user.organization_id if not user.is_superadmin() else None
     landlord_ids = [l.id for l in user.landlords] if (not user.is_superadmin() and hasattr(user, 'landlords') and user.landlords) else None
@@ -48,6 +50,46 @@ def index():
     rooms_q = RentalUnit.query.filter_by(operational_type='SHORT_STAY')
     rooms = multi_tenant_scoped(rooms_q, RentalUnit).order_by(RentalUnit.unit_number.asc()).all()
 
+    # Enriched room management overview
+    overview = HospitalityService.get_rooms_management_overview(organization_id=org_id)
+    decorated_rooms = overview.get('rooms', [])
+
+    # Count booked/vacant for SHORT_STAY rooms
+    booked_count = sum(1 for r in decorated_rooms if r['is_occupied'] and r['unit'].operational_type == 'SHORT_STAY')
+    vacant_count = sum(1 for r in decorated_rooms if not r['is_occupied'] and r['unit'].operational_type == 'SHORT_STAY')
+
+    # Today's collections: sum paid_amount_cents for reservations updated today
+    today_midnight = datetime.combine(date.today(), datetime.min.time())
+    today_reservations = HospitalityReservation.query.filter(
+        HospitalityReservation.updated_at >= today_midnight
+    ).all()
+    today_collections_cents = sum(r.paid_amount_cents or 0 for r in today_reservations)
+    today_collections_display = format_currency(today_collections_cents)
+
+    # Filter to SHORT_STAY only for the Airbnb board
+    decorated_rooms = [r for r in decorated_rooms if r['unit'].operational_type == 'SHORT_STAY']
+    total_all_time_income_cents = sum(r['total_collected_cents'] for r in decorated_rooms)
+    total_all_time_income_display = format_currency(total_all_time_income_cents)
+
+    # Sort decorated_rooms
+    sort_by = request.args.get('sort', 'name')
+    if sort_by == 'income_desc':
+        decorated_rooms = sorted(decorated_rooms, key=lambda r: r['total_collected_cents'], reverse=True)
+    elif sort_by == 'income_asc':
+        decorated_rooms = sorted(decorated_rooms, key=lambda r: r['total_collected_cents'])
+    else:
+        decorated_rooms = sorted(decorated_rooms, key=lambda r: r['unit'].unit_number)
+
+    # Properties for new booking modal
+    properties = Property.query.filter_by(management_status='ACTIVE').all()
+
+    # Available short-stay units with no active reservation
+    active_unit_ids = {r['unit'].id for r in decorated_rooms if r['is_occupied']}
+    available_units = [
+        r['unit'] for r in decorated_rooms
+        if r['unit'].operational_type == 'SHORT_STAY' and r['unit'].id not in active_unit_ids
+    ]
+
     return render_template(
         'hospitality/index.html',
         kpis=kpis,
@@ -55,6 +97,16 @@ def index():
         departures=departures,
         in_house=in_house,
         rooms=rooms,
+        decorated_rooms=decorated_rooms,
+        booked_count=booked_count,
+        vacant_count=vacant_count,
+        today_collections_cents=today_collections_cents,
+        today_collections_display=today_collections_display,
+        sort_by=sort_by,
+        total_all_time_income_cents=total_all_time_income_cents,
+        total_all_time_income_display=total_all_time_income_display,
+        properties=properties,
+        available_units=available_units,
         today=today
     )
 
@@ -191,6 +243,44 @@ def cancel_reservation(res_id):
         flash(f"Cancellation Error: {str(e)}", 'danger')
 
     return redirect(url_for('hospitality.reservations'))
+
+
+@hospitality_bp.route('/reservations/<int:res_id>/record-payment', methods=['POST'])
+@login_required
+@permission_required('bookings.manage')
+def record_payment(res_id):
+    res = db.session.get(HospitalityReservation, res_id)
+    if not res:
+        from flask import abort; abort(404)
+
+    amount = float(request.form.get('amount', 0))
+    method = request.form.get('payment_method', 'CASH')
+    ref = request.form.get('payment_reference', '').strip()
+
+    if amount <= 0:
+        flash('Payment amount must be greater than zero.', 'danger')
+        return redirect(url_for('hospitality.index'))
+
+    res.paid_amount_cents += to_cents(amount)
+    res.payment_method = method
+    res.payment_reference = ref
+    db.session.commit()
+
+    AuditService.log('RECORD_RESERVATION_PAYMENT', 'HospitalityReservation', res.id,
+                     new_values={'amount': amount, 'method': method})
+    flash(f"Payment of KES {amount:,.0f} recorded for {res.guest.full_name} (Res: {res.reservation_code}).", 'success')
+    return redirect(url_for('hospitality.index'))
+
+
+@hospitality_bp.route('/reservations/<int:res_id>/receipt')
+@login_required
+@permission_required('bookings.view')
+def view_receipt(res_id):
+    res = db.session.get(HospitalityReservation, res_id)
+    if not res:
+        from flask import abort; abort(404)
+    return render_template('hospitality/receipt.html', res=res)
+
 
 @hospitality_bp.route('/housekeeping')
 @login_required
