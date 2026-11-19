@@ -137,7 +137,14 @@
                             <div class="fw-bold text-dark">{{ org.name }}</div>
                             <small class="text-muted">Registered: {{ org.created_at.strftime('%d/%m/%Y') }}</small>
                         </td>
-                        <td><code>{{ org.slug }}</code></td>
+                        <td>
+                            <code>{{ org.slug }}</code>
+                            <div class="mt-1">
+                                <a href="{{ url_for('public.tenant_site', slug=org.slug) }}" target="_blank" class="badge bg-primary-subtle text-primary border border-primary-subtle text-decoration-none" title="Open Public Lead-Gen Website">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i> Public Site
+                                </a>
+                            </div>
+                        </td>
                         <td>
                             {% if org.subscription_tier == 'COMBINED_SUITE' %}
                                 <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold">

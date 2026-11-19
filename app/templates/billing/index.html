@@ -188,6 +188,7 @@
                                 <th>Paid</th>
                                 <th>Balance</th>
                                 <th>Status</th>
+                                <th class="text-end pe-3">Action</th>
                             </tr>
                         </thead>
                         <tbody class="small">
@@ -214,10 +215,15 @@
                                     <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Unpaid</span>
                                     {% endif %}
                                 </td>
+                                <td class="text-end pe-3">
+                                    <a href="{{ url_for('billing.download_invoice_pdf', charge_id=c.id) }}" class="btn btn-outline-secondary btn-sm" title="Download PDF Invoice">
+                                        <i class="bi bi-file-earmark-pdf text-danger"></i> PDF
+                                    </a>
+                                </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="9" class="text-center text-muted py-5">
+                                <td colspan="10" class="text-center text-muted py-5">
                                     <i class="bi bi-inbox fs-1 text-secondary mb-2 d-block"></i>
                                     <h5>No Invoices for Period {{ selected_month }}/{{ selected_year }}</h5>
                                     <p class="small mb-0">Click "Run Monthly Billing" above to automatically generate rent charges for active leases.</p>

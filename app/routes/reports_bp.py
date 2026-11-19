@@ -99,6 +99,24 @@ def landlord_statement():
         selected_landlord=landlord_id
     )
 
+
+@reports_bp.route('/landlord-statement/<int:landlord_id>/pdf')
+@login_required
+@permission_required('reports.view')
+def download_landlord_statement_pdf(landlord_id):
+    from app.utils.pdf_generator import generate_landlord_remittance_pdf
+    landlord = Landlord.query.get_or_404(landlord_id)
+    if not landlord:
+        from flask import abort; abort(404)
+    report = ReportService.get_landlord_statement(landlord_id)
+    pdf_bytes = generate_landlord_remittance_pdf(landlord, report)
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"Landlord_Statement_{landlord.name.replace(' ', '_')}.pdf"
+    )
+
 @reports_bp.route('/export/collection.xlsx')
 @login_required
 @permission_required('reports.export')

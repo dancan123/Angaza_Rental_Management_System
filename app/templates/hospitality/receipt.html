@@ -29,8 +29,11 @@
             <i class="bi bi-arrow-left me-1"></i> Back to Airbnb Dashboard
         </a>
         <div class="d-flex gap-2">
-            <button onclick="window.print()" class="btn btn-dark btn-sm">
-                <i class="bi bi-printer-fill me-1"></i> Print / Save PDF
+            <a href="{{ url_for('hospitality.download_guest_folio_pdf', res_id=res.id) }}" class="btn btn-danger btn-sm">
+                <i class="bi bi-file-earmark-pdf-fill me-1"></i> Download PDF Folio
+            </a>
+            <button onclick="window.print()" class="btn btn-outline-dark btn-sm">
+                <i class="bi bi-printer-fill me-1"></i> Print
             </button>
             <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#recordPaymentModal"
                 data-res-id="{{ res.id }}" data-guest="{{ res.guest.full_name }}" data-room="{{ res.rental_unit.unit_number }}" data-balance="{{ res.balance_display }}">

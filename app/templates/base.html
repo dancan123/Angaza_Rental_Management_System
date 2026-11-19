@@ -465,6 +465,9 @@
                 <span class="badge bg-light text-dark border px-2 py-2 fw-semibold">
                     <i class="bi bi-buildings-fill text-primary me-1"></i> {{ current_user.active_organization.name }}
                 </span>
+                <a href="{{ url_for('public.tenant_site', slug=current_user.active_organization.slug) }}" target="_blank" class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-2 fw-semibold text-decoration-none" title="View your public external listing & lead website">
+                    <i class="bi bi-globe me-1"></i> Public Site
+                </a>
                 {% if current_user.active_organization.is_trial %}
                 <span class="badge bg-warning text-dark border px-2 py-2 fw-bold" title="Trial expires in {{ current_user.active_organization.days_remaining }} days">
                     <i class="bi bi-clock-history me-1"></i> Trial: {{ current_user.active_organization.days_remaining }}d left

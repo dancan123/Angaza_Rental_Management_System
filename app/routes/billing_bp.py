@@ -8,7 +8,7 @@ from app.models.tenant import Tenant
 from app.models.property import Property, RentalUnit
 from app.services.rent_service import RentService
 from app.services.payment_service import PaymentService
-from app.utils.pdf_generator import generate_receipt_pdf
+from app.utils.pdf_generator import generate_receipt_pdf, generate_invoice_pdf
 from app.utils.decorators import permission_required
 
 billing_bp = Blueprint('billing', __name__, url_prefix='/billing')
@@ -255,5 +255,20 @@ def download_receipt_pdf(payment_id):
         mimetype='application/pdf',
         as_attachment=True,
         download_name=f"Receipt_{payment.receipt_number}.pdf"
+    )
+
+@billing_bp.route('/invoices/<int:charge_id>/pdf')
+@login_required
+@permission_required('billing.view')
+def download_invoice_pdf(charge_id):
+    charge = db.session.get(RentCharge, charge_id)
+    if not charge:
+        from flask import abort; abort(404)
+    pdf_bytes = generate_invoice_pdf(charge)
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"Invoice_{charge.invoice_number}.pdf"
     )
 

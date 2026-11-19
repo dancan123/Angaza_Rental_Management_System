@@ -249,3 +249,22 @@ def move_out(tenant_id):
 
     return redirect(url_for('tenants.detail', tenant_id=tenant_id))
 
+
+@tenants_bp.route('/<int:tenant_id>/statement/pdf')
+@login_required
+@permission_required('tenants.view')
+def download_statement_pdf(tenant_id):
+    from io import BytesIO
+    from flask import send_file
+    from app.utils.pdf_generator import generate_tenant_statement_pdf
+    tenant = db.session.get(Tenant, tenant_id)
+    if not tenant:
+        from flask import abort; abort(404)
+    pdf_bytes = generate_tenant_statement_pdf(tenant)
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"Statement_{tenant.id_passport_number}.pdf"
+    )
+

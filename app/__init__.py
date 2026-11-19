@@ -101,13 +101,30 @@ def create_app(config_name=None):
             current_mode=current_mode
         )
 
+    # Subdomain-per-tenant external website resolution middleware
+    @app.before_request
+    def resolve_subdomain_routing():
+        from flask import request as req
+        if req.path.startswith(('/static/', '/site/', '/auth/', '/portal/', '/mpesa/')):
+            return None
+        host_parts = req.host.split(':')[0].lower().split('.')
+        if len(host_parts) >= 2:
+            subdomain = host_parts[0]
+            if subdomain not in ('www', 'app', 'portal', 'api', 'admin', 'localhost', '127'):
+                from app.routes.public_bp import _find_organization_by_slug_or_code
+                org = _find_organization_by_slug_or_code(subdomain)
+                if org and req.path == '/':
+                    from app.routes.public_bp import tenant_site
+                    return tenant_site(org.slug)
+        return None
+
     # Subscription suspension enforcement middleware
     @app.before_request
     def enforce_subscription_status():
         from flask import request as req, redirect, url_for, flash
         from flask_login import current_user as cu
         # Skip static files, login/logout, auth routes, portal, public, and suspension page
-        exempted_prefixes = ('/static/', '/auth/', '/portal/', '/public/', '/mpesa/callback')
+        exempted_prefixes = ('/static/', '/auth/', '/portal/', '/public/', '/site/', '/mpesa/callback')
         exempted_endpoints = ('auth.login', 'auth.logout', 'platform.organizations',
                               'platform.update_organization_status', 'platform.update_organization_subscription',
                               'platform.create_organization', 'platform.analytics')

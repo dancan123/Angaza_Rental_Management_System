@@ -322,6 +322,25 @@ def view_receipt(res_id):
     return render_template('hospitality/receipt.html', res=res)
 
 
+@hospitality_bp.route('/reservations/<int:res_id>/pdf')
+@login_required
+@permission_required('bookings.view')
+def download_guest_folio_pdf(res_id):
+    from io import BytesIO
+    from flask import send_file
+    from app.utils.pdf_generator import generate_guest_folio_pdf
+    res = db.session.get(HospitalityReservation, res_id)
+    if not res:
+        from flask import abort; abort(404)
+    pdf_bytes = generate_guest_folio_pdf(res)
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"Guest_Folio_{res.reservation_code}.pdf"
+    )
+
+
 @hospitality_bp.route('/housekeeping')
 @login_required
 @permission_required('maintenance.view')

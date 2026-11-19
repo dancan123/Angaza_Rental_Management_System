@@ -399,3 +399,265 @@ def api_vacant_units():
         'currency': currency,
         'vacant_units': result
     })
+
+
+# ============================================================================
+# MULTI-TENANT SUBDOMAIN & EXTERNAL BRANDED WEBSITES FOR LANDLORDS & BUSINESSES
+# ============================================================================
+
+def _clean_phone_for_wa(raw_phone):
+    """Formats phone number to international WhatsApp format (254XXXXXXXXX)."""
+    if not raw_phone:
+        return None
+    clean = ''.join(c for c in raw_phone if c.isdigit())
+    if clean.startswith('0'):
+        clean = '254' + clean[1:]
+    elif not clean.startswith('254') and len(clean) == 9:
+        clean = '254' + clean
+    return clean if len(clean) >= 10 else None
+
+
+def _find_organization_by_slug_or_code(identifier):
+    """Resolves an Organization by its slug or business/org code."""
+    from app.models.organization import Organization
+    if not identifier:
+        return None
+    ident = identifier.strip().lower()
+    return Organization.query.filter(
+        (db.func.lower(Organization.slug) == ident) |
+        (db.func.lower(Organization.org_code) == ident)
+    ).first()
+
+
+@public_bp.route('/site/<slug>')
+@public_bp.route('/site/<slug>/')
+def tenant_site(slug):
+    """
+    Public External Website for an Individual Landlord / Management Company:
+    Provides branded property discovery, rental vacancy applications, and Airbnb short-stay bookings.
+    Zero cross-tenant data bleed.
+    """
+    from app.models.organization import Organization
+    org = _find_organization_by_slug_or_code(slug)
+    if not org:
+        from flask import abort
+        abort(404, description=f"Organization website '{slug}' not found.")
+
+    # 1. Properties belonging exclusively to this organization
+    properties = Property.query.filter_by(organization_id=org.id, management_status='ACTIVE').all()
+    property_ids = [p.id for p in properties]
+
+    # 2. Long-term vacant units
+    vacant_units = []
+    if property_ids and org.enable_rentals:
+        vacant_units = RentalUnit.query.filter(
+            RentalUnit.property_id.in_(property_ids),
+            RentalUnit.occupancy_status == 'VACANT',
+            RentalUnit.operational_type == 'LONG_TERM'
+        ).order_by(RentalUnit.rent_amount_cents.asc()).all()
+
+    # 3. Airbnb / Short-Stay executive rooms
+    airbnb_rooms = []
+    if property_ids and org.enable_hospitality:
+        airbnb_rooms = RentalUnit.query.filter(
+            RentalUnit.property_id.in_(property_ids),
+            RentalUnit.operational_type == 'SHORT_STAY'
+        ).order_by(RentalUnit.daily_rate_cents.asc()).all()
+
+    # Contact & WhatsApp details
+    contact_phone = org.contact_phone or PersonalizationService.get_setting('business_phone', '+254700000000')
+    clean_phone = _clean_phone_for_wa(contact_phone)
+    wa_msg = urllib.parse.quote(f"Hello {org.name}, I am interested in inquiring about your available properties and short-stay suites.")
+
+    return render_template(
+        'public/tenant_website.html',
+        org=org,
+        properties=properties,
+        vacant_units=vacant_units,
+        airbnb_rooms=airbnb_rooms,
+        clean_phone=clean_phone,
+        wa_default_msg=wa_msg
+    )
+
+
+@public_bp.route('/site/<slug>/inquire', methods=['POST'])
+def tenant_inquire(slug):
+    """
+    Submits a prospective tenant rental inquiry / application to a specific organization.
+    Saves a PENDING Booking and alerts the organization's property manager.
+    """
+    org = _find_organization_by_slug_or_code(slug)
+    if not org:
+        flash('Invalid property management organization.', 'danger')
+        return redirect(url_for('public.vacancies'))
+
+    unit_id = request.form.get('unit_id', type=int)
+    full_name = request.form.get('full_name', '').strip()
+    phone = request.form.get('phone', '').strip()
+    email = request.form.get('email', '').strip()
+    move_in_str = request.form.get('expected_move_in')
+    notes = request.form.get('notes', '').strip()
+
+    if not unit_id or not full_name or not phone:
+        flash('Full Name, phone number, and rental unit are required.', 'danger')
+        return redirect(url_for('public.tenant_site', slug=slug))
+
+    unit = RentalUnit.query.get_or_404(unit_id)
+    # Security checkpoint: Ensure unit belongs to this organization
+    if not unit.property or unit.property.organization_id != org.id:
+        flash('Requested unit does not belong to this organization.', 'danger')
+        return redirect(url_for('public.tenant_site', slug=slug))
+
+    expected_date = date.today() + timedelta(days=7)
+    if move_in_str:
+        try:
+            expected_date = datetime.strptime(move_in_str, '%Y-%m-%d').date()
+        except Exception:
+            pass
+
+    ref = f"INQ-{org.business_code}-{unit.id}-{int(datetime.utcnow().timestamp()) % 10000}"
+
+    booking = Booking(
+        rental_unit_id=unit.id,
+        booking_reference=ref,
+        prospective_name=full_name,
+        prospective_phone=phone,
+        prospective_email=email or None,
+        booking_date=date.today(),
+        expected_move_in_date=expected_date,
+        expiry_date=date.today() + timedelta(days=14),
+        status='PENDING',
+        notes=f"External Web Lead for {org.name}: {notes}".strip()
+    )
+    db.session.add(booking)
+
+    # In-app notification for the landlord / manager
+    notif = Notification(
+        landlord_id=unit.property.landlord_id,
+        title=f"New Web Inquiry: Unit {unit.unit_number} ({unit.property.name})",
+        message=(
+            f"NEW PROSPECTIVE TENANT LEAD!\n"
+            f"Business: {org.name} ({org.business_code})\n"
+            f"Unit: {unit.unit_number} ({unit.property.name})\n"
+            f"Applicant: {full_name}\n"
+            f"Phone: {phone}\n"
+            f"Target Move-In: {expected_date.strftime('%d/%m/%Y')}\n"
+            f"Ref: {ref}"
+        ),
+        channel='IN_APP',
+        notification_type='BOOKING_CREATED',
+        sent_status='SENT',
+        sent_at=datetime.utcnow()
+    )
+    db.session.add(notif)
+    db.session.commit()
+
+    flash(f"Thank you, {full_name}! Your inquiry for Unit {unit.unit_number} has been submitted to {org.name} (Ref: {ref}). We will reach out shortly on {phone}.", 'success')
+    return redirect(url_for('public.tenant_site', slug=slug))
+
+
+@public_bp.route('/site/<slug>/airbnb-inquire', methods=['POST'])
+def tenant_airbnb_inquire(slug):
+    """
+    Submits an executive short-stay / Airbnb reservation request to a specific organization.
+    Saves Guest record and HospitalityReservation with status PENDING.
+    """
+    from app.models.hospitality import Guest, HospitalityReservation
+    org = _find_organization_by_slug_or_code(slug)
+    if not org:
+        flash('Invalid property management organization.', 'danger')
+        return redirect(url_for('public.vacancies'))
+
+    unit_id = request.form.get('unit_id', type=int)
+    guest_name = request.form.get('guest_name', '').strip()
+    phone = request.form.get('phone', '').strip()
+    check_in_str = request.form.get('check_in_date')
+    check_out_str = request.form.get('check_out_date')
+    num_guests = request.form.get('num_guests', 1, type=int)
+    special_requests = request.form.get('special_requests', '').strip()
+
+    if not unit_id or not guest_name or not phone or not check_in_str or not check_out_str:
+        flash('Name, telephone, check-in, and check-out dates are mandatory.', 'danger')
+        return redirect(url_for('public.tenant_site', slug=slug))
+
+    unit = RentalUnit.query.get_or_404(unit_id)
+    if not unit.property or unit.property.organization_id != org.id:
+        flash('Requested short-stay suite does not belong to this organization.', 'danger')
+        return redirect(url_for('public.tenant_site', slug=slug))
+
+    try:
+        check_in = datetime.strptime(check_in_str, '%Y-%m-%d').date()
+        check_out = datetime.strptime(check_out_str, '%Y-%m-%d').date()
+    except Exception:
+        flash('Invalid date format provided.', 'danger')
+        return redirect(url_for('public.tenant_site', slug=slug))
+
+    if check_out <= check_in:
+        flash('Check-out date must be after check-in date.', 'danger')
+        return redirect(url_for('public.tenant_site', slug=slug))
+
+    num_nights = (check_out - check_in).days
+    total_cents = num_nights * unit.daily_rate_cents
+
+    # Find or create guest
+    names = guest_name.split(' ', 1)
+    first_name = names[0]
+    last_name = names[1] if len(names) > 1 else 'Guest'
+    
+    guest = Guest.query.filter_by(phone=phone).first()
+    if not guest:
+        guest = Guest(
+            first_name=first_name,
+            last_name=last_name,
+            phone=phone
+        )
+        db.session.add(guest)
+        db.session.flush()
+
+    res_code = f"RES-{org.business_code}-{int(datetime.utcnow().timestamp()) % 100000}"
+
+    reservation = HospitalityReservation(
+        reservation_code=res_code,
+        guest_id=guest.id,
+        rental_unit_id=unit.id,
+        check_in_date=check_in,
+        check_out_date=check_out,
+        num_guests=num_guests,
+        num_nights=num_nights,
+        daily_rate_cents=unit.daily_rate_cents,
+        total_stay_cents=total_cents,
+        paid_amount_cents=0,
+        booking_source='WEBSITE',
+        status='CONFIRMED',
+        special_requests=f"Website Booking via {org.name}: {special_requests}".strip()
+    )
+    db.session.add(reservation)
+
+    # In-app notification to Hospitality Desk
+    notif = Notification(
+        landlord_id=unit.property.landlord_id,
+        title=f"New Airbnb Booking: Room {unit.unit_number} ({res_code})",
+        message=(
+            f"NEW SHORT-STAY RESERVATION!\n"
+            f"Business: {org.name} ({org.business_code})\n"
+            f"Room: {unit.unit_number} ({unit.property.name})\n"
+            f"Guest: {guest_name} ({phone})\n"
+            f"Dates: {check_in.strftime('%d/%m/%Y')} to {check_out.strftime('%d/%m/%Y')} ({num_nights} nights)\n"
+            f"Total: {format_currency(total_cents)}\n"
+            f"Booking Code: {res_code}"
+        ),
+        channel='IN_APP',
+        notification_type='BOOKING_CREATED',
+        sent_status='SENT',
+        sent_at=datetime.utcnow()
+    )
+    db.session.add(notif)
+    db.session.commit()
+
+    flash(
+        f"Thank you, {guest_name}! Your reservation request for Room {unit.unit_number} has been registered (Code: {res_code}). "
+        f"Our hospitality desk at {org.name} will contact you on {phone} with check-in instructions.",
+        'success'
+    )
+    return redirect(url_for('public.tenant_site', slug=slug))
+

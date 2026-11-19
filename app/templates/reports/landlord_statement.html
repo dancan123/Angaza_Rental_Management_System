@@ -9,7 +9,12 @@
         <h3 class="fw-bold mb-0">Landlord Remittance Statement</h3>
         <p class="text-muted small mb-0">Monthly statements for property owners showing rent received, expenses deducted, and net remittance.</p>
     </div>
-    <div>
+    <div class="d-flex gap-2">
+        {% if selected_landlord %}
+        <a href="{{ url_for('reports.download_landlord_statement_pdf', landlord_id=selected_landlord) }}" class="btn btn-outline-danger">
+            <i class="bi bi-file-earmark-pdf me-1"></i> Download PDF
+        </a>
+        {% endif %}
         <button onclick="window.print();" class="btn btn-outline-secondary">
             <i class="bi bi-printer me-1"></i> Print Statement
         </button>

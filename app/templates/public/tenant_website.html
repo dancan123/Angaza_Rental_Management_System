@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ org.name }} - Real Estate &amp; Short-Stay Living</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0284c7;
+            --primary-hover: #0369a1;
+            --accent: #e11d48;
+            --dark: #0f172a;
+            --light-bg: #f8fafc;
+        }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--light-bg);
+            color: #334155;
+        }
+        .hero-banner {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0369a1 100%);
+            color: #ffffff;
+            padding: 70px 0 60px;
+            position: relative;
+        }
+        .badge-business-code {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #ffffff;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            padding: 6px 14px;
+            border-radius: 20px;
+        }
+        .property-card {
+            border: none;
+            border-radius: 14px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            background: #ffffff;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .property-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 25px rgba(0, 0, 0, 0.1);
+        }
+        .card-img-wrapper {
+            position: relative;
+            height: 200px;
+            background: linear-gradient(45deg, #cbd5e1, #94a3b8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+        }
+        .card-img-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .tag-status {
+            position: absolute;
+            top: 14px;
+            left: 14px;
+            border-radius: 20px;
+            padding: 5px 12px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .price-badge {
+            position: absolute;
+            bottom: 12px;
+            right: 14px;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(6px);
+            color: #ffffff;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+        .tab-btn.active {
+            background-color: var(--primary) !important;
+            color: #ffffff !important;
+            border-color: var(--primary) !important;
+        }
+        .btn-whatsapp {
+            background-color: #25D366;
+            color: #ffffff;
+            border: none;
+        }
+        .btn-whatsapp:hover {
+            background-color: #1eb956;
+            color: #ffffff;
+        }
+        .btn-airbnb {
+            background-color: #e11d48;
+            color: #ffffff;
+            border: none;
+        }
+        .btn-airbnb:hover {
+            background-color: #be123c;
+            color: #ffffff;
+        }
+        .floating-wa {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1050;
+            background-color: #25D366;
+            color: white;
+            border-radius: 50px;
+            padding: 12px 22px;
+            box-shadow: 0 6px 20px rgba(37, 211, 102, 0.4);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            transition: transform 0.2s;
+        }
+        .floating-wa:hover {
+            transform: scale(1.05);
+            color: white;
+        }
+        .stat-box {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 16px 20px;
+            backdrop-filter: blur(4px);
+        }
+    </style>
+</head>
+<body>
+
+<!-- Navigation Header -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark py-3 sticky-top">
+    <div class="container">
+        <a class="navbar-brand d-flex align-items-center gap-2 fw-bold" href="#">
+            <span class="rounded bg-primary text-white px-2 py-1 fs-5"><i class="bi bi-buildings"></i></span>
+            <span>{{ org.name }}</span>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navMenu">
+            <ul class="navbar-nav ms-auto align-items-lg-center gap-2">
+                <li class="nav-item">
+                    <a class="nav-link active" href="#listings"><i class="bi bi-grid me-1"></i> Listings</a>
+                </li>
+                {% if org.enable_rentals %}
+                <li class="nav-item">
+                    <a class="nav-link" href="#rentals"><i class="bi bi-door-open me-1"></i> Long-Term Rentals</a>
+                </li>
+                {% endif %}
+                {% if org.enable_hospitality %}
+                <li class="nav-item">
+                    <a class="nav-link" href="#airbnb"><i class="bi bi-cup-hot me-1"></i> Airbnb &amp; Short Stays</a>
+                </li>
+                {% endif %}
+                <li class="nav-item">
+                    <a class="nav-link" href="#contact"><i class="bi bi-telephone me-1"></i> Contact</a>
+                </li>
+                {% if clean_phone %}
+                <li class="nav-item ms-lg-2">
+                    <a href="https://wa.me/{{ clean_phone }}?text={{ wa_default_msg }}" target="_blank" class="btn btn-whatsapp btn-sm px-3 rounded-pill">
+                        <i class="bi bi-whatsapp me-1"></i> WhatsApp Desk
+                    </a>
+                </li>
+                {% endif %}
+                <li class="nav-item ms-lg-1">
+                    <a href="{{ url_for('tenant_portal.login') }}" class="btn btn-outline-light btn-sm px-3 rounded-pill" title="Tenant Self-Service Portal">
+                        <i class="bi bi-person-circle me-1"></i> Tenant Portal
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- Hero Section -->
+<header class="hero-banner">
+    <div class="container">
+        <div class="row align-items-center gy-4">
+            <div class="col-lg-7">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <span class="badge-business-code"><i class="bi bi-shield-check me-1 text-success"></i> VERIFIED MANAGEMENT</span>
+                    <span class="badge-business-code">CODE: <strong>{{ org.business_code }}</strong></span>
+                </div>
+                <h1 class="display-5 fw-extrabold mb-3">Premium Living Spaces &amp; Executive Short Stays</h1>
+                <p class="lead opacity-90 mb-4">
+                    Explore available apartments, modern bedsitters, and fully furnished Airbnb suites professionally managed by <strong>{{ org.name }}</strong>. Direct leasing with zero middleman friction.
+                </p>
+                <div class="d-flex flex-wrap gap-3">
+                    <a href="#listings" class="btn btn-primary btn-lg rounded-pill px-4 fw-semibold shadow">
+                        <i class="bi bi-search me-2"></i> Browse Vacancies
+                    </a>
+                    {% if clean_phone %}
+                    <a href="https://wa.me/{{ clean_phone }}?text={{ wa_default_msg }}" target="_blank" class="btn btn-whatsapp btn-lg rounded-pill px-4 fw-semibold shadow">
+                        <i class="bi bi-whatsapp me-2"></i> Direct Chat on WhatsApp
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-lg-5">
+                <div class="row g-3">
+                    <div class="col-6">
+                        <div class="stat-box">
+                            <div class="fs-2 fw-bold text-white">{{ properties|length }}</div>
+                            <div class="small opacity-75">Properties Managed</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="stat-box">
+                            <div class="fs-2 fw-bold text-info">{{ vacant_units|length }}</div>
+                            <div class="small opacity-75">Rental Vacancies</div>
+                        </div>
+                    </div>
+                    {% if org.enable_hospitality %}
+                    <div class="col-6">
+                        <div class="stat-box">
+                            <div class="fs-2 fw-bold text-danger">{{ airbnb_rooms|length }}</div>
+                            <div class="small opacity-75">Airbnb Suites</div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="col-6">
+                        <div class="stat-box">
+                            <div class="fs-2 fw-bold text-success">24/7</div>
+                            <div class="small opacity-75">Support Hotline</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- Alert Notifications -->
+<div class="container mt-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show rounded-3 shadow-sm" role="alert">
+                    <i class="bi bi-info-circle-fill me-2"></i> {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+<!-- Main Listings Section -->
+<section class="container py-5" id="listings">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold mb-1">Available Properties &amp; Accommodations</h2>
+            <p class="text-muted mb-0">Browse real-time vacancies for {{ org.name }}. All prices in Kenya Shillings (KES).</p>
+        </div>
+        <!-- Filter Tabs -->
+        <ul class="nav nav-pills gap-2" id="listingTabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link tab-btn active rounded-pill px-4 fw-semibold" id="all-tab" data-bs-toggle="pill" data-bs-target="#tab-all" type="button">
+                    <i class="bi bi-grid-fill me-1"></i> All ({{ vacant_units|length + airbnb_rooms|length }})
+                </button>
+            </li>
+            {% if org.enable_rentals %}
+            <li class="nav-item">
+                <button class="nav-link tab-btn rounded-pill px-4 fw-semibold" id="rentals-tab" data-bs-toggle="pill" data-bs-target="#tab-rentals" type="button">
+                    <i class="bi bi-door-open-fill me-1"></i> Long-Term Rentals ({{ vacant_units|length }})
+                </button>
+            </li>
+            {% endif %}
+            {% if org.enable_hospitality %}
+            <li class="nav-item">
+                <button class="nav-link tab-btn rounded-pill px-4 fw-semibold" id="airbnb-tab" data-bs-toggle="pill" data-bs-target="#tab-airbnb" type="button">
+                    <i class="bi bi-cup-hot-fill me-1"></i> Airbnb / Short Stays ({{ airbnb_rooms|length }})
+                </button>
+            </li>
+            {% endif %}
+        </ul>
+    </div>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="listingTabContent">
+        <!-- TAB 1: ALL LISTINGS -->
+        <div class="tab-pane fade show active" id="tab-all" role="tabpanel">
+            <div class="row g-4">
+                <!-- Vacant Rentals -->
+                {% for u in vacant_units %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="property-card">
+                        <div class="card-img-wrapper">
+                            {% if u.property.image_url %}
+                                <img src="{{ u.property.image_url }}" alt="{{ u.property.name }}">
+                            {% else %}
+                                <div class="text-center">
+                                    <i class="bi bi-building fs-1"></i>
+                                    <div class="small fw-semibold mt-1">{{ u.property.name }}</div>
+                                </div>
+                            {% endif %}
+                            <span class="tag-status bg-success text-white">Vacant Rental</span>
+                            <div class="price-badge">{{ u.rent_display }} / mo</div>
+                        </div>
+                        <div class="card-body p-3 d-flex flex-column">
+                            <h5 class="fw-bold mb-1 text-dark">Unit {{ u.unit_number }} - {{ u.unit_type.replace('_', ' ').title() }}</h5>
+                            <p class="text-muted small mb-2"><i class="bi bi-geo-alt-fill text-danger me-1"></i> {{ u.property.name }} &bull; {{ u.property.location }}</p>
+                            
+                            <div class="d-flex gap-3 text-muted small py-2 my-2 border-top border-bottom">
+                                <span><i class="bi bi-door-closed text-primary me-1"></i> {{ u.bedrooms }} Bed</span>
+                                <span><i class="bi bi-water text-info me-1"></i> {{ u.bathrooms }} Bath</span>
+                                <span><i class="bi bi-shield-check text-success me-1"></i> Deposit: {{ u.deposit_display }}</span>
+                            </div>
+
+                            <p class="small text-muted mb-3 flex-grow-1">
+                                {{ u.description or 'Spacious, well-lit unit with reliable water supply, prepaid power token meter, and 24/7 security guard.' }}
+                            </p>
+
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-primary btn-sm flex-fill rounded-pill fw-semibold" data-bs-toggle="modal" data-bs-target="#inquireModal{{ u.id }}">
+                                    <i class="bi bi-calendar-check me-1"></i> Apply / Inquire
+                                </button>
+                                {% if clean_phone %}
+                                <a href="https://wa.me/{{ clean_phone }}?text=Hello%20{{ org.name }}%2C%20I%20am%20interested%20in%20Unit%20{{ u.unit_number }}%20at%20{{ u.property.name }}%20(Rent%3A%20{{ u.rent_display }})." target="_blank" class="btn btn-whatsapp btn-sm rounded-pill px-3" title="Chat on WhatsApp">
+                                    <i class="bi bi-whatsapp"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+
+                <!-- Airbnb Rooms -->
+                {% for r in airbnb_rooms %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="property-card border-danger border-opacity-25">
+                        <div class="card-img-wrapper" style="background: linear-gradient(45deg, #f43f5e, #be123c);">
+                            {% if r.property.image_url %}
+                                <img src="{{ r.property.image_url }}" alt="{{ r.property.name }}">
+                            {% else %}
+                                <div class="text-center">
+                                    <i class="bi bi-cup-hot fs-1"></i>
+                                    <div class="small fw-semibold mt-1">Short-Stay Suite</div>
+                                </div>
+                            {% endif %}
+                            <span class="tag-status bg-danger text-white"><i class="bi bi-lightning-fill me-1"></i> Instant Stay</span>
+                            <div class="price-badge bg-danger">{{ r.daily_rate_display }} / night</div>
+                        </div>
+                        <div class="card-body p-3 d-flex flex-column">
+                            <h5 class="fw-bold mb-1 text-dark">Room {{ r.unit_number }} - Executive Stay</h5>
+                            <p class="text-muted small mb-2"><i class="bi bi-geo-alt-fill text-danger me-1"></i> {{ r.property.name }} &bull; {{ r.property.location }}</p>
+                            
+                            <div class="d-flex gap-3 text-muted small py-2 my-2 border-top border-bottom">
+                                <span><i class="bi bi-people-fill text-danger me-1"></i> Up to {{ r.max_guests }} Guests</span>
+                                <span><i class="bi bi-wifi text-success me-1"></i> Fast WiFi</span>
+                                <span><i class="bi bi-sparkles text-warning me-1"></i> {{ r.cleaning_status.title() }}</span>
+                            </div>
+
+                            <p class="small text-muted mb-3 flex-grow-1">
+                                Fully furnished executive apartment suite with smart TV, kitchenette, fresh linen, hot shower, and self check-in.
+                            </p>
+
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-airbnb btn-sm flex-fill rounded-pill fw-semibold" data-bs-toggle="modal" data-bs-target="#airbnbModal{{ r.id }}">
+                                    <i class="bi bi-bookmark-check-fill me-1"></i> Reserve Stay
+                                </button>
+                                {% if clean_phone %}
+                                <a href="https://wa.me/{{ clean_phone }}?text=Hello%20{{ org.name }}%2C%20I%20would%20like%20to%20book%20Airbnb%20Room%20{{ r.unit_number }}%20at%20{{ r.property.name }}%20(Rate%3A%20{{ r.daily_rate_display }}%2Fnight)." target="_blank" class="btn btn-whatsapp btn-sm rounded-pill px-3" title="Chat on WhatsApp">
+                                    <i class="bi bi-whatsapp"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+
+                {% if not vacant_units and not airbnb_rooms %}
+                <div class="col-12 text-center py-5">
+                    <i class="bi bi-house-door fs-1 text-muted mb-2 d-block"></i>
+                    <h4>All Units Are Currently Occupied!</h4>
+                    <p class="text-muted">Contact our office directly or message us on WhatsApp to be placed on our priority waitlist.</p>
+                    {% if clean_phone %}
+                    <a href="https://wa.me/{{ clean_phone }}?text={{ wa_default_msg }}" target="_blank" class="btn btn-whatsapp rounded-pill px-4">
+                        <i class="bi bi-whatsapp me-2"></i> Join Waitlist via WhatsApp
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- TAB 2: LONG-TERM RENTALS ONLY -->
+        {% if org.enable_rentals %}
+        <div class="tab-pane fade" id="tab-rentals" role="tabpanel">
+            <div class="row g-4">
+                {% for u in vacant_units %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="property-card">
+                        <div class="card-img-wrapper">
+                            <span class="tag-status bg-success text-white">Vacant Rental</span>
+                            <div class="price-badge">{{ u.rent_display }} / mo</div>
+                        </div>
+                        <div class="card-body p-3 d-flex flex-column">
+                            <h5 class="fw-bold mb-1">Unit {{ u.unit_number }} ({{ u.unit_type.replace('_', ' ').title() }})</h5>
+                            <p class="text-muted small mb-2"><i class="bi bi-geo-alt me-1"></i> {{ u.property.name }}, {{ u.property.location }}</p>
+                            <button type="button" class="btn btn-primary btn-sm rounded-pill mt-auto fw-semibold" data-bs-toggle="modal" data-bs-target="#inquireModal{{ u.id }}">
+                                Inquire / Book Viewing
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="col-12 text-center py-5 text-muted">
+                    <h5>No Long-Term Vacancies at this moment.</h5>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- TAB 3: AIRBNB SHORT STAYS ONLY -->
+        {% if org.enable_hospitality %}
+        <div class="tab-pane fade" id="tab-airbnb" role="tabpanel">
+            <div class="row g-4">
+                {% for r in airbnb_rooms %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="property-card">
+                        <div class="card-img-wrapper" style="background: linear-gradient(45deg, #f43f5e, #be123c);">
+                            <span class="tag-status bg-danger text-white">Short-Stay Suite</span>
+                            <div class="price-badge bg-danger">{{ r.daily_rate_display }} / night</div>
+                        </div>
+                        <div class="card-body p-3 d-flex flex-column">
+                            <h5 class="fw-bold mb-1">Room {{ r.unit_number }} ({{ r.property.name }})</h5>
+                            <p class="text-muted small mb-2"><i class="bi bi-people me-1"></i> Max {{ r.max_guests }} Guests &bull; {{ r.property.location }}</p>
+                            <button type="button" class="btn btn-airbnb btn-sm rounded-pill mt-auto fw-semibold" data-bs-toggle="modal" data-bs-target="#airbnbModal{{ r.id }}">
+                                Reserve Stay
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="col-12 text-center py-5 text-muted">
+                    <h5>No Airbnb Suites currently listed.</h5>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Inquiry Modals for Rentals -->
+{% for u in vacant_units %}
+<div class="modal fade" id="inquireModal{{ u.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold">Inquire for Unit {{ u.unit_number }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('public.tenant_inquire', slug=org.slug) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="unit_id" value="{{ u.id }}"/>
+                <div class="modal-body p-4">
+                    <div class="alert alert-light border small mb-3">
+                        <strong>{{ u.property.name }}</strong> &bull; Unit {{ u.unit_number }}<br/>
+                        Rent: <strong class="text-primary">{{ u.rent_display }}/mo</strong> | Deposit: {{ u.deposit_display }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Your Full Name *</label>
+                        <input type="text" name="full_name" class="form-control" placeholder="e.g. Samuel Ochieng" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Mobile Phone (WhatsApp Active) *</label>
+                        <input type="tel" name="phone" class="form-control" placeholder="e.g. 0712 345 678" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Email Address (Optional)</label>
+                        <input type="email" name="email" class="form-control" placeholder="samuel@example.com">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Target Move-In Date</label>
+                        <input type="date" name="expected_move_in" class="form-control" value="{{ now.strftime('%Y-%m-%d') }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Special Requests / Questions</label>
+                        <textarea name="notes" rows="2" class="form-control" placeholder="Any specific requirements (parking space, pets, viewing time)..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">Submit Application</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- Reservation Modals for Airbnb Suites -->
+{% for r in airbnb_rooms %}
+<div class="modal fade" id="airbnbModal{{ r.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title fw-bold">Reserve Room {{ r.unit_number }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('public.tenant_airbnb_inquire', slug=org.slug) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="unit_id" value="{{ r.id }}"/>
+                <div class="modal-body p-4">
+                    <div class="alert alert-light border small mb-3">
+                        <strong>{{ r.property.name }}</strong> &bull; Executive Short Stay<br/>
+                        Rate: <strong class="text-danger">{{ r.daily_rate_display }}/night</strong> | Capacity: Up to {{ r.max_guests }} Guests
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Guest Full Name *</label>
+                        <input type="text" name="guest_name" class="form-control" placeholder="e.g. Jane Doe" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Mobile Phone (WhatsApp) *</label>
+                        <input type="tel" name="phone" class="form-control" placeholder="e.g. 0722 000 111" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Check-In Date *</label>
+                            <input type="date" name="check_in_date" class="form-control" value="{{ now.strftime('%Y-%m-%d') }}" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Check-Out Date *</label>
+                            <input type="date" name="check_out_date" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Number of Guests</label>
+                        <input type="number" name="num_guests" min="1" max="{{ r.max_guests }}" class="form-control" value="1">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Special Instructions</label>
+                        <textarea name="special_requests" rows="2" class="form-control" placeholder="Late check-in, airport pickup, extra towels..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-semibold">Confirm Stay Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- Floating WhatsApp Quick Connect -->
+{% if clean_phone %}
+<a href="https://wa.me/{{ clean_phone }}?text={{ wa_default_msg }}" target="_blank" class="floating-wa">
+    <i class="bi bi-whatsapp fs-5"></i>
+    <span>Chat with Us</span>
+</a>
+{% endif %}
+
+<!-- Contact & Management Footer -->
+<footer class="bg-dark text-white pt-5 pb-4 mt-5" id="contact">
+    <div class="container">
+        <div class="row gy-4 mb-4">
+            <div class="col-md-5">
+                <h5 class="fw-bold mb-2">{{ org.name }}</h5>
+                <p class="text-secondary small mb-3">
+                    Professional rental management and premium short-stay hospitality suites. We ensure tenant satisfaction, seamless operations, and guaranteed property integrity.
+                </p>
+                <div class="small text-secondary">
+                    <div><i class="bi bi-shield-check text-success me-1"></i> Business Code: <strong>{{ org.business_code }}</strong></div>
+                    {% if org.tax_pin %}
+                    <div><i class="bi bi-file-earmark-text text-info me-1"></i> KRA PIN: {{ org.tax_pin }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-4">
+                <h6 class="text-uppercase text-secondary fw-bold small mb-3">Contact &amp; Inquiries</h6>
+                <div class="small text-secondary d-flex flex-column gap-2">
+                    {% if org.contact_phone %}
+                    <div><i class="bi bi-telephone-fill text-primary me-2"></i> {{ org.contact_phone }}</div>
+                    {% endif %}
+                    {% if org.contact_email %}
+                    <div><i class="bi bi-envelope-fill text-primary me-2"></i> {{ org.contact_email }}</div>
+                    {% endif %}
+                    <div><i class="bi bi-clock-fill text-primary me-2"></i> Office Hours: Mon - Sat: 8:00 AM - 6:00 PM</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <h6 class="text-uppercase text-secondary fw-bold small mb-3">Tenant Quick Links</h6>
+                <ul class="list-unstyled small text-secondary d-flex flex-column gap-2">
+                    <li><a href="{{ url_for('tenant_portal.login') }}" class="text-secondary text-decoration-none"><i class="bi bi-box-arrow-in-right me-1"></i> Tenant Portal Login</a></li>
+                    <li><a href="#listings" class="text-secondary text-decoration-none"><i class="bi bi-buildings me-1"></i> Vacant Rentals</a></li>
+                    {% if clean_phone %}
+                    <li><a href="https://wa.me/{{ clean_phone }}?text={{ wa_default_msg }}" target="_blank" class="text-success text-decoration-none"><i class="bi bi-whatsapp me-1"></i> WhatsApp Helpline</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+        <hr class="border-secondary opacity-25">
+        <div class="d-flex justify-content-between align-items-center flex-wrap small text-secondary">
+            <div>&copy; {{ now.year }} {{ org.name }}. All rights reserved.</div>
+            <div>Powered by <strong>Angaza Multi-Tenant Enterprise Engine</strong></div>
+        </div>
+    </div>
+</footer>
+
+<!-- Bootstrap 5 JS Bundle -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
