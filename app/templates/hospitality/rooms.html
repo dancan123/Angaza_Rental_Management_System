@@ -124,7 +124,7 @@
                     {% for r in rooms %}
                     {% set u = r.unit %}
                     {% set res = r.active_reservation %}
-                    <tr class="room-row"
+                    <tr class="room-row {% if r.is_occupied %}table-danger-subtle border-start border-4 border-danger{% endif %}"
                         data-operational="{{ 'shortstay' if u.operational_type == 'SHORT_STAY' else 'longterm' }}"
                         data-status="{{ 'occupied' if r.is_occupied else 'vacant' }}"
                         data-cleaning="{{ u.cleaning_status.lower() }}"
@@ -133,8 +133,8 @@
                         <!-- Room Name (Customizable by Landlord) -->
                         <td class="ps-3">
                             <div class="d-flex align-items-center">
-                                <div class="avatar-sm rounded bg-light text-dark fw-bold d-flex align-items-center justify-content-center me-2 border" style="width: 38px; height: 38px; min-width: 38px;">
-                                    <i class="bi bi-door-closed text-danger"></i>
+                                <div class="avatar-sm rounded {% if r.is_occupied %}bg-danger text-white{% else %}bg-light text-dark{% endif %} fw-bold d-flex align-items-center justify-content-center me-2 border" style="width: 38px; height: 38px; min-width: 38px;">
+                                    <i class="bi {% if r.is_occupied %}bi-door-closed-fill{% else %}bi-door-closed text-danger{% endif %}"></i>
                                 </div>
                                 <div>
                                     <span class="fw-bold text-dark d-block text-truncate" style="max-width: 170px;" title="{{ u.unit_number }}">
@@ -198,22 +198,22 @@
                         <td>
                             {% if res and res.status == 'CHECKED_IN' %}
                                 <div class="mb-1">
-                                    <span class="badge bg-danger text-white fw-semibold">
-                                        <i class="bi bi-person-fill-check me-1"></i>Occupied / In-House
+                                    <span class="badge bg-danger text-white px-2 py-1 fw-bold shadow-sm" style="font-size: 0.82rem;">
+                                        <i class="bi bi-door-closed-fill me-1"></i>Occupied / In-House
                                     </span>
                                 </div>
                                 <div class="fw-bold text-dark text-truncate" style="max-width: 200px;">
-                                    <i class="bi bi-person me-1 text-muted"></i>{{ res.guest.full_name }}
+                                    <i class="bi bi-person me-1 text-danger"></i>{{ res.guest.full_name }}
                                 </div>
-                                <div class="text-muted small">
-                                    <i class="bi bi-calendar-range me-1 text-info"></i>
+                                <div class="text-danger small fw-semibold">
+                                    <i class="bi bi-calendar-range me-1"></i>
                                     {{ res.check_in_date.strftime('%d %b') }} &rarr; {{ res.check_out_date.strftime('%d %b') }}
-                                    <span class="badge bg-light text-dark border ms-1">{{ res.num_nights }}n</span>
+                                    <span class="badge bg-danger text-white ms-1">{{ res.num_nights }}n</span>
                                 </div>
                             {% elif res and res.status == 'CONFIRMED' %}
                                 <div class="mb-1">
-                                    <span class="badge bg-warning text-dark fw-semibold">
-                                        <i class="bi bi-clock-history me-1"></i>Reserved (Arrival)
+                                    <span class="badge bg-warning text-dark fw-bold px-2 py-1 shadow-sm">
+                                        <i class="bi bi-clock-history me-1"></i>RESERVED (Arrival)
                                     </span>
                                 </div>
                                 <div class="fw-bold text-dark text-truncate" style="max-width: 200px;">
@@ -222,6 +222,13 @@
                                 <div class="text-muted small">
                                     Arriving: {{ res.check_in_date.strftime('%d %b') }} &rarr; {{ res.check_out_date.strftime('%d %b') }}
                                 </div>
+                            {% elif r.is_occupied %}
+                                <div class="mb-1">
+                                    <span class="badge bg-danger text-white px-2 py-1 fw-bold shadow-sm" style="font-size: 0.82rem;">
+                                        <i class="bi bi-person-fill-lock me-1"></i>OCCUPIED (Tenant / In-House)
+                                    </span>
+                                </div>
+                                <div class="text-danger small fw-semibold">Active Guest / Occupant In Room</div>
                             {% else %}
                                 {% if u.cleaning_status == 'CLEAN' %}
                                     <span class="badge bg-success-subtle text-success border border-success-subtle py-1 px-2 fw-semibold">

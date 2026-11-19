@@ -244,6 +244,31 @@ Each component in the codebase has been audited and classified according to the 
   - `tests/test_phase22_module_checkpoints.py` with 6/6 tests passing.
   - Full test suite verified at **85/85 tests passing**.
 
+### Phase 23: Hospitality Strict Data Mapping, Distinct Occupied Styling & Functional Calendar Buttons (DONE)
+- [x] **Distinct Occupied Status & Color Styling**:
+  - Airbnb rooms table (`/hospitality/rooms`) styles all occupied rooms with a distinct `table-danger-subtle` highlight and left red accent border.
+  - Occupied status badge highlighted in prominent bold red (`<span class="badge bg-danger text-white">Occupied / In-House</span>`).
+  - Active guest name, check-in ➜ check-out stay dates, and night counts prominently displayed in contrasting colors.
+- [x] **Strict Short-Stay Data Mapping for Hospitality Dashboard**:
+  - Removed incorrect fallback in `HospitalityService.get_hospitality_dashboard_kpis()` that previously pulled all 23 long-term apartments into the hospitality cards.
+  - Scoped all metrics (Arrivals, Departures, In-House, Occupancy Rate %, ADR, RevPAR, Housekeeping counts) strictly to `operational_type == 'SHORT_STAY'` units belonging to the active organization/landlord.
+  - Each dashboard KPI card and housekeeping badge now functions as an interactive, clickable link mapping directly to the filtered list.
+  - When no short-stay rooms are configured, displays a helpful onboarding banner with a 1-click shortcut to add or configure Airbnb rooms.
+- [x] **Interactive & Functional Availability Calendar (`/hospitality/calendar`)**:
+  - Every date cell in the 30-day rolling grid is now an interactive, functional button:
+    - **Available Day (Green)**: 1-click button triggers `#quickBookModal` pre-populated with the room and clicked date.
+    - **Occupied / Checked-In Day (Red)**: 1-click button triggers `#resModal` with full stay details, 1-click Check-Out button, and guest SMS composer.
+    - **Confirmed Day (Yellow)**: 1-click button triggers `#resModal` with 1-click Check-In action.
+  - Filter toggle added to view "Airbnb / Short-Stay Only" (default) or "All Property Units".
+  - Date pagination controls ("Prev 15d", "Today", "Next 15d") enabled.
+- [x] **Landlord Workflow for Adding Rooms & House Details**:
+  - Landlord role updated with full `properties.manage` and `bookings.manage` permissions.
+  - Landlords can create short-stay rooms via "+ Add Room / Suite" in `/hospitality/rooms` and customize daily rates, monthly capacity, max guests, and housekeeping status.
+  - Landlords can rename rooms and update house details via "Edit & Rename" modal per room or `/properties/<id>/edit`.
+- [x] **Automated Test Suite**:
+  - `tests/test_phase23_hospitality_calendar_and_dashboard.py` with 4/4 passing tests.
+  - Full test suite verified at **89 out of 89 passing tests**.
+
 ---
 
 ## 5. Current Progress Log
@@ -260,3 +285,4 @@ Each component in the codebase has been audited and classified according to the 
 - **2026-11-19 08:57**: Phase 21 completed: Tabular Airbnb room inventory, custom room renaming by landlords, daily/monthly/total collected financial columns, live occupancy timelines, 1-click booking, 1-click cleaning status toggle, and direct guest SMS communication. Full test suite verified at **76 out of 76 passing tests** (zero regressions across all 21 test phases).
 - **2026-11-19 09:40**: Automated turnover logic (cleaning status = DIRTY on guest walkout/checkout) and room creation inventory route implemented. Full test suite verified at **79 out of 79 passing tests**.
 - **2026-11-19 10:40**: Phase 22 completed: Superadmin per-premises module checkpoints (1-click Rentals/Airbnb toggle), auto tier synchronization, simplified clutter-free sidebar navigation for single-module customers. Full test suite verified at **85 out of 85 passing tests**.
+- **2026-11-19 11:10**: Phase 23 completed: Hospitality strict data mapping (short-stay only), distinct Occupied styling/color for Airbnb rooms, functional Availability Calendar date-cell buttons with quick-booking & check-in/out modals, landlord room creation & house detail update workflow. Full test suite verified at **89 out of 89 passing tests**.

@@ -20,24 +20,33 @@ def index():
     Dedicated Module B Dashboard:
     ADR, RevPAR, Occupancy %, Today's Arrivals & Departures, Room Status Board.
     """
-    kpis = HospitalityService.get_hospitality_dashboard_kpis()
+    from app.utils.decorators import multi_tenant_scoped
+    user = cast(Any, current_user)
+    org_id = user.organization_id if not user.is_superadmin() else None
+    landlord_ids = [l.id for l in user.landlords] if (not user.is_superadmin() and hasattr(user, 'landlords') and user.landlords) else None
+
+    kpis = HospitalityService.get_hospitality_dashboard_kpis(organization_id=org_id, landlord_id=landlord_ids)
     today = date.today()
 
-    # Upcoming arrivals & departures
-    arrivals = HospitalityReservation.query.filter(
+    # Upcoming arrivals & departures scoped
+    arrivals_q = HospitalityReservation.query.filter(
         HospitalityReservation.check_in_date == today,
         HospitalityReservation.status == 'CONFIRMED'
-    ).order_by(HospitalityReservation.id.asc()).all()
+    )
+    arrivals = multi_tenant_scoped(arrivals_q, HospitalityReservation).order_by(HospitalityReservation.id.asc()).all()
 
-    departures = HospitalityReservation.query.filter(
+    departures_q = HospitalityReservation.query.filter(
         HospitalityReservation.check_out_date == today,
         HospitalityReservation.status == 'CHECKED_IN'
-    ).order_by(HospitalityReservation.id.asc()).all()
+    )
+    departures = multi_tenant_scoped(departures_q, HospitalityReservation).order_by(HospitalityReservation.id.asc()).all()
 
-    in_house = HospitalityReservation.query.filter_by(status='CHECKED_IN').order_by(HospitalityReservation.check_out_date.asc()).all()
+    in_house_q = HospitalityReservation.query.filter_by(status='CHECKED_IN')
+    in_house = multi_tenant_scoped(in_house_q, HospitalityReservation).order_by(HospitalityReservation.check_out_date.asc()).all()
 
-    # Room status grid
-    rooms = RentalUnit.query.order_by(RentalUnit.unit_number.asc()).all()
+    # Room status grid - short-stay rooms
+    rooms_q = RentalUnit.query.filter_by(operational_type='SHORT_STAY')
+    rooms = multi_tenant_scoped(rooms_q, RentalUnit).order_by(RentalUnit.unit_number.asc()).all()
 
     return render_template(
         'hospitality/index.html',
@@ -515,25 +524,38 @@ def delete_pricing_rule(rule_id):
 @login_required
 @permission_required('bookings.view')
 def calendar():
-    """Visual booking availability calendar — 30-day rolling view."""
+    """Visual booking availability calendar — 30-day rolling view with functional buttons."""
     from datetime import date as _date, timedelta
+    from app.utils.decorators import multi_tenant_scoped
     today = _date.today()
     start_date = _date.fromisoformat(request.args.get('start', today.isoformat()))
     days_range = 30
     end_date = start_date + timedelta(days=days_range - 1)
+    view_filter = request.args.get('filter', 'shortstay')  # 'shortstay' (default) or 'all'
 
-    rooms = RentalUnit.query.order_by(RentalUnit.unit_number.asc()).all()
+    # Filter rooms: by default, show SHORT_STAY (Airbnb) rooms so long-term units don't clutter the calendar
+    base_rooms_q = RentalUnit.query
+    if view_filter != 'all':
+        base_rooms_q = base_rooms_q.filter_by(operational_type='SHORT_STAY')
+    rooms = multi_tenant_scoped(base_rooms_q, RentalUnit).order_by(RentalUnit.unit_number.asc()).all()
+
+    # Total counts for filter pill toggles
+    short_stay_count = multi_tenant_scoped(RentalUnit.query.filter_by(operational_type='SHORT_STAY'), RentalUnit).count()
+    all_units_count = multi_tenant_scoped(RentalUnit.query, RentalUnit).count()
 
     # Fetch reservations in range
-    reservations = HospitalityReservation.query.filter(
+    res_q = HospitalityReservation.query.filter(
         HospitalityReservation.check_in_date <= end_date,
         HospitalityReservation.check_out_date >= start_date,
         HospitalityReservation.status.in_(['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'])
-    ).all()
+    )
+    reservations = multi_tenant_scoped(res_q, HospitalityReservation).all()
 
     # Build a lookup: (unit_id, date_str) -> reservation
     cal_map = {}
+    distinct_reservations = {}
     for res in reservations:
+        distinct_reservations[res.id] = res
         d = res.check_in_date
         while d < res.check_out_date:
             if start_date <= d <= end_date:
@@ -541,14 +563,22 @@ def calendar():
             d = d + timedelta(days=1)
 
     calendar_days = [start_date + timedelta(days=i) for i in range(days_range)]
+    prev_start = start_date - timedelta(days=15)
+    next_start = start_date + timedelta(days=15)
 
     return render_template(
         'hospitality/calendar.html',
         rooms=rooms,
         calendar_days=calendar_days,
         cal_map=cal_map,
+        distinct_reservations=list(distinct_reservations.values()),
         start_date=start_date,
         end_date=end_date,
+        prev_start=prev_start,
+        next_start=next_start,
         today=today,
-        days_range=days_range
+        days_range=days_range,
+        view_filter=view_filter,
+        short_stay_count=short_stay_count,
+        all_units_count=all_units_count
     )

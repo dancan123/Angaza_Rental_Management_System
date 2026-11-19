@@ -254,6 +254,17 @@ def seed_initial_data():
                 'leases.view', 'leases.manage',
             ]
         ]),
+        'LANDLORD': ('Property Owner / Landlord', [
+            perm_map[c] for c in [
+                'properties.view', 'properties.manage',
+                'tenants.view',
+                'bookings.view', 'bookings.manage',
+                'billing.view',
+                'reports.view', 'reports.export',
+                'maintenance.view',
+                'leases.view',
+            ]
+        ]),
         'CARETAKER': ('Caretaker', [
             perm_map[c] for c in [
                 'properties.view', 'tenants.view',

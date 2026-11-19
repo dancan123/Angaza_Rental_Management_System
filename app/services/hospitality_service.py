@@ -269,59 +269,87 @@ class HospitalityService:
         return unit
 
     @staticmethod
-    def get_hospitality_dashboard_kpis():
+    def get_hospitality_dashboard_kpis(organization_id=None, landlord_id=None):
         """
         Computes industry-standard hospitality performance metrics:
         - Total Units assigned to short-stay / hospitality
         - Today's Arrivals, Today's Departures, Current In-House Guests
         - Occupancy %, ADR (Average Daily Rate), RevPAR (Revenue Per Available Room)
+        Scoped strictly to short-stay / Airbnb units for the tenant/landlord organization.
         """
+        from app.models.property import Property
         today = date.today()
         first_of_month = date(today.year, today.month, 1)
 
-        # 1. Short-stay units
-        short_stay_units = RentalUnit.query.filter_by(operational_type='SHORT_STAY').all()
+        # 1. Properties scoped
+        prop_query = Property.query
+        if organization_id:
+            prop_query = prop_query.filter(
+                (Property.organization_id == organization_id) | (Property.organization_id.is_(None))
+            )
+        if landlord_id:
+            if isinstance(landlord_id, list):
+                prop_query = prop_query.filter(Property.landlord_id.in_(landlord_id))
+            else:
+                prop_query = prop_query.filter(Property.landlord_id == landlord_id)
+
+        prop_ids = [p.id for p in prop_query.all()]
+
+        # 2. Short-stay units only
+        unit_query = RentalUnit.query.filter_by(operational_type='SHORT_STAY')
+        if prop_ids:
+            unit_query = unit_query.filter(RentalUnit.property_id.in_(prop_ids))
+        elif organization_id or landlord_id:
+            unit_query = unit_query.filter(RentalUnit.id == -1)
+
+        short_stay_units = unit_query.all()
         total_units_count = len(short_stay_units)
-        if total_units_count == 0:
-            # Fallback to total vacant/unoccupied units if none marked short-stay yet
-            short_stay_units = RentalUnit.query.all()
-            total_units_count = len(short_stay_units) or 1
+        unit_ids = [u.id for u in short_stay_units]
 
-        # 2. Activity metrics
-        arrivals_today = HospitalityReservation.query.filter(
-            HospitalityReservation.check_in_date == today,
-            HospitalityReservation.status == 'CONFIRMED'
-        ).count()
+        # 3. Activity metrics strictly for short-stay units
+        if unit_ids:
+            arrivals_today = HospitalityReservation.query.filter(
+                HospitalityReservation.rental_unit_id.in_(unit_ids),
+                HospitalityReservation.check_in_date == today,
+                HospitalityReservation.status == 'CONFIRMED'
+            ).count()
 
-        departures_today = HospitalityReservation.query.filter(
-            HospitalityReservation.check_out_date == today,
-            HospitalityReservation.status == 'CHECKED_IN'
-        ).count()
+            departures_today = HospitalityReservation.query.filter(
+                HospitalityReservation.rental_unit_id.in_(unit_ids),
+                HospitalityReservation.check_out_date == today,
+                HospitalityReservation.status == 'CHECKED_IN'
+            ).count()
 
-        in_house_reservations = HospitalityReservation.query.filter_by(status='CHECKED_IN').all()
-        in_house_count = len(in_house_reservations)
+            in_house_reservations = HospitalityReservation.query.filter(
+                HospitalityReservation.rental_unit_id.in_(unit_ids),
+                HospitalityReservation.status == 'CHECKED_IN'
+            ).all()
+            in_house_count = len(in_house_reservations)
 
-        # 3. Monthly Financials & Revenue
-        monthly_reservations = HospitalityReservation.query.filter(
-            HospitalityReservation.check_in_date >= first_of_month,
-            HospitalityReservation.status.in_(['CHECKED_IN', 'CHECKED_OUT', 'CONFIRMED'])
-        ).all()
+            monthly_reservations = HospitalityReservation.query.filter(
+                HospitalityReservation.rental_unit_id.in_(unit_ids),
+                HospitalityReservation.check_in_date >= first_of_month,
+                HospitalityReservation.status.in_(['CHECKED_IN', 'CHECKED_OUT', 'CONFIRMED'])
+            ).all()
 
-        total_revenue_cents = sum(r.total_stay_cents for r in monthly_reservations)
-        total_nights_sold = sum(r.num_nights for r in monthly_reservations) or 1
+            total_revenue_cents = sum(r.total_stay_cents for r in monthly_reservations)
+            total_nights_sold = sum(r.num_nights for r in monthly_reservations) or 1
+            adr_cents = total_revenue_cents // total_nights_sold if total_revenue_cents > 0 else 0
+            occupancy_pct = round((in_house_count / max(1, total_units_count)) * 100, 1)
 
-        # ADR: Total Revenue / Rooms Sold
-        adr_cents = total_revenue_cents // total_nights_sold
+            days_in_month = today.day
+            total_available_room_nights = total_units_count * days_in_month
+            revpar_cents = total_revenue_cents // max(1, total_available_room_nights) if total_available_room_nights > 0 else 0
+        else:
+            arrivals_today = 0
+            departures_today = 0
+            in_house_count = 0
+            total_revenue_cents = 0
+            adr_cents = 0
+            occupancy_pct = 0.0
+            revpar_cents = 0
 
-        # Occupancy %
-        occupancy_pct = round((in_house_count / max(1, total_units_count)) * 100, 1)
-
-        # RevPAR: (Occupancy Rate * ADR) or (Total Revenue / Total Available Room-Nights)
-        days_in_month = today.day
-        total_available_room_nights = total_units_count * days_in_month
-        revpar_cents = total_revenue_cents // max(1, total_available_room_nights)
-
-        # 4. Housekeeping status breakdown
+        # 4. Housekeeping status breakdown strictly for short-stay units
         cleaning_counts = {
             'CLEAN': sum(1 for u in short_stay_units if u.cleaning_status == 'CLEAN'),
             'DIRTY': sum(1 for u in short_stay_units if u.cleaning_status == 'DIRTY'),

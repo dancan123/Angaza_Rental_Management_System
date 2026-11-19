@@ -12,6 +12,9 @@
         <p class="text-muted small mb-0">Operational headquarters for Airbnb, serviced apartments, guest houses, and daily accommodation.</p>
     </div>
     <div class="d-flex gap-2">
+        <a href="{{ url_for('hospitality.rooms') }}" class="btn btn-outline-dark">
+            <i class="bi bi-door-open-fill me-1 text-danger"></i> Room Inventory
+        </a>
         <a href="{{ url_for('hospitality.housekeeping') }}" class="btn btn-outline-secondary">
             <i class="bi bi-stars me-1 text-warning"></i> Housekeeping Board
         </a>
@@ -21,76 +24,101 @@
     </div>
 </div>
 
+{% if kpis.total_units == 0 %}
+<div class="alert alert-warning border-warning shadow-sm mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div>
+        <div class="fw-bold fs-6"><i class="bi bi-info-circle-fill me-2 text-warning"></i> No Short-Stay / Airbnb Rooms Configured Yet</div>
+        <div class="small text-muted">You have property units in the system, but none are currently configured as Short-Stay / Airbnb rooms. Add a short-stay room or designate existing units in Inventory to begin tracking daily rates, occupancy, and guest bookings!</div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('hospitality.rooms') }}" class="btn btn-danger btn-sm fw-semibold">
+            <i class="bi bi-plus-circle me-1"></i> Add / Configure Airbnb Rooms
+        </a>
+        <a href="{{ url_for('properties.index') }}" class="btn btn-outline-dark btn-sm">
+            <i class="bi bi-building me-1"></i> Properties Directory
+        </a>
+    </div>
+</div>
+{% endif %}
+
 <!-- Hospitality KPI Cards Row -->
 <div class="row g-3 mb-4">
     <!-- Today's Arrivals -->
     <div class="col-sm-6 col-xl-3">
-        <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-primary">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <span class="text-muted small fw-semibold text-uppercase">Today's Arrivals</span>
-                    <h3 class="fw-bold my-1 text-primary">{{ kpis.arrivals_today }}</h3>
-                    <span class="text-muted small">Guests checking in today</span>
-                </div>
-                <div class="stat-card-icon bg-primary-subtle text-primary">
-                    <i class="bi bi-box-arrow-in-right"></i>
+        <a href="#arrivalsSection" class="text-decoration-none">
+            <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-primary shadow-sm hover-shadow transition">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="text-muted small fw-semibold text-uppercase">Today's Arrivals</span>
+                        <h3 class="fw-bold my-1 text-primary">{{ kpis.arrivals_today }}</h3>
+                        <span class="text-muted small">Guests checking in today &darr;</span>
+                    </div>
+                    <div class="stat-card-icon bg-primary-subtle text-primary">
+                        <i class="bi bi-box-arrow-in-right"></i>
+                    </div>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 
     <!-- Today's Departures -->
     <div class="col-sm-6 col-xl-3">
-        <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-warning">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <span class="text-muted small fw-semibold text-uppercase">Today's Departures</span>
-                    <h3 class="fw-bold my-1 text-warning">{{ kpis.departures_today }}</h3>
-                    <span class="text-muted small">Check-outs &amp; turnovers</span>
-                </div>
-                <div class="stat-card-icon bg-warning-subtle text-warning">
-                    <i class="bi bi-box-arrow-right"></i>
+        <a href="#inHouseSection" class="text-decoration-none">
+            <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-warning shadow-sm hover-shadow transition">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="text-muted small fw-semibold text-uppercase">Today's Departures</span>
+                        <h3 class="fw-bold my-1 text-warning">{{ kpis.departures_today }}</h3>
+                        <span class="text-muted small">Check-outs &amp; turnovers &darr;</span>
+                    </div>
+                    <div class="stat-card-icon bg-warning-subtle text-warning">
+                        <i class="bi bi-box-arrow-right"></i>
+                    </div>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 
     <!-- Occupancy Rate % -->
     <div class="col-sm-6 col-xl-3">
-        <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-success">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <span class="text-muted small fw-semibold text-uppercase">Occupancy Rate</span>
-                    <h3 class="fw-bold my-1 text-success">{{ kpis.occupancy_pct }}%</h3>
-                    <span class="text-muted small">{{ kpis.in_house_count }} of {{ kpis.total_units }} units occupied</span>
-                </div>
-                <div class="stat-card-icon bg-success-subtle text-success">
-                    <i class="bi bi-pie-chart-fill"></i>
+        <a href="{{ url_for('hospitality.rooms') }}" class="text-decoration-none">
+            <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-success shadow-sm hover-shadow transition">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="text-muted small fw-semibold text-uppercase">Occupancy Rate</span>
+                        <h3 class="fw-bold my-1 text-success">{{ kpis.occupancy_pct }}%</h3>
+                        <span class="text-muted small">{{ kpis.in_house_count }} of {{ kpis.total_units }} short-stay units &rarr;</span>
+                    </div>
+                    <div class="stat-card-icon bg-success-subtle text-success">
+                        <i class="bi bi-pie-chart-fill"></i>
+                    </div>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 
     <!-- ADR & RevPAR (Hospitality Gold Standards) -->
     <div class="col-sm-6 col-xl-3">
-        <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-danger">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <span class="text-muted small fw-semibold text-uppercase">ADR / RevPAR</span>
-                    <h4 class="fw-bold my-1 text-danger">{{ kpis.adr_display }}</h4>
-                    <span class="text-muted small">RevPAR: <strong>{{ kpis.revpar_display }}</strong></span>
-                </div>
-                <div class="stat-card-icon bg-danger-subtle text-danger">
-                    <i class="bi bi-cash-coin"></i>
+        <a href="{{ url_for('hospitality.pricing_rules') }}" class="text-decoration-none">
+            <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-danger shadow-sm hover-shadow transition">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="text-muted small fw-semibold text-uppercase">ADR / RevPAR</span>
+                        <h4 class="fw-bold my-1 text-danger">{{ kpis.adr_display }}</h4>
+                        <span class="text-muted small">RevPAR: <strong>{{ kpis.revpar_display }}</strong> &rarr;</span>
+                    </div>
+                    <div class="stat-card-icon bg-danger-subtle text-danger">
+                        <i class="bi bi-cash-coin"></i>
+                    </div>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 </div>
 
 <!-- Housekeeping Snapshot & Quick Operations -->
 <div class="row g-4 mb-4">
-    <div class="col-lg-8">
+    <div class="col-lg-8" id="inHouseSection">
         <!-- In-House Guests / Today's Action Center -->
         <div class="card card-custom bg-white p-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -161,22 +189,30 @@
         <div class="card card-custom bg-white p-4 h-100">
             <h5 class="fw-bold mb-3"><i class="bi bi-stars text-warning me-2"></i> Room Status &amp; Housekeeping</h5>
             <div class="d-flex flex-column gap-3 mb-4">
-                <div class="d-flex justify-content-between align-items-center p-2 rounded bg-success-subtle text-success">
-                    <span class="fw-semibold"><i class="bi bi-check-circle-fill me-2"></i> Clean &amp; Ready</span>
-                    <span class="badge bg-success rounded-pill fs-6">{{ kpis.cleaning_counts.CLEAN }}</span>
-                </div>
-                <div class="d-flex justify-content-between align-items-center p-2 rounded bg-danger-subtle text-danger">
-                    <span class="fw-semibold"><i class="bi bi-exclamation-triangle-fill me-2"></i> Dirty (Needs Turnover)</span>
-                    <span class="badge bg-danger rounded-pill fs-6">{{ kpis.cleaning_counts.DIRTY }}</span>
-                </div>
-                <div class="d-flex justify-content-between align-items-center p-2 rounded bg-primary-subtle text-primary">
-                    <span class="fw-semibold"><i class="bi bi-search me-2"></i> Inspected &amp; Verified</span>
-                    <span class="badge bg-primary rounded-pill fs-6">{{ kpis.cleaning_counts.INSPECTED }}</span>
-                </div>
-                <div class="d-flex justify-content-between align-items-center p-2 rounded bg-secondary-subtle text-secondary">
-                    <span class="fw-semibold"><i class="bi bi-tools me-2"></i> Out of Service</span>
-                    <span class="badge bg-secondary rounded-pill fs-6">{{ kpis.cleaning_counts.OUT_OF_SERVICE }}</span>
-                </div>
+                <a href="{{ url_for('hospitality.rooms') }}" class="text-decoration-none">
+                    <div class="d-flex justify-content-between align-items-center p-2 rounded bg-success-subtle text-success hover-shadow transition">
+                        <span class="fw-semibold"><i class="bi bi-check-circle-fill me-2"></i> Clean &amp; Ready</span>
+                        <span class="badge bg-success rounded-pill fs-6">{{ kpis.cleaning_counts.CLEAN }}</span>
+                    </div>
+                </a>
+                <a href="{{ url_for('hospitality.housekeeping') }}" class="text-decoration-none">
+                    <div class="d-flex justify-content-between align-items-center p-2 rounded bg-danger-subtle text-danger hover-shadow transition">
+                        <span class="fw-semibold"><i class="bi bi-exclamation-triangle-fill me-2"></i> Dirty (Needs Turnover)</span>
+                        <span class="badge bg-danger rounded-pill fs-6">{{ kpis.cleaning_counts.DIRTY }}</span>
+                    </div>
+                </a>
+                <a href="{{ url_for('hospitality.housekeeping') }}" class="text-decoration-none">
+                    <div class="d-flex justify-content-between align-items-center p-2 rounded bg-primary-subtle text-primary hover-shadow transition">
+                        <span class="fw-semibold"><i class="bi bi-search me-2"></i> Inspected &amp; Verified</span>
+                        <span class="badge bg-primary rounded-pill fs-6">{{ kpis.cleaning_counts.INSPECTED }}</span>
+                    </div>
+                </a>
+                <a href="{{ url_for('hospitality.housekeeping') }}" class="text-decoration-none">
+                    <div class="d-flex justify-content-between align-items-center p-2 rounded bg-secondary-subtle text-secondary hover-shadow transition">
+                        <span class="fw-semibold"><i class="bi bi-tools me-2"></i> Out of Service</span>
+                        <span class="badge bg-secondary rounded-pill fs-6">{{ kpis.cleaning_counts.OUT_OF_SERVICE }}</span>
+                    </div>
+                </a>
             </div>
             <a href="{{ url_for('hospitality.housekeeping') }}" class="btn btn-outline-warning w-100 mt-auto fw-semibold">
                 <i class="bi bi-clipboard2-check me-1"></i> Open Housekeeping Board
@@ -186,7 +222,7 @@
 </div>
 
 <!-- Arrivals Pending Check-In -->
-<div class="card card-custom bg-white p-4">
+<div class="card card-custom bg-white p-4" id="arrivalsSection">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h5 class="fw-bold mb-0"><i class="bi bi-box-arrow-in-right text-primary me-2"></i> Scheduled Arrivals Today ({{ arrivals|length }})</h5>
         <span class="text-muted small">Guests due to check-in on {{ today.strftime('%d %B %Y') }}</span>

@@ -11,11 +11,14 @@
                 <li class="breadcrumb-item active">Availability Calendar</li>
             </ol>
         </nav>
-        <h3 class="fw-bold mb-0"><i class="bi bi-calendar3 text-primary me-2"></i>Multi-Room Booking &amp; Availability Calendar</h3>
-        <p class="text-muted small mb-0">Interactive 30-day view of room occupancy, upcoming guest arrivals, and vacancy slots.</p>
+        <h3 class="fw-bold mb-0"><i class="bi bi-calendar3 text-danger me-2"></i>Multi-Room Booking &amp; Availability Calendar</h3>
+        <p class="text-muted small mb-0">Interactive 30-day view of room occupancy, upcoming guest arrivals, and vacancy slots. Click any slot to take action.</p>
     </div>
     <div class="d-flex gap-2">
-        <a href="{{ url_for('hospitality.reservations') }}" class="btn btn-primary">
+        <a href="{{ url_for('hospitality.rooms') }}" class="btn btn-outline-dark">
+            <i class="bi bi-door-open me-1"></i> Room Inventory
+        </a>
+        <a href="{{ url_for('hospitality.reservations') }}" class="btn btn-danger">
             <i class="bi bi-calendar-plus me-1"></i> New Reservation
         </a>
         <a href="{{ url_for('hospitality.pricing_rules') }}" class="btn btn-outline-warning text-dark">
@@ -24,42 +27,81 @@
     </div>
 </div>
 
-<!-- Calendar Navigation Bar -->
+<!-- Calendar Navigation Bar & Filters -->
 <div class="card card-custom shadow-sm border-0 mb-3 p-3 bg-white">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div class="d-flex align-items-center gap-2">
             <span class="fw-bold fs-5 text-dark">
                 {{ start_date.strftime('%d %b %Y') }} &mdash; {{ end_date.strftime('%d %b %Y') }}
             </span>
             <span class="badge bg-light text-muted border">30-Day Rolling Window</span>
         </div>
-        <div class="d-flex gap-3 align-items-center">
-            <div class="d-flex gap-2 align-items-center small">
-                <span class="d-inline-block rounded bg-success" style="width: 14px; height: 14px;"></span>
-                <span>Available</span>
-                <span class="d-inline-block rounded bg-danger" style="width: 14px; height: 14px;"></span>
-                <span>Checked In</span>
-                <span class="d-inline-block rounded bg-warning text-dark" style="width: 14px; height: 14px;"></span>
-                <span>Confirmed</span>
-                <span class="d-inline-block rounded bg-secondary" style="width: 14px; height: 14px;"></span>
-                <span>Long-Term Leased</span>
+
+        <!-- Filter Toggle between Airbnb Rooms and All Units -->
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+            <div class="btn-group btn-group-sm" role="group">
+                <a href="{{ url_for('hospitality.calendar', filter='shortstay', start=start_date.isoformat()) }}" 
+                   class="btn {{ 'btn-danger' if view_filter == 'shortstay' else 'btn-outline-danger' }}">
+                    <i class="bi bi-cup-hot-fill me-1"></i> Airbnb / Short-Stay Only ({{ short_stay_count }})
+                </a>
+                <a href="{{ url_for('hospitality.calendar', filter='all', start=start_date.isoformat()) }}" 
+                   class="btn {{ 'btn-dark' if view_filter == 'all' else 'btn-outline-secondary' }}">
+                    <i class="bi bi-building me-1"></i> All Property Units ({{ all_units_count }})
+                </a>
             </div>
+
+            <!-- Date Pagination -->
+            <div class="btn-group btn-group-sm" role="group">
+                <a href="{{ url_for('hospitality.calendar', filter=view_filter, start=prev_start.isoformat()) }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-chevron-left"></i> Prev 15d
+                </a>
+                <a href="{{ url_for('hospitality.calendar', filter=view_filter) }}" class="btn btn-outline-primary">
+                    Today
+                </a>
+                <a href="{{ url_for('hospitality.calendar', filter=view_filter, start=next_start.isoformat()) }}" class="btn btn-outline-secondary">
+                    Next 15d <i class="bi bi-chevron-right"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- Color Legend -->
+        <div class="d-flex gap-3 align-items-center small">
+            <span class="d-flex align-items-center gap-1">
+                <span class="d-inline-block rounded bg-success-subtle border border-success" style="width: 14px; height: 14px;"></span>
+                <span class="text-success fw-semibold">Available (Click to Book)</span>
+            </span>
+            <span class="d-flex align-items-center gap-1">
+                <span class="d-inline-block rounded bg-danger" style="width: 14px; height: 14px;"></span>
+                <span class="text-danger fw-semibold">Occupied (In-House)</span>
+            </span>
+            <span class="d-flex align-items-center gap-1">
+                <span class="d-inline-block rounded bg-warning" style="width: 14px; height: 14px;"></span>
+                <span class="text-dark fw-semibold">Reserved (Arrival)</span>
+            </span>
+            {% if view_filter == 'all' %}
+            <span class="d-flex align-items-center gap-1">
+                <span class="d-inline-block rounded bg-secondary" style="width: 14px; height: 14px;"></span>
+                <span class="text-muted">Long-Term Leased</span>
+            </span>
+            {% endif %}
         </div>
     </div>
 </div>
 
 <!-- Calendar Grid -->
-<div class="card card-custom shadow-sm border-0 mb-4">
+<div class="card card-custom shadow-sm border-0 mb-4 bg-white">
     <div class="card-body p-0">
         <div class="table-responsive" style="max-height: 650px;">
             <table class="table table-bordered table-sm mb-0 align-middle text-center" style="font-size: 0.82rem; min-width: 1100px;">
                 <thead class="table-light sticky-top" style="z-index: 2;">
                     <tr>
-                        <th class="ps-3 text-start bg-light" style="min-width: 140px; position: sticky; left: 0; z-index: 3;">Room / Unit</th>
+                        <th class="ps-3 text-start bg-light" style="min-width: 160px; position: sticky; left: 0; z-index: 3;">
+                            Room / Suite Name
+                        </th>
                         {% for day in calendar_days %}
-                        <th class="p-1 {% if day == today %}bg-primary text-white{% endif %}" style="min-width: 32px;">
-                            <div style="font-size: 0.7rem;">{{ day.strftime('%a')[0] }}</div>
-                            <div>{{ day.strftime('%d') }}</div>
+                        <th class="p-1 {% if day == today %}bg-primary text-white{% endif %}" style="min-width: 34px;">
+                            <div style="font-size: 0.68rem;">{{ day.strftime('%a')[0] }}</div>
+                            <div class="fw-bold">{{ day.strftime('%d') }}</div>
                         </th>
                         {% endfor %}
                     </tr>
@@ -68,33 +110,71 @@
                     {% for room in rooms %}
                     <tr>
                         <td class="ps-3 text-start fw-bold bg-white" style="position: sticky; left: 0; z-index: 1;">
-                            Unit {{ room.unit_number }}
-                            <div class="small text-muted fw-normal">{{ room.operational_type }}</div>
+                            <div class="text-dark text-truncate" style="max-width: 150px;" title="{{ room.unit_number }}">
+                                {{ room.unit_number }}
+                            </div>
+                            <small class="text-muted fw-normal d-block">
+                                {% if room.operational_type == 'SHORT_STAY' %}
+                                    <span class="badge bg-danger-subtle text-danger" style="font-size: 0.65rem;">Airbnb</span>
+                                {% else %}
+                                    <span class="badge bg-secondary-subtle text-secondary" style="font-size: 0.65rem;">Long-Term</span>
+                                {% endif %}
+                                {{ room.unit_type }}
+                            </small>
                         </td>
+
                         {% for day in calendar_days %}
                             {% set key = (room.id, day.isoformat()) %}
                             {% set res = cal_map.get(key) %}
                             {% if room.current_tenant_id %}
-                                <td class="p-1 bg-secondary text-white small" title="Long-term tenant occupied">
-                                    <i class="bi bi-person-fill"></i>
+                                <td class="p-0 bg-secondary-subtle border text-center align-middle" style="height: 42px;" title="Unit {{ room.unit_number }} is occupied by a long-term tenant">
+                                    <span class="badge bg-secondary text-white" style="font-size: 0.62rem;">LEASED</span>
                                 </td>
                             {% elif res %}
                                 {% if res.status == 'CHECKED_IN' %}
-                                    <td class="p-1 bg-danger text-white small" title="{{ res.reservation_code }} - {{ res.guest.full_name }} (Checked In)">
-                                        <i class="bi bi-door-closed-fill"></i>
+                                    <!-- Checked-In: Functional button opening reservation details -->
+                                    <td class="p-0 bg-danger border text-center align-middle" style="height: 42px;">
+                                        <button type="button"
+                                                class="btn btn-sm p-0 w-100 h-100 border-0 bg-transparent text-white fw-bold d-flex align-items-center justify-content-center shadow-sm"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#resModal{{ res.id }}"
+                                                title="{{ res.reservation_code }} &bull; {{ res.guest.full_name }} (Checked In). Click to view / check-out.">
+                                            <i class="bi bi-door-closed-fill fs-6"></i>
+                                        </button>
                                     </td>
                                 {% elif res.status == 'CONFIRMED' %}
-                                    <td class="p-1 bg-warning text-dark small" title="{{ res.reservation_code }} - {{ res.guest.full_name }} (Confirmed)">
-                                        <i class="bi bi-clock-fill"></i>
+                                    <!-- Confirmed Arrival: Functional button opening reservation details -->
+                                    <td class="p-0 bg-warning border text-center align-middle" style="height: 42px;">
+                                        <button type="button"
+                                                class="btn btn-sm p-0 w-100 h-100 border-0 bg-transparent text-dark fw-bold d-flex align-items-center justify-content-center shadow-sm"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#resModal{{ res.id }}"
+                                                title="{{ res.reservation_code }} &bull; {{ res.guest.full_name }} (Reserved). Click to check-in.">
+                                            <i class="bi bi-clock-fill fs-6"></i>
+                                        </button>
                                     </td>
                                 {% else %}
-                                    <td class="p-1 bg-info-subtle small" title="{{ res.reservation_code }} ({{ res.status }})">
-                                        &bull;
+                                    <td class="p-0 bg-info-subtle border text-center align-middle" style="height: 42px;">
+                                        <button type="button" class="btn btn-sm p-0 w-100 h-100 border-0 bg-transparent text-muted"
+                                                data-bs-toggle="modal" data-bs-target="#resModal{{ res.id }}">
+                                            &bull;
+                                        </button>
                                     </td>
                                 {% endif %}
                             {% else %}
-                                <td class="p-1 bg-success-subtle text-success small" title="Unit {{ room.unit_number }} - Available on {{ day.strftime('%d %b') }}">
-                                    <i class="bi bi-check text-success"></i>
+                                <!-- Available: Functional button opening Quick Booking modal pre-filled with room & date -->
+                                <td class="p-0 bg-success-subtle border text-center align-middle" style="height: 42px;">
+                                    <button type="button" 
+                                            class="btn btn-sm p-0 w-100 h-100 border-0 bg-transparent text-success fw-bold d-flex align-items-center justify-content-center cal-book-btn"
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#quickBookModal"
+                                            data-unit-id="{{ room.id }}"
+                                            data-unit-name="{{ room.unit_number }}"
+                                            data-rate="{{ (room.daily_rate_cents / 100)|round|int if room.daily_rate_cents else 0 }}"
+                                            data-date="{{ day.isoformat() }}"
+                                            title="Unit {{ room.unit_number }} &bull; Available {{ day.strftime('%d %b') }}. Click to Book!">
+                                        <i class="bi bi-plus-lg text-success"></i>
+                                    </button>
                                 </td>
                             {% endif %}
                         {% endfor %}
@@ -102,7 +182,20 @@
                     {% else %}
                     <tr>
                         <td colspan="31" class="text-center py-5 text-muted">
-                            No units registered in the system.
+                            <i class="bi bi-calendar-x fs-2 d-block mb-2 text-secondary"></i>
+                            {% if view_filter == 'shortstay' %}
+                                No Short-Stay / Airbnb rooms configured yet. 
+                                <div class="mt-2">
+                                    <a href="{{ url_for('hospitality.rooms') }}" class="btn btn-danger btn-sm">
+                                        <i class="bi bi-plus-circle me-1"></i> Add Airbnb Room in Inventory
+                                    </a>
+                                    <a href="{{ url_for('hospitality.calendar', filter='all') }}" class="btn btn-outline-secondary btn-sm ms-1">
+                                        Show All Property Units
+                                    </a>
+                                </div>
+                            {% else %}
+                                No property units registered in the system.
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -111,4 +204,195 @@
         </div>
     </div>
 </div>
+
+<!-- Quick Booking Modal (Triggered by clicking any Available day button) -->
+<div class="modal fade" id="quickBookModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-calendar-check-fill me-2"></i> Book Room &bull; <span id="qbUnitName">Room</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('hospitality.create_reservation') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="rental_unit_id" id="qbUnitId"/>
+                
+                <div class="modal-body">
+                    <div class="alert alert-light border py-2 mb-3 d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted small">Selected Room:</span>
+                            <strong id="qbUnitLabel" class="d-block text-dark fs-6">Unit</strong>
+                        </div>
+                        <div>
+                            <span class="text-muted small">Daily Nightly Rate:</span>
+                            <strong id="qbRateLabel" class="d-block text-danger fs-6">KES 0.00</strong>
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Check-In Date *</label>
+                            <input type="date" name="check_in_date" id="qbCheckIn" class="form-control" required/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Check-Out Date *</label>
+                            <input type="date" name="check_out_date" id="qbCheckOut" class="form-control" required/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Guest First Name *</label>
+                            <input type="text" name="first_name" class="form-control" required placeholder="e.g. Amina"/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Guest Last Name *</label>
+                            <input type="text" name="last_name" class="form-control" required placeholder="e.g. Mwangi"/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Phone Number *</label>
+                            <input type="tel" name="phone" class="form-control" required placeholder="e.g. +254712345678"/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Email Address</label>
+                            <input type="email" name="email" class="form-control" placeholder="guest@example.com"/>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Number of Guests</label>
+                            <input type="number" name="num_guests" class="form-control" value="2" min="1"/>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Custom Daily Rate (KES)</label>
+                            <input type="number" name="daily_rate" id="qbDailyRate" class="form-control" step="0.01" placeholder="Leave empty for standard rate"/>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Booking Source</label>
+                            <select name="booking_source" class="form-select">
+                                <option value="DIRECT" selected>Direct Walk-In / Phone</option>
+                                <option value="AIRBNB">Airbnb</option>
+                                <option value="BOOKING_COM">Booking.com</option>
+                                <option value="EXPEDIA">Expedia</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger fw-semibold px-4">
+                        <i class="bi bi-check-circle me-1"></i> Confirm Booking
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Reservation Details & Quick Action Modals -->
+{% for res in distinct_reservations %}
+<div class="modal fade" id="resModal{{ res.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header {{ 'bg-danger text-white' if res.status == 'CHECKED_IN' else 'bg-warning text-dark' }}">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi {{ 'bi-door-closed-fill' if res.status == 'CHECKED_IN' else 'bi-clock-fill' }} me-2"></i>
+                    {{ res.reservation_code }} &bull; Unit {{ res.rental_unit.unit_number }}
+                </h5>
+                <button type="button" class="btn-close {{ 'btn-close-white' if res.status == 'CHECKED_IN' else '' }}" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="p-3 bg-light rounded mb-3 border">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="badge {{ 'bg-danger text-white' if res.status == 'CHECKED_IN' else 'bg-warning text-dark' }} fw-bold px-2 py-1">
+                            {{ res.status }}
+                        </span>
+                        <span class="badge bg-secondary text-white">{{ res.booking_source }}</span>
+                    </div>
+                    <h5 class="fw-bold mb-1 text-dark">{{ res.guest.full_name }}</h5>
+                    <div class="text-muted small"><i class="bi bi-telephone me-1"></i>{{ res.guest.phone }}</div>
+                    {% if res.guest.email %}
+                    <div class="text-muted small"><i class="bi bi-envelope me-1"></i>{{ res.guest.email }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="row g-2 mb-3 small">
+                    <div class="col-6">
+                        <div class="p-2 border rounded bg-white">
+                            <span class="text-muted d-block">Stay Period</span>
+                            <strong>{{ res.check_in_date.strftime('%d %b') }} &rarr; {{ res.check_out_date.strftime('%d %b %Y') }}</strong>
+                            <div class="text-muted">{{ res.num_nights }} night(s)</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-2 border rounded bg-white">
+                            <span class="text-muted d-block">Financial Total</span>
+                            <strong class="text-dark">{{ res.total_stay_display }}</strong>
+                            <div class="text-danger fw-semibold">Balance: {{ res.balance_display }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 1-Click Action Forms -->
+                {% if res.status == 'CONFIRMED' %}
+                <form method="POST" action="{{ url_for('hospitality.check_in', res_id=res.id) }}" class="mb-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-success w-100 fw-bold py-2">
+                        <i class="bi bi-box-arrow-in-right me-1"></i> Check In Guest Now
+                    </button>
+                </form>
+                {% elif res.status == 'CHECKED_IN' %}
+                <form method="POST" action="{{ url_for('hospitality.check_out', res_id=res.id) }}" class="mb-2" onsubmit="return confirm('Complete departure and check out guest {{ res.guest.full_name }}? Room will be automatically marked DIRTY for turnover.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-warning w-100 fw-bold py-2">
+                        <i class="bi bi-box-arrow-right me-1"></i> Complete Check-Out &amp; Turnover
+                    </button>
+                </form>
+                {% endif %}
+
+                <!-- Guest SMS Communication Button -->
+                <button type="button" class="btn btn-outline-info w-100 mt-2" data-bs-toggle="collapse" data-bs-target="#smsCol{{ res.id }}">
+                    <i class="bi bi-chat-dots-fill me-1"></i> Dispatch Direct SMS to Guest
+                </button>
+                <div class="collapse mt-2" id="smsCol{{ res.id }}">
+                    <form method="POST" action="{{ url_for('hospitality.send_room_sms', unit_id=res.rental_unit_id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <input type="hidden" name="phone" value="{{ res.guest.phone }}"/>
+                        <textarea name="message" class="form-control mb-2" rows="3" placeholder="Enter custom message to guest...">Hello {{ res.guest.first_name }}, thank you for choosing us! Let us know if you need any assistance during your stay.</textarea>
+                        <button type="submit" class="btn btn-primary btn-sm w-100">Send SMS Now</button>
+                    </form>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const bookButtons = document.querySelectorAll('.cal-book-btn');
+    bookButtons.forEach(btn => {
+        btn.addEventListener('click', function () {
+            const unitId = this.getAttribute('data-unit-id');
+            const unitName = this.getAttribute('data-unit-name');
+            const rate = this.getAttribute('data-rate');
+            const checkInDate = this.getAttribute('data-date');
+
+            document.getElementById('qbUnitId').value = unitId;
+            document.getElementById('qbUnitName').innerText = unitName;
+            document.getElementById('qbUnitLabel').innerText = 'Unit ' + unitName;
+            document.getElementById('qbRateLabel').innerText = 'KES ' + Number(rate).toLocaleString();
+            document.getElementById('qbDailyRate').value = rate > 0 ? rate : '';
+            document.getElementById('qbCheckIn').value = checkInDate;
+
+            // Set Check-out date to next day by default
+            if (checkInDate) {
+                const d = new Date(checkInDate);
+                d.setDate(d.getDate() + 1);
+                document.getElementById('qbCheckOut').value = d.toISOString().split('T')[0];
+            }
+        });
+    });
+});
+</script>
 {% endblock %}
