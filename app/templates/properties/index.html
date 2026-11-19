@@ -136,7 +136,12 @@
 <div class="row g-4">
     {% for prop in properties %}
     <div class="col-lg-4 col-md-6">
-        <div class="card card-custom bg-white h-100 d-flex flex-column">
+        <div class="card card-custom bg-white h-100 d-flex flex-column overflow-hidden">
+            {% if prop.image_url %}
+            <div style="height: 140px; overflow: hidden; position: relative;" class="border-bottom">
+                <img src="{{ prop.image_url }}" alt="{{ prop.name }}" class="w-100 h-100" style="object-fit: cover;">
+            </div>
+            {% endif %}
             <div class="p-4 flex-grow-1">
                 <div class="d-flex justify-content-between align-items-start mb-2">
                     <span class="badge bg-primary-subtle text-primary border border-primary-subtle">

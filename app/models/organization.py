@@ -15,8 +15,28 @@ class Organization(db.Model):
     org_code = db.Column(db.String(30), unique=True, nullable=True, index=True)
     contact_email = db.Column(db.String(120), index=True)
     contact_phone = db.Column(db.String(30))
+    contact_person = db.Column(db.String(100))
+    whatsapp_number = db.Column(db.String(30))
+    logo_url = db.Column(db.String(255))
     tax_pin = db.Column(db.String(50))
     business_registration = db.Column(db.String(100))
+
+    # Per-Tenant Integrated Credentials (M-Pesa, Twilio SMS/WhatsApp, SMTP Email)
+    mpesa_paybill = db.Column(db.String(50))
+    mpesa_till = db.Column(db.String(50))
+    mpesa_consumer_key = db.Column(db.String(255))
+    mpesa_consumer_secret = db.Column(db.String(255))
+    mpesa_passkey = db.Column(db.String(255))
+
+    smtp_host = db.Column(db.String(100))
+    smtp_port = db.Column(db.Integer, default=587)
+    smtp_user = db.Column(db.String(120))
+    smtp_password = db.Column(db.String(255))
+    smtp_sender_email = db.Column(db.String(120))
+
+    twilio_account_sid = db.Column(db.String(100))
+    twilio_auth_token = db.Column(db.String(100))
+    twilio_from_number = db.Column(db.String(50))
 
     # Subscription tiers: RENTAL_STANDARD, HOSPITALITY_STANDARD, COMBINED_SUITE, ENTERPRISE
     subscription_tier = db.Column(db.String(30), nullable=False, default='COMBINED_SUITE', index=True)

@@ -90,6 +90,7 @@ class RentalUnit(db.Model):
     daily_rate_cents = db.Column(db.Integer, nullable=False, default=0)
     max_guests = db.Column(db.Integer, default=2)
     cleaning_status = db.Column(db.String(30), nullable=False, default='CLEAN', index=True)  # CLEAN, DIRTY, INSPECTED, OUT_OF_SERVICE
+    image_url = db.Column(db.String(255))
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

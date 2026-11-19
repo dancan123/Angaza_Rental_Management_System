@@ -1,5 +1,7 @@
+import os
 from datetime import datetime
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from werkzeug.utils import secure_filename
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.property import Property, RentalUnit
@@ -133,6 +135,47 @@ def detail(property_id):
         unit_types=UNIT_TYPES
     )
 
+@properties_bp.route('/<int:property_id>/edit', methods=['POST'])
+@login_required
+@permission_required('properties.manage')
+def edit_property(property_id):
+    prop = Property.query.get_or_404(property_id)
+    if request.form.get('name'):
+        prop.name = request.form.get('name').strip()
+    if request.form.get('property_type'):
+        prop.property_type = request.form.get('property_type')
+    if request.form.get('location'):
+        prop.location = request.form.get('location').strip()
+    if request.form.get('description'):
+        prop.description = request.form.get('description').strip()
+    total_floors = request.form.get('total_floors', type=int)
+    if total_floors:
+        prop.total_floors = total_floors
+    landlord_id = request.form.get('landlord_id', type=int)
+    if landlord_id:
+        prop.landlord_id = landlord_id
+
+    # Handle image URL or direct file upload
+    image_url_val = request.form.get('image_url', '').strip()
+    if image_url_val:
+        prop.image_url = image_url_val
+
+    image_file = request.files.get('image_file')
+    if image_file and image_file.filename:
+        filename = secure_filename(image_file.filename)
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+        if ext in {'png', 'jpg', 'jpeg', 'webp'}:
+            upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'properties')
+            os.makedirs(upload_dir, exist_ok=True)
+            prop_image_name = f"prop_{prop.id}_{int(datetime.utcnow().timestamp())}.{ext}"
+            image_file.save(os.path.join(upload_dir, prop_image_name))
+            prop.image_url = f"/static/uploads/properties/{prop_image_name}"
+
+    db.session.commit()
+    flash(f"Property '{prop.name}' profile and photo updated successfully.", 'success')
+    return redirect(url_for('properties.detail', property_id=prop.id))
+
+
 @properties_bp.route('/<int:property_id>/buildings/create', methods=['POST'])
 @login_required
 @permission_required('properties.manage')
@@ -262,6 +305,22 @@ def edit_unit(unit_id):
     unit.description = description
     if status in ['VACANT', 'OCCUPIED', 'RESERVED', 'MAINTENANCE', 'INACTIVE']:
         unit.occupancy_status = status
+
+    # Handle Unit / Airbnb Room Photo upload or URL
+    image_url_val = request.form.get('image_url', '').strip()
+    if image_url_val:
+        unit.image_url = image_url_val
+
+    image_file = request.files.get('image_file')
+    if image_file and image_file.filename:
+        filename = secure_filename(image_file.filename)
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+        if ext in {'png', 'jpg', 'jpeg', 'webp'}:
+            upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'units')
+            os.makedirs(upload_dir, exist_ok=True)
+            unit_image_name = f"unit_{unit.id}_{int(datetime.utcnow().timestamp())}.{ext}"
+            image_file.save(os.path.join(upload_dir, unit_image_name))
+            unit.image_url = f"/static/uploads/units/{unit_image_name}"
 
     db.session.commit()
     flash(f"Unit '{unit.unit_number}' details updated successfully.", 'success')

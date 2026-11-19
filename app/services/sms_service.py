@@ -36,10 +36,18 @@ class SmsService:
         return '+' + clean
 
     @classmethod
-    def get_twilio_credentials(cls):
+    def get_twilio_credentials(cls, organization=None):
         """
-        Retrieves Twilio configuration from system settings or environment.
+        Retrieves Twilio configuration from organization or system settings fallback.
         """
+        if organization and getattr(organization, 'twilio_account_sid', None) and getattr(organization, 'twilio_auth_token', None):
+            return {
+                'account_sid': organization.twilio_account_sid.strip(),
+                'auth_token': organization.twilio_auth_token.strip(),
+                'from_number': (organization.twilio_from_number or '').strip(),
+                'is_enabled': True
+            }
+
         account_sid = PersonalizationService.get_setting('twilio_account_sid', os.environ.get('TWILIO_ACCOUNT_SID', ''))
         auth_token = PersonalizationService.get_setting('twilio_auth_token', os.environ.get('TWILIO_AUTH_TOKEN', ''))
         from_number = PersonalizationService.get_setting('twilio_from_number', os.environ.get('TWILIO_FROM_NUMBER', ''))
@@ -89,7 +97,7 @@ class SmsService:
                     'error': f"Insufficient SMS credits. Organization '{target_org.name}' has 0 credits remaining. Please contact Superadmin to top up."
                 }
 
-        creds = cls.get_twilio_credentials()
+        creds = cls.get_twilio_credentials(organization=target_org)
 
         notif = Notification(
             recipient_user_id=recipient_user_id,

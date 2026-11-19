@@ -29,6 +29,13 @@
             <i class="bi bi-arrow-left me-1"></i> Back to Airbnb Dashboard
         </a>
         <div class="d-flex gap-2">
+            {% if res.guest.phone %}
+            {% set g_phone = res.guest.phone | replace('+', '') | replace(' ', '') %}
+            {% set wa_msg = "Hello " ~ res.guest.full_name ~ ", here is your official booking folio #" ~ res.reservation_code ~ " for Room " ~ res.rental_unit.unit_number ~ " (" ~ res.check_in_date.strftime('%d/%m/%Y') ~ " to " ~ res.check_out_date.strftime('%d/%m/%Y') ~ "). Total stay: " ~ res.total_stay_display ~ ", Balance: " ~ res.balance_display ~ ". We wish you a wonderful stay!" %}
+            <a href="https://wa.me/{{ g_phone }}?text={{ wa_msg | urlencode }}" target="_blank" class="btn btn-outline-success btn-sm" title="Send confirmation via WhatsApp">
+                <i class="bi bi-whatsapp me-1"></i> WhatsApp
+            </a>
+            {% endif %}
             <a href="{{ url_for('hospitality.download_guest_folio_pdf', res_id=res.id) }}" class="btn btn-danger btn-sm">
                 <i class="bi bi-file-earmark-pdf-fill me-1"></i> Download PDF Folio
             </a>

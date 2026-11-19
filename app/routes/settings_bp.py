@@ -1,9 +1,11 @@
 import os
 from werkzeug.utils import secure_filename
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, send_file
-from flask_login import login_required
+from flask_login import login_required, current_user
+from app.extensions import db
 from app.models.system import DatabaseBackup
 from app.models.user import Role, Permission, User
+from app.models.organization import Organization
 from app.services.personalization_service import PersonalizationService
 from app.services.backup_service import BackupService
 from app.services.audit_service import AuditService
@@ -20,13 +22,15 @@ def index():
     roles = Role.query.all()
     permissions = Permission.query.order_by(Permission.module, Permission.code).all()
     users = User.query.order_by(User.created_at.desc()).all()
+    active_org = getattr(current_user, 'active_organization', None)
     return render_template(
         'settings/index.html',
         settings=settings,
         backups=backups,
         roles=roles,
         permissions=permissions,
-        users=users
+        users=users,
+        active_org=active_org
     )
 
 @settings_bp.route('/general', methods=['POST'])
@@ -114,4 +118,93 @@ def download_backup(backup_id):
         return send_file(backup.file_path, as_attachment=True, download_name=backup.file_name)
     flash('Backup file was not found on disk.', 'danger')
     return redirect(url_for('settings.index', tab='backups'))
+
+
+@settings_bp.route('/integrations', methods=['POST'])
+@login_required
+@permission_required('settings.manage')
+def update_integrations():
+    """
+    Updates Landlord / Organization specific contact person, M-Pesa Daraja gateway,
+    Twilio SMS/WhatsApp, and SMTP Email credentials.
+    """
+    org = getattr(current_user, 'active_organization', None)
+
+    # If superadmin without active org, update system-wide settings
+    if not org and current_user.is_superadmin():
+        updates = {
+            'business_name': request.form.get('business_name', '').strip(),
+            'business_phone': request.form.get('contact_phone', '').strip(),
+            'business_email': request.form.get('contact_email', '').strip(),
+            'whatsapp_number': request.form.get('whatsapp_number', '').strip(),
+            'contact_person': request.form.get('contact_person', '').strip(),
+            'twilio_account_sid': request.form.get('twilio_account_sid', '').strip(),
+            'twilio_auth_token': request.form.get('twilio_auth_token', '').strip(),
+            'twilio_from_number': request.form.get('twilio_from_number', '').strip(),
+            'twilio_sms_enabled': 'true' if request.form.get('twilio_sms_enabled') else 'false',
+            'smtp_host': request.form.get('smtp_host', '').strip(),
+            'smtp_port': request.form.get('smtp_port', '587').strip(),
+            'smtp_user': request.form.get('smtp_user', '').strip(),
+            'smtp_password': request.form.get('smtp_password', '').strip(),
+            'smtp_sender_email': request.form.get('smtp_sender_email', '').strip(),
+        }
+        PersonalizationService.update_settings(updates)
+        flash('Platform-wide communication and contact credentials updated.', 'success')
+        return redirect(url_for('settings.index', tab='integrations'))
+
+    if not org:
+        flash('No active organization found to update.', 'warning')
+        return redirect(url_for('settings.index'))
+
+    # Update organization's specific contact & integration profile
+    org.contact_person = request.form.get('contact_person', '').strip()
+    org.contact_phone = request.form.get('contact_phone', '').strip()
+    org.contact_email = request.form.get('contact_email', '').strip()
+    org.whatsapp_number = request.form.get('whatsapp_number', '').strip()
+    org.tax_pin = request.form.get('tax_pin', '').strip()
+    org.business_registration = request.form.get('business_registration', '').strip()
+
+    # M-Pesa Daraja credentials
+    org.mpesa_paybill = request.form.get('mpesa_paybill', '').strip()
+    org.mpesa_till = request.form.get('mpesa_till', '').strip()
+    org.mpesa_consumer_key = request.form.get('mpesa_consumer_key', '').strip()
+    org.mpesa_consumer_secret = request.form.get('mpesa_consumer_secret', '').strip()
+    org.mpesa_passkey = request.form.get('mpesa_passkey', '').strip()
+
+    # Twilio SMS / WhatsApp credentials
+    org.twilio_account_sid = request.form.get('twilio_account_sid', '').strip()
+    org.twilio_auth_token = request.form.get('twilio_auth_token', '').strip()
+    org.twilio_from_number = request.form.get('twilio_from_number', '').strip()
+
+    # SMTP Mail Server
+    org.smtp_host = request.form.get('smtp_host', '').strip()
+    smtp_port_val = request.form.get('smtp_port', '587').strip()
+    org.smtp_port = int(smtp_port_val) if smtp_port_val.isdigit() else 587
+    org.smtp_user = request.form.get('smtp_user', '').strip()
+    if request.form.get('smtp_password'):
+        org.smtp_password = request.form.get('smtp_password').strip()
+    org.smtp_sender_email = request.form.get('smtp_sender_email', '').strip()
+
+    if request.form.get('logo_url'):
+        org.logo_url = request.form.get('logo_url').strip()
+
+    # Handle Organization Logo upload
+    logo_file = request.files.get('logo_file')
+    if logo_file and logo_file.filename:
+        filename = secure_filename(logo_file.filename)
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+        if ext in {'png', 'jpg', 'jpeg', 'svg', 'webp'}:
+            upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'orgs')
+            os.makedirs(upload_dir, exist_ok=True)
+            logo_name = f"org_{org.id}_logo.{ext}"
+            dest_path = os.path.join(upload_dir, logo_name)
+            logo_file.save(dest_path)
+            org.logo_url = f"/static/uploads/orgs/{logo_name}"
+        else:
+            flash('Invalid logo file format. Supported: PNG, JPG, JPEG, WEBP, SVG.', 'warning')
+
+    db.session.commit()
+    flash(f"Organization '{org.name}' credentials & contact details updated successfully.", 'success')
+    return redirect(url_for('settings.index', tab='integrations'))
+
 

@@ -32,6 +32,9 @@
                 <button class="nav-link text-start py-3" id="invoicing-tab" data-bs-toggle="pill" data-bs-target="#tab-invoicing" type="button">
                     <i class="bi bi-receipt me-2"></i> Invoicing & Receipts
                 </button>
+                <button class="nav-link text-start py-3 text-primary fw-semibold" id="integrations-tab" data-bs-toggle="pill" data-bs-target="#tab-integrations" type="button">
+                    <i class="bi bi-broadcast-pin me-2 text-primary"></i> M-Pesa, WhatsApp &amp; Contacts
+                </button>
                 <button class="nav-link text-start py-3" id="backups-tab" data-bs-toggle="pill" data-bs-target="#tab-backups" type="button">
                     <i class="bi bi-database-check me-2"></i> Database Backups
                 </button>
@@ -242,6 +245,168 @@
                         <div class="mt-4 pt-3 border-top text-end">
                             <button type="submit" class="btn btn-primary-custom px-4">
                                 <i class="bi bi-save me-1"></i> Save Invoicing Preferences
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Integrations: M-Pesa, Twilio WhatsApp & Contacts -->
+            <div class="tab-pane fade" id="tab-integrations" role="tabpanel">
+                <div class="card card-custom bg-white p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h5 class="fw-bold mb-0"><i class="bi bi-broadcast-pin me-2 text-primary"></i> Organization &amp; Multichannel Integrations</h5>
+                            <span class="text-muted small">Configure M-Pesa Daraja, Twilio SMS/WhatsApp, SMTP Mail Server, and Contact Person for this business.</span>
+                        </div>
+                        {% if active_org %}
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 fw-bold">
+                            <i class="bi bi-building me-1"></i> {{ active_org.name }} ({{ active_org.business_code }})
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <form method="POST" action="{{ url_for('settings.update_integrations') }}" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+                        <!-- 1. Contact Person & WhatsApp -->
+                        <div class="border rounded-3 p-3 mb-4 bg-light">
+                            <h6 class="fw-bold text-dark mb-3"><i class="bi bi-person-lines-fill me-2 text-primary"></i> 1. Contact Person &amp; Direct Office Channels</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">Primary Contact Person Name</label>
+                                    <input type="text" name="contact_person" class="form-control" value="{{ active_org.contact_person if active_org else settings.get('contact_person', '') }}" placeholder="e.g. Mama Sarah / Property Director">
+                                    <div class="form-text">Name of the property owner or lead operations manager.</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">Direct WhatsApp Desk Line</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-success text-white"><i class="bi bi-whatsapp"></i></span>
+                                        <input type="text" name="whatsapp_number" class="form-control" value="{{ active_org.whatsapp_number if active_org else settings.get('whatsapp_number', '') }}" placeholder="e.g. +254 712 345 678">
+                                    </div>
+                                    <div class="form-text">Used on your public listing website for instant tenant and Airbnb inquiries.</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">Official Phone Number</label>
+                                    <input type="text" name="contact_phone" class="form-control" value="{{ active_org.contact_phone if active_org else settings.get('business_phone', '') }}" placeholder="e.g. 0722 000 111">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">Official Support Email</label>
+                                    <input type="email" name="contact_email" class="form-control" value="{{ active_org.contact_email if active_org else settings.get('business_email', '') }}" placeholder="info@example.co.ke">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">KRA Tax PIN</label>
+                                    <input type="text" name="tax_pin" class="form-control" value="{{ active_org.tax_pin if active_org else settings.get('tax_pin', '') }}" placeholder="e.g. P051234567Z">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">Business Registration / Certificate No</label>
+                                    <input type="text" name="business_registration" class="form-control" value="{{ active_org.business_registration if active_org else settings.get('business_reg_no', '') }}" placeholder="e.g. CPR/2026/123456">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small fw-semibold">Organization Logo / Letterhead Banner</label>
+                                    <input type="file" name="logo_file" class="form-control" accept="image/*">
+                                    <div class="form-text">Upload JPG, PNG, or WEBP logo. Rendered on your external website and receipts.</div>
+                                    {% if active_org and active_org.logo_url %}
+                                    <div class="mt-2">
+                                        <img src="{{ active_org.logo_url }}" alt="Logo" class="img-thumbnail" style="max-height: 50px;">
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2. Safaricom M-Pesa Daraja Gateway -->
+                        <div class="border rounded-3 p-3 mb-4 bg-light">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold text-success mb-0"><i class="bi bi-phone-fill me-2"></i> 2. Safaricom M-Pesa C2B &amp; STK Push (Kenya)</h6>
+                                <span class="badge bg-success text-white">Safaricom Daraja API</span>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">M-Pesa Paybill Number</label>
+                                    <input type="text" name="mpesa_paybill" class="form-control font-monospace" value="{{ active_org.mpesa_paybill if active_org else '' }}" placeholder="e.g. 247247 or 522522">
+                                    <div class="form-text">Business shortcode for rent collection.</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">M-Pesa Buy Goods Till Number (Optional)</label>
+                                    <input type="text" name="mpesa_till" class="form-control font-monospace" value="{{ active_org.mpesa_till if active_org else '' }}" placeholder="e.g. 889900">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">Daraja Consumer Key</label>
+                                    <input type="password" name="mpesa_consumer_key" class="form-control font-monospace" value="{{ active_org.mpesa_consumer_key if active_org else '' }}" placeholder="App Consumer Key from Safaricom Developer Portal">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">Daraja Consumer Secret</label>
+                                    <input type="password" name="mpesa_consumer_secret" class="form-control font-monospace" value="{{ active_org.mpesa_consumer_secret if active_org else '' }}" placeholder="App Consumer Secret">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small fw-semibold">Daraja Online Passkey (for Instant STK Push Prompt)</label>
+                                    <input type="password" name="mpesa_passkey" class="form-control font-monospace" value="{{ active_org.mpesa_passkey if active_org else '' }}" placeholder="Live/Sandbox Lipa Na M-Pesa Online Passkey">
+                                    <div class="form-text">Used to send instantaneous PIN prompts to tenant and guest phones on demand.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. Twilio SMS & WhatsApp Sender -->
+                        <div class="border rounded-3 p-3 mb-4 bg-light">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold text-danger mb-0"><i class="bi bi-chat-text-fill me-2"></i> 3. Twilio SMS &amp; WhatsApp Sender</h6>
+                                <span class="badge bg-danger text-white">Twilio REST API</span>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">Twilio Account SID</label>
+                                    <input type="text" name="twilio_account_sid" class="form-control font-monospace" value="{{ active_org.twilio_account_sid if active_org else settings.get('twilio_account_sid', '') }}" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">Twilio Auth Token</label>
+                                    <input type="password" name="twilio_auth_token" class="form-control font-monospace" value="{{ active_org.twilio_auth_token if active_org else settings.get('twilio_auth_token', '') }}" placeholder="Auth token from Twilio Console">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">Twilio From Phone / WhatsApp Sender</label>
+                                    <input type="text" name="twilio_from_number" class="form-control" value="{{ active_org.twilio_from_number if active_org else settings.get('twilio_from_number', '') }}" placeholder="e.g. +14155238886 or whatsapp:+14155238886">
+                                    <div class="form-text">Twilio virtual phone number or registered Sender ID.</div>
+                                </div>
+                                <div class="col-md-6 d-flex align-items-center pt-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="twilio_sms_enabled" id="smsEnabledCheck" {% if settings.get('twilio_sms_enabled') == 'true' %}checked{% endif %}>
+                                        <label class="form-check-label fw-semibold" for="smsEnabledCheck">Enable Live Twilio SMS Dispatch</label>
+                                        <div class="form-text">When disabled, notifications are safely logged as SIMULATED for testing without incurring costs.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 4. SMTP Outgoing Mail Server -->
+                        <div class="border rounded-3 p-3 mb-4 bg-light">
+                            <h6 class="fw-bold text-dark mb-3"><i class="bi bi-envelope-at-fill me-2 text-info"></i> 4. Outgoing Email Server (SMTP)</h6>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-semibold">SMTP Host</label>
+                                    <input type="text" name="smtp_host" class="form-control" value="{{ active_org.smtp_host if active_org else settings.get('smtp_host', 'smtp.gmail.com') }}" placeholder="smtp.gmail.com">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label small fw-semibold">Port</label>
+                                    <input type="number" name="smtp_port" class="form-control" value="{{ active_org.smtp_port if active_org else settings.get('smtp_port', 587) }}">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small fw-semibold">SMTP Username</label>
+                                    <input type="text" name="smtp_user" class="form-control" value="{{ active_org.smtp_user if active_org else settings.get('smtp_user', '') }}" placeholder="user@gmail.com">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small fw-semibold">SMTP Password / App Password</label>
+                                    <input type="password" name="smtp_password" class="form-control" placeholder="••••••••">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small fw-semibold">Default Sender Email</label>
+                                    <input type="email" name="smtp_sender_email" class="form-control" value="{{ active_org.smtp_sender_email if active_org else settings.get('smtp_sender_email', '') }}" placeholder="billing@yourdomain.co.ke">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="text-end pt-3 border-top">
+                            <button type="submit" class="btn btn-primary-custom px-4 py-2 fw-semibold">
+                                <i class="bi bi-save me-1"></i> Save Integrations &amp; Contact Credentials
                             </button>
                         </div>
                     </form>
@@ -534,6 +699,17 @@
 
 {% block extra_js %}
 <script>
+// Auto-switch tab based on URL query parameter ?tab=xxx
+const urlParams = new URLSearchParams(window.location.search);
+const activeTabParam = urlParams.get('tab');
+if (activeTabParam) {
+    const triggerEl = document.querySelector(`#${activeTabParam}-tab`);
+    if (triggerEl) {
+        const tabInstance = new bootstrap.Tab(triggerEl);
+        tabInstance.show();
+    }
+}
+
 // RBAC: select-all / deselect-all per modal
 document.querySelectorAll('[id^="rbacModal"]').forEach(function(modal){
     modal.addEventListener('show.bs.modal', function(){

@@ -60,10 +60,17 @@
 <body>
 
     <!-- Print / Action Bar -->
-    <div class="d-flex justify-content-center gap-2 mb-4 no-print">
+    <div class="d-flex justify-content-center gap-2 mb-4 no-print flex-wrap">
         <a href="{{ url_for('billing.index') }}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-arrow-left me-1"></i> Back to Billing
         </a>
+        {% if payment.tenant and payment.tenant.phone %}
+        {% set t_clean = payment.tenant.phone | replace('+', '') | replace(' ', '') %}
+        {% set wa_receipt = "Dear " ~ payment.tenant.full_name ~ ", your rent payment of " ~ payment.amount_display ~ " for Unit " ~ payment.rental_unit.unit_number ~ " has been received with thanks (Receipt: #" ~ payment.receipt_number ~ ", Ref: " ~ (payment.transaction_reference or 'MPESA') ~ "). Thank you for choosing our management." %}
+        <a href="https://wa.me/{{ t_clean }}?text={{ wa_receipt | urlencode }}" target="_blank" class="btn btn-success btn-sm">
+            <i class="bi bi-whatsapp me-1"></i> Send via WhatsApp
+        </a>
+        {% endif %}
         <button onclick="window.print();" class="btn btn-primary btn-sm">
             <i class="bi bi-printer me-1"></i> Print Receipt
         </button>

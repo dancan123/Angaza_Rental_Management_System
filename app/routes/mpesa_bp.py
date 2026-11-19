@@ -1,6 +1,6 @@
 from datetime import datetime
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
-from flask_login import login_required
+from flask_login import login_required, current_user
 from app.extensions import db, csrf
 from app.models.gateway import PaymentGatewayConfig, PaymentCallback
 from app.models.property import Property, RentalUnit
@@ -14,11 +14,20 @@ mpesa_bp = Blueprint('mpesa', __name__, url_prefix='/mpesa')
 @login_required
 @permission_required('mpesa.manage')
 def index():
-    configs = PaymentGatewayConfig.query.all()
-    callbacks = PaymentCallback.query.order_by(PaymentCallback.created_at.desc()).limit(50).all()
-    properties = Property.query.all()
-    vacant_or_all_units = RentalUnit.query.all()
-    active_tenants = Tenant.query.filter_by(is_active=True).all()
+    org_id = getattr(current_user, 'organization_id', None)
+    is_superadmin = getattr(current_user, 'is_superadmin', lambda: False)()
+    if org_id and not is_superadmin:
+        configs = PaymentGatewayConfig.query.filter_by(organization_id=org_id).all()
+        callbacks = PaymentCallback.query.filter_by(organization_id=org_id).order_by(PaymentCallback.created_at.desc()).limit(50).all() if hasattr(PaymentCallback, 'organization_id') else PaymentCallback.query.order_by(PaymentCallback.created_at.desc()).limit(50).all()
+        properties = Property.query.filter_by(organization_id=org_id).all()
+        vacant_or_all_units = RentalUnit.query.join(Property).filter(Property.organization_id == org_id).all()
+        active_tenants = Tenant.query.filter_by(is_active=True, organization_id=org_id).all() if hasattr(Tenant, 'organization_id') else Tenant.query.filter_by(is_active=True).all()
+    else:
+        configs = PaymentGatewayConfig.query.all()
+        callbacks = PaymentCallback.query.order_by(PaymentCallback.created_at.desc()).limit(50).all()
+        properties = Property.query.all()
+        vacant_or_all_units = RentalUnit.query.all()
+        active_tenants = Tenant.query.filter_by(is_active=True).all()
 
     return render_template(
         'mpesa/index.html',
@@ -51,6 +60,9 @@ def save_config():
             from flask import abort; abort(404)
     else:
         cfg = PaymentGatewayConfig()
+        org_id = getattr(current_user, 'organization_id', None)
+        if org_id:
+            cfg.organization_id = org_id
         db.session.add(cfg)
 
     cfg.name = name

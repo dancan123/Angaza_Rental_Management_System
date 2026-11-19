@@ -286,6 +286,15 @@
                                             <i class="bi bi-file-earmark-pdf"></i>
                                         </a>
 
+                                        <!-- Send via WhatsApp -->
+                                        {% if p.tenant and p.tenant.phone %}
+                                        {% set clean_p_phone = p.tenant.phone.replace('+', '').replace(' ', '').replace('-', '') %}
+                                        {% set wa_msg = 'Dear ' ~ p.tenant.full_name ~ ', rent payment of ' ~ p.amount_display ~ ' for Unit ' ~ p.rental_unit.unit_number ~ ' received with thanks. Receipt No: ' ~ p.receipt_number ~ '.' %}
+                                        <a href="https://wa.me/{{ clean_p_phone }}?text={{ wa_msg | urlencode }}" target="_blank" class="btn btn-outline-success btn-sm" title="Send Receipt via WhatsApp">
+                                            <i class="bi bi-whatsapp"></i>
+                                        </a>
+                                        {% endif %}
+
                                         {% if p.payment_status == 'CONFIRMED' and current_user.has_permission('billing.manage') %}
                                         <!-- Reverse Payment Modal Trigger -->
                                         <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#reverseModal{{ p.id }}" title="Reverse Payment">

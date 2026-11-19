@@ -268,8 +268,14 @@
                             style="border-left: 4px solid {{ '#dc3545' if is_occupied else ('#ffc107' if u.cleaning_status == 'DIRTY' else '#198754') }} !important;
                                    border-left-width: 4px !important; background: {{ '#fffdfd' if is_occupied else '#ffffff' }};">
 
+                            {% if u.image_url %}
+                            <div style="height: 110px; overflow: hidden; position: relative;" class="border-bottom">
+                                <img src="{{ u.image_url }}" alt="Room {{ u.unit_number }}" class="w-100 h-100" style="object-fit: cover;">
+                            </div>
+                            {% endif %}
+
                             {# Status Ribbon Badge #}
-                            <div class="position-absolute top-0 end-0 mt-2 me-2">
+                            <div class="position-absolute top-0 end-0 mt-2 me-2" style="z-index: 2;">
                                 {% if is_occupied %}
                                     <span class="badge bg-danger text-white fw-bold px-2 py-1">
                                         <i class="bi bi-person-fill me-1"></i>Occupied

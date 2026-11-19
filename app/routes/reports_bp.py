@@ -1,7 +1,7 @@
 from datetime import datetime
 from io import BytesIO
 from flask import Blueprint, render_template, request, send_file
-from flask_login import login_required
+from flask_login import login_required, current_user
 from app.models.property import Property
 from app.models.user import Landlord
 from app.services.report_service import ReportService
@@ -190,6 +190,49 @@ def consolidated():
         end_date=end_str,
         selected_property=property_id
     )
+
+
+@reports_bp.route('/hospitality')
+@login_required
+@permission_required('reports.view')
+def hospitality_report():
+    """
+    Comprehensive Airbnb & Short-Stay Hospitality Operations Report:
+    Covers ADR, RevPAR, total room revenue, occupancy %, source breakdown,
+    housekeeping turnaround, and room performance audit.
+    """
+    from app.services.hospitality_service import HospitalityService
+    from app.models.hospitality import HospitalityReservation
+    from app.models.property import Property, RentalUnit
+
+    org_id = getattr(current_user, 'organization_id', None)
+    landlord_id = getattr(current_user, 'landlord_id', None) if getattr(current_user, 'role', None) and current_user.role.name == 'LANDLORD' else None
+
+    kpis = HospitalityService.get_hospitality_dashboard_kpis(organization_id=org_id, landlord_id=landlord_id)
+    rooms_data = HospitalityService.get_rooms_management_overview(organization_id=org_id, landlord_id=landlord_id)
+
+    # Channel Breakdown (Direct, Airbnb, Booking.com, Website)
+    res_query = HospitalityReservation.query
+    if org_id:
+        res_query = res_query.join(RentalUnit).join(Property).filter(Property.organization_id == org_id)
+    all_res = res_query.all()
+
+    channels = {'DIRECT': 0, 'AIRBNB': 0, 'BOOKING_COM': 0, 'WEBSITE': 0, 'OTHER': 0}
+    for r in all_res:
+        src = (r.booking_source or 'DIRECT').upper()
+        if src in channels:
+            channels[src] += 1
+        else:
+            channels['OTHER'] += 1
+
+    return render_template(
+        'reports/hospitality_report.html',
+        kpis=kpis,
+        rooms=rooms_data.get('rooms', []),
+        channels=channels,
+        total_reservations=len(all_res)
+    )
+
 
 
 
