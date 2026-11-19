@@ -5,8 +5,10 @@ from app.services.audit_service import AuditService
 
 class PropertyService:
     @staticmethod
-    def get_properties(search=None, property_type=None, landlord_id=None):
+    def get_properties(search=None, property_type=None, landlord_id=None, organization_id=None):
         query = Property.query
+        if organization_id:
+            query = query.filter(Property.organization_id == organization_id)
         if landlord_id:
             query = query.filter(Property.landlord_id == landlord_id)
         if property_type:
@@ -21,8 +23,9 @@ class PropertyService:
         return query.order_by(Property.created_at.desc()).all()
 
     @staticmethod
-    def create_property(landlord_id, name, ref_number, property_type, location, description=None, total_floors=1, image_url=None):
+    def create_property(landlord_id, name, ref_number, property_type, location, description=None, total_floors=1, image_url=None, organization_id=None):
         prop = Property(
+            organization_id=organization_id,
             landlord_id=landlord_id,
             name=name,
             ref_number=ref_number,

@@ -6,6 +6,7 @@ class PaymentGatewayConfig(db.Model):
     __tablename__ = 'payment_gateway_configs'
     
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id', ondelete='CASCADE'), nullable=True, index=True)
     landlord_id = db.Column(db.Integer, db.ForeignKey('landlords.id', ondelete='CASCADE'), nullable=True, index=True)
     property_id = db.Column(db.Integer, db.ForeignKey('properties.id', ondelete='CASCADE'), nullable=True, index=True)
     
@@ -25,6 +26,7 @@ class PaymentGatewayConfig(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    organization = db.relationship('Organization')
     landlord = db.relationship('Landlord')
     property = db.relationship('Property', back_populates='gateway_configs')
 
@@ -54,6 +56,7 @@ class BankAccount(db.Model):
     __tablename__ = 'bank_accounts'
     
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id', ondelete='CASCADE'), nullable=True, index=True)
     landlord_id = db.Column(db.Integer, db.ForeignKey('landlords.id', ondelete='CASCADE'), nullable=True, index=True)
     property_id = db.Column(db.Integer, db.ForeignKey('properties.id', ondelete='CASCADE'), nullable=True, index=True)
     
@@ -65,6 +68,7 @@ class BankAccount(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
+    organization = db.relationship('Organization')
     landlord = db.relationship('Landlord')
     property = db.relationship('Property', back_populates='bank_accounts')
     transactions = db.relationship('BankTransaction', back_populates='bank_account', lazy='dynamic', cascade='all, delete-orphan')

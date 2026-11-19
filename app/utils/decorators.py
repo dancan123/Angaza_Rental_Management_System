@@ -78,3 +78,28 @@ def landlord_scoped(query, model):
             return query.join(model.property).filter(model.property.property.entity.class_.landlord_id.in_(landlord_ids))
     return query
 
+
+def multi_tenant_scoped(query, model):
+    """
+    Enterprise Multi-Tenant & Organization isolation helper.
+    Ensures strict tenant data isolation:
+    1. Superadmin (L100) has global administrative visibility.
+    2. Organization users can ONLY access data belonging to their assigned organization.
+    3. Landlords & caretakers are further scoped to their assigned properties.
+    """
+    if not current_user.is_authenticated or current_user.is_superadmin():
+        return query
+
+    org_id = getattr(current_user, 'organization_id', None)
+    if org_id:
+        if hasattr(model, 'organization_id'):
+            query = query.filter(model.organization_id == org_id)
+        elif hasattr(model, 'property') and hasattr(model.property.property.entity.class_, 'organization_id'):
+            query = query.join(model.property).filter(model.property.property.entity.class_.organization_id == org_id)
+        elif hasattr(model, 'rental_unit'):
+            from app.models.property import Property, RentalUnit
+            query = query.join(RentalUnit).join(Property).filter(Property.organization_id == org_id)
+
+    return landlord_scoped(query, model)
+
+

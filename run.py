@@ -41,6 +41,16 @@ def initialize_database():
             if 'organization_id' not in user_cols:
                 cursor.execute("ALTER TABLE users ADD COLUMN organization_id INTEGER")
 
+            cursor.execute("PRAGMA table_info(payment_gateway_configs)")
+            gw_cols = [r[1] for r in cursor.fetchall()]
+            if 'organization_id' not in gw_cols:
+                cursor.execute("ALTER TABLE payment_gateway_configs ADD COLUMN organization_id INTEGER")
+
+            cursor.execute("PRAGMA table_info(bank_accounts)")
+            bank_cols = [r[1] for r in cursor.fetchall()]
+            if 'organization_id' not in bank_cols:
+                cursor.execute("ALTER TABLE bank_accounts ADD COLUMN organization_id INTEGER")
+
             conn.commit()
         except Exception as e:
             print(f"[Startup Warning] Schema check: {e}")

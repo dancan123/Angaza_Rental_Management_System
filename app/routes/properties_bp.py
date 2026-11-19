@@ -43,6 +43,8 @@ def index():
     property_type = request.args.get('type')
     landlord_id = request.args.get('landlord_id', type=int)
 
+    org_id = getattr(current_user, 'organization_id', None) if not current_user.is_superadmin() else None
+
     # Scoping for landlord role
     if not current_user.is_superadmin() and current_user.landlords:
         assigned_ids = [l.id for l in current_user.landlords]
@@ -51,7 +53,7 @@ def index():
         elif not landlord_id and len(assigned_ids) == 1:
             landlord_id = assigned_ids[0]
 
-    properties = PropertyService.get_properties(search, property_type, landlord_id)
+    properties = PropertyService.get_properties(search, property_type, landlord_id, organization_id=org_id)
     landlords = Landlord.query.filter_by(is_active=True).all()
     stats = PropertyService.get_property_occupancy_stats()
 
@@ -91,6 +93,7 @@ def create_property():
         flash(f"A property with reference '{ref_number}' already exists.", 'danger')
         return redirect(url_for('properties.index'))
 
+    user_org_id = getattr(current_user, 'organization_id', None)
     prop = PropertyService.create_property(
         landlord_id=landlord_id,
         name=name,
@@ -98,7 +101,8 @@ def create_property():
         property_type=property_type,
         location=location,
         description=description,
-        total_floors=total_floors
+        total_floors=total_floors,
+        organization_id=user_org_id
     )
 
     # Automatically create Main Building and Ground Floor
