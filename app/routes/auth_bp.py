@@ -146,7 +146,7 @@ def seed_initial_data():
             role=role_map['SUPERADMIN'],
             is_active=True
         )
-        admin_user.set_password('AdminPassword2026!')
+        admin_user.set_password('admin123')
         db.session.add(admin_user)
     
     # Initialize default system settings
