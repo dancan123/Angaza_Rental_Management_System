@@ -50,19 +50,20 @@ def index():
     rooms_q = RentalUnit.query.filter_by(operational_type='SHORT_STAY')
     rooms = multi_tenant_scoped(rooms_q, RentalUnit).order_by(RentalUnit.unit_number.asc()).all()
 
-    # Enriched room management overview
-    overview = HospitalityService.get_rooms_management_overview(organization_id=org_id)
+    # Enriched room management overview scoped to org and landlord
+    overview = HospitalityService.get_rooms_management_overview(organization_id=org_id, landlord_id=landlord_ids)
     decorated_rooms = overview.get('rooms', [])
 
     # Count booked/vacant for SHORT_STAY rooms
     booked_count = sum(1 for r in decorated_rooms if r['is_occupied'] and r['unit'].operational_type == 'SHORT_STAY')
     vacant_count = sum(1 for r in decorated_rooms if not r['is_occupied'] and r['unit'].operational_type == 'SHORT_STAY')
 
-    # Today's collections: sum paid_amount_cents for reservations updated today
+    # Today's collections: sum paid_amount_cents for reservations updated today (scoped)
     today_midnight = datetime.combine(date.today(), datetime.min.time())
-    today_reservations = HospitalityReservation.query.filter(
+    today_reservations_q = HospitalityReservation.query.filter(
         HospitalityReservation.updated_at >= today_midnight
-    ).all()
+    )
+    today_reservations = multi_tenant_scoped(today_reservations_q, HospitalityReservation).all()
     today_collections_cents = sum(r.paid_amount_cents or 0 for r in today_reservations)
     today_collections_display = format_currency(today_collections_cents)
 
@@ -118,8 +119,8 @@ def index():
 
     houses = list(houses_dict.values())
 
-    # Properties for new booking modal
-    properties = Property.query.filter_by(management_status='ACTIVE').all()
+    # Properties for new booking modal (scoped)
+    properties = multi_tenant_scoped(Property.query.filter_by(management_status='ACTIVE'), Property).all()
 
     # Available short-stay units with no active reservation
     active_unit_ids = {r['unit'].id for r in decorated_rooms if r['is_occupied']}

@@ -372,10 +372,10 @@ class HospitalityService:
         }
 
     @classmethod
-    def get_rooms_management_overview(cls, organization_id=None):
+    def get_rooms_management_overview(cls, organization_id=None, landlord_id=None):
         """
         Retrieves all accommodation rooms/units with:
-        - Scoped to organization if provided
+        - Scoped to organization and landlord if provided
         - Current active reservation details (guest, check-in, check-out, status)
         - Financials: Daily rate, monthly potential/rate, and total historical collected amounts
         - Aggregate financial & operational KPIs for administrative management
@@ -385,12 +385,18 @@ class HospitalityService:
         from app.utils.currency import format_currency
         today = date.today()
 
-        # Query properties scoped to organization
+        # Query properties scoped to organization & landlord
         prop_query = Property.query
         if organization_id:
             prop_query = prop_query.filter(
                 (Property.organization_id == organization_id) | (Property.organization_id.is_(None))
             )
+        if landlord_id:
+            if isinstance(landlord_id, list):
+                prop_query = prop_query.filter(Property.landlord_id.in_(landlord_id))
+            else:
+                prop_query = prop_query.filter(Property.landlord_id == landlord_id)
+
         properties = prop_query.order_by(Property.name.asc()).all()
         prop_ids = [p.id for p in properties]
 

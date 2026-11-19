@@ -71,11 +71,19 @@ def landlord_scoped(query, model):
     if current_user.is_superadmin():
         return query
     if hasattr(current_user, 'landlords') and current_user.landlords:
+        from app.extensions import db
+        from app.models.property import Property, RentalUnit
         landlord_ids = [l.id for l in current_user.landlords]
         if hasattr(model, 'landlord_id'):
             return query.filter(model.landlord_id.in_(landlord_ids))
-        elif hasattr(model, 'property') and hasattr(model.property.property.entity.class_, 'landlord_id'):
-            return query.join(model.property).filter(model.property.property.entity.class_.landlord_id.in_(landlord_ids))
+        elif hasattr(model, 'property_id'):
+            return query.filter(model.property_id.in_(
+                db.session.query(Property.id).filter(Property.landlord_id.in_(landlord_ids))
+            ))
+        elif hasattr(model, 'rental_unit_id') or hasattr(model, 'rental_unit'):
+            return query.filter(model.rental_unit_id.in_(
+                db.session.query(RentalUnit.id).join(Property).filter(Property.landlord_id.in_(landlord_ids))
+            ))
     return query
 
 
@@ -92,13 +100,18 @@ def multi_tenant_scoped(query, model):
 
     org_id = getattr(current_user, 'organization_id', None)
     if org_id:
+        from app.extensions import db
+        from app.models.property import Property, RentalUnit
         if hasattr(model, 'organization_id'):
             query = query.filter(model.organization_id == org_id)
-        elif hasattr(model, 'property') and hasattr(model.property.property.entity.class_, 'organization_id'):
-            query = query.join(model.property).filter(model.property.property.entity.class_.organization_id == org_id)
-        elif hasattr(model, 'rental_unit'):
-            from app.models.property import Property, RentalUnit
-            query = query.join(RentalUnit).join(Property).filter(Property.organization_id == org_id)
+        elif hasattr(model, 'property_id'):
+            query = query.filter(model.property_id.in_(
+                db.session.query(Property.id).filter(Property.organization_id == org_id)
+            ))
+        elif hasattr(model, 'rental_unit_id') or hasattr(model, 'rental_unit'):
+            query = query.filter(model.rental_unit_id.in_(
+                db.session.query(RentalUnit.id).join(Property).filter(Property.organization_id == org_id)
+            ))
 
     return landlord_scoped(query, model)
 
