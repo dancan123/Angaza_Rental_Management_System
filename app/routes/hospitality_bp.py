@@ -80,6 +80,44 @@ def index():
     else:
         decorated_rooms = sorted(decorated_rooms, key=lambda r: r['unit'].unit_number)
 
+    # Group rooms by House / Property for PMS hierarchical view
+    houses_dict = {}
+    for r in decorated_rooms:
+        prop = r['unit'].property
+        prop_id = prop.id if prop else 0
+        prop_name = prop.name if prop else 'Standalone Airbnb Suites'
+        prop_loc = prop.location if prop else 'Prime Location'
+        if prop_id not in houses_dict:
+            houses_dict[prop_id] = {
+                'property': prop,
+                'name': prop_name,
+                'location': prop_loc,
+                'rooms': [],
+                'total_rooms': 0,
+                'occupied_rooms': 0,
+                'vacant_rooms': 0,
+                'dirty_rooms': 0,
+                'total_collected_cents': 0,
+                'total_daily_potential_cents': 0
+            }
+        houses_dict[prop_id]['rooms'].append(r)
+        houses_dict[prop_id]['total_rooms'] += 1
+        if r['is_occupied']:
+            houses_dict[prop_id]['occupied_rooms'] += 1
+        elif r['unit'].cleaning_status == 'DIRTY':
+            houses_dict[prop_id]['dirty_rooms'] += 1
+        else:
+            houses_dict[prop_id]['vacant_rooms'] += 1
+        houses_dict[prop_id]['total_collected_cents'] += r['total_collected_cents']
+        houses_dict[prop_id]['total_daily_potential_cents'] += (r['unit'].daily_rate_cents or 0)
+
+    for h in houses_dict.values():
+        h['occupancy_pct'] = round((h['occupied_rooms'] / max(1, h['total_rooms'])) * 100, 1)
+        h['total_collected_display'] = format_currency(h['total_collected_cents'])
+        h['total_daily_potential_display'] = format_currency(h['total_daily_potential_cents'])
+
+    houses = list(houses_dict.values())
+
     # Properties for new booking modal
     properties = Property.query.filter_by(management_status='ACTIVE').all()
 
@@ -98,6 +136,7 @@ def index():
         in_house=in_house,
         rooms=rooms,
         decorated_rooms=decorated_rooms,
+        houses=houses,
         booked_count=booked_count,
         vacant_count=vacant_count,
         today_collections_cents=today_collections_cents,
