@@ -250,3 +250,60 @@ def test_room_guest_sms_dispatch(app, client):
 
     assert res.status_code == 200
     assert b'SMS successfully sent' in res.data
+
+
+def test_guest_walk_out_marks_room_dirty_and_creates_turnover_task(app, client):
+    """Verify that when a guest walks out, room becomes VACANT, DIRTY, and spawns a turnover task."""
+    client.post('/auth/login', data={
+        'username': 'safari_admin',
+        'password': 'SafariPass2026!'
+    }, follow_redirects=True)
+
+    with app.app_context():
+        from app.models.hospitality import HousekeepingTask
+        room = RentalUnit.query.filter_by(unit_number='Villa 1 - Ocean View').first()
+        room_id = room.id
+        assert room.occupancy_status == 'OCCUPIED'
+        assert room.cleaning_status == 'CLEAN'
+
+        res_obj = HospitalityReservation.query.filter_by(rental_unit_id=room.id, status='CHECKED_IN').first()
+        assert res_obj is not None
+
+    # Guest walks out / departs
+    res = client.post(f'/hospitality/rooms/{room_id}/walk-out', follow_redirects=True)
+    assert res.status_code == 200
+    assert b'automatically flagged as DIRTY' in res.data or b'walk-out recorded' in res.data
+
+    with app.app_context():
+        from app.models.hospitality import HousekeepingTask
+        room_refreshed = db.session.get(RentalUnit, room_id)
+        assert room_refreshed.occupancy_status == 'VACANT'
+        assert room_refreshed.cleaning_status == 'DIRTY'
+
+        # Reservation checked out
+        res_refreshed = db.session.get(HospitalityReservation, res_obj.id)
+        assert res_refreshed.status == 'CHECKED_OUT'
+        assert res_refreshed.actual_check_out_time is not None
+
+        # Housekeeping task created
+        task = HousekeepingTask.query.filter_by(rental_unit_id=room_id, status='PENDING').first()
+        assert task is not None
+        assert task.task_type == 'TURNOVER_CLEAN'
+        assert task.priority == 'HIGH'
+
+
+def test_lifecycle_hook_marks_room_dirty_when_vacated(app, client):
+    """Verify SQLAlchemy event hook automatically sets cleaning_status to DIRTY on any OCCUPIED->VACANT change."""
+    with app.app_context():
+        room = RentalUnit.query.filter_by(unit_number='Villa 1 - Ocean View').first()
+        room.occupancy_status = 'OCCUPIED'
+        room.cleaning_status = 'CLEAN'
+        db.session.commit()
+
+        # Direct transition from OCCUPIED to VACANT
+        room.occupancy_status = 'VACANT'
+        db.session.commit()
+
+        # Must automatically be marked DIRTY by the model event listener
+        assert room.cleaning_status == 'DIRTY'
+

@@ -471,3 +471,54 @@ class HospitalityService:
             'properties': properties,
             'stats': stats
         }
+
+    @classmethod
+    def record_guest_walkout(cls, unit_id: int, user_id: int = None):
+        """
+        Executes immediate guest walk-out / departure logic:
+        1. Checks out any active in-house reservation on the room
+        2. Sets room occupancy to VACANT
+        3. Automatically flags cleaning status as DIRTY
+        4. Spawns an automated HIGH priority turnover housekeeping task
+        """
+        unit = db.session.get(RentalUnit, unit_id)
+        if not unit:
+            from flask import abort; abort(404)
+
+        today = date.today()
+
+        # Check out any active in-house reservation
+        active_res = HospitalityReservation.query.filter(
+            HospitalityReservation.rental_unit_id == unit.id,
+            HospitalityReservation.status == 'CHECKED_IN'
+        ).first()
+
+        guest_name = "Guest"
+        if active_res:
+            active_res.status = 'CHECKED_OUT'
+            active_res.actual_check_out_time = datetime.utcnow()
+            guest_name = active_res.guest.full_name if active_res.guest else "Guest"
+
+        unit.occupancy_status = 'VACANT'
+        unit.cleaning_status = 'DIRTY'
+
+        # Create or ensure turnover cleaning task exists
+        existing_task = HousekeepingTask.query.filter(
+            HousekeepingTask.rental_unit_id == unit.id,
+            HousekeepingTask.status.in_(['PENDING', 'IN_PROGRESS'])
+        ).first()
+
+        if not existing_task:
+            task = HousekeepingTask(
+                rental_unit_id=unit.id,
+                task_type='TURNOVER_CLEAN',
+                priority='HIGH',
+                status='PENDING',
+                scheduled_date=today,
+                notes=f"Turnover cleaning: {guest_name} walked out / vacated Room {unit.unit_number}.",
+                assigned_user_id=user_id
+            )
+            db.session.add(task)
+
+        db.session.commit()
+        return unit

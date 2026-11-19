@@ -349,6 +349,15 @@ def send_room_sms(unit_id):
         flash(f"SMS dispatch failed: {res.get('error')}", "danger")
     return redirect(request.referrer or url_for('hospitality.rooms'))
 
+@hospitality_bp.route('/rooms/<int:unit_id>/walk-out', methods=['POST'])
+@login_required
+@permission_required('properties.manage')
+def record_walk_out(unit_id):
+    user = cast(Any, current_user)
+    unit = HospitalityService.record_guest_walkout(unit_id, user_id=user.id)
+    flash(f"Guest walk-out recorded for Room '{unit.unit_number}'. Room is now VACANT and automatically flagged as DIRTY for turnover housekeeping.", "warning")
+    return redirect(request.referrer or url_for('hospitality.rooms'))
+
 
 # ─── Seasonal / Pricing Rules ────────────────────────────────────────────────
 

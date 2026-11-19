@@ -275,9 +275,15 @@
 
                                 <!-- 3. Check Out (if checked in) -->
                                 {% if res and res.status == 'CHECKED_IN' %}
-                                <button type="button" class="btn btn-sm btn-warning py-1 px-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#checkOutModal{{ res.id }}" title="Check Out Guest">
+                                <button type="button" class="btn btn-sm btn-warning py-1 px-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#checkOutModal{{ res.id }}" title="Check Out Guest (With Payment)">
                                     <i class="bi bi-box-arrow-right me-1"></i> Check Out
                                 </button>
+                                <form method="POST" action="{{ url_for('hospitality.record_walk_out', unit_id=u.id) }}" class="d-inline" onsubmit="return confirm('Confirm guest walk-out / departure for Room {{ u.unit_number }}? The room will immediately become VACANT and automatically flagged as DIRTY for turnover cleaning.');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="btn btn-sm btn-outline-danger py-1 px-2 fw-semibold" title="Record Immediate Walk-Out (Room automatically becomes DIRTY)">
+                                        <i class="bi bi-door-open-fill me-1"></i> Walk-Out
+                                    </button>
+                                </form>
                                 {% endif %}
 
                                 <!-- 4. Direct SMS Communication to Guest -->

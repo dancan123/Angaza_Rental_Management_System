@@ -116,5 +116,19 @@ class RentalUnit(db.Model):
     def deposit_display(self):
         return format_currency(self.deposit_amount_cents)
 
+    from sqlalchemy.orm import validates
+
+    @validates('occupancy_status')
+    def validate_occupancy_transition(self, key, value):
+        """
+        Automatic Turnover Sanitization:
+        If any room/unit was OCCUPIED and someone walks out / vacates (becomes VACANT),
+        the cleaning_status is automatically flagged as DIRTY for turnover housekeeping.
+        """
+        current_status = getattr(self, 'occupancy_status', None)
+        if current_status == 'OCCUPIED' and value == 'VACANT':
+            self.cleaning_status = 'DIRTY'
+        return value
+
     def __repr__(self):
         return f"<RentalUnit {self.unit_number} ({self.occupancy_status})>"
