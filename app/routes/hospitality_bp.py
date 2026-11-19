@@ -261,9 +261,15 @@ def complete_housekeeping_task(task_id):
 @login_required
 @permission_required('properties.manage')
 def rooms():
-    units = RentalUnit.query.order_by(RentalUnit.unit_number.asc()).all()
-    properties = Property.query.filter_by(management_status='ACTIVE').all()
-    return render_template('hospitality/rooms.html', units=units, properties=properties)
+    user = cast(Any, current_user)
+    org_id = user.organization_id if not user.is_superadmin() else None
+    data = HospitalityService.get_rooms_management_overview(organization_id=org_id)
+    return render_template(
+        'hospitality/rooms.html',
+        rooms=data['rooms'],
+        properties=data['properties'],
+        stats=data['stats']
+    )
 
 @hospitality_bp.route('/rooms/<int:unit_id>/update', methods=['POST'])
 @login_required
@@ -273,19 +279,75 @@ def update_room_config(unit_id):
     if not unit:
         from flask import abort; abort(404)
 
+    # Allow custom room renaming
+    new_unit_number = request.form.get('unit_number', '').strip()
+    if new_unit_number:
+        unit.unit_number = new_unit_number
+
+    unit_type = request.form.get('unit_type', '').strip()
+    if unit_type:
+        unit.unit_type = unit_type
+
     op_type = request.form.get('operational_type', 'LONG_TERM')
-    daily_rate = float(request.form.get('daily_rate', 0))
+    daily_rate = float(request.form.get('daily_rate', 0) or 0)
+    monthly_rent = float(request.form.get('monthly_rent', 0) or 0)
     max_guests = request.form.get('max_guests', type=int) or 2
     cleaning_status = request.form.get('cleaning_status', 'CLEAN')
+    description = request.form.get('description', '').strip()
 
     unit.operational_type = op_type
     unit.daily_rate_cents = to_cents(daily_rate)
+    if monthly_rent > 0:
+        unit.rent_amount_cents = to_cents(monthly_rent)
     unit.max_guests = max_guests
     unit.cleaning_status = cleaning_status
+    if description:
+        unit.description = description
     db.session.commit()
 
-    flash(f"Room configuration for Unit {unit.unit_number} updated ({op_type}).", 'success')
+    flash(f"Room '{unit.unit_number}' configuration updated successfully ({op_type}).", 'success')
     return redirect(url_for('hospitality.rooms'))
+
+@hospitality_bp.route('/rooms/<int:unit_id>/toggle-cleaning', methods=['POST'])
+@login_required
+@permission_required('properties.manage')
+def toggle_room_cleaning(unit_id):
+    unit = db.session.get(RentalUnit, unit_id)
+    if not unit:
+        from flask import abort; abort(404)
+    target = 'DIRTY' if unit.cleaning_status == 'CLEAN' else 'CLEAN'
+    user = cast(Any, current_user)
+    HospitalityService.update_cleaning_status(unit.id, target, user_id=user.id)
+    flash(f"Room '{unit.unit_number}' cleaning status updated to {target}.", 'success')
+    return redirect(request.referrer or url_for('hospitality.rooms'))
+
+@hospitality_bp.route('/rooms/<int:unit_id>/send-sms', methods=['POST'])
+@login_required
+@permission_required('properties.manage')
+def send_room_sms(unit_id):
+    unit = db.session.get(RentalUnit, unit_id)
+    if not unit:
+        from flask import abort; abort(404)
+
+    phone = request.form.get('phone', '').strip()
+    message = request.form.get('message', '').strip()
+    if not phone or not message:
+        flash("Phone number and message are required to send SMS.", "warning")
+        return redirect(request.referrer or url_for('hospitality.rooms'))
+
+    from app.services.sms_service import SmsService
+    org_id = unit.property.organization_id if unit.property else None
+    res = SmsService.send_sms(
+        to_phone=phone,
+        message=message,
+        notification_type='ROOM_COMMUNICATION',
+        organization_id=org_id
+    )
+    if res.get('success'):
+        flash(f"SMS successfully sent to {phone} for Room '{unit.unit_number}'.", "success")
+    else:
+        flash(f"SMS dispatch failed: {res.get('error')}", "danger")
+    return redirect(request.referrer or url_for('hospitality.rooms'))
 
 
 # ─── Seasonal / Pricing Rules ────────────────────────────────────────────────

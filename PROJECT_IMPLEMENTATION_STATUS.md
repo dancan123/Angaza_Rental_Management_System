@@ -205,6 +205,28 @@ Each component in the codebase has been audited and classified according to the 
   - Subscription suspension middleware automatically handles expired organizations.
 - [x] Automated test suite (`tests/test_phase20_commercial_onboarding_and_sms.py` — 4/4 passing).
 
+### Phase 12 / Phase 21: Tabular Airbnb Room Management, Custom Renaming & Financial Totals (DONE)
+- [x] **Comprehensive Tabular Airbnb Inventory View (`/hospitality/rooms`)**:
+  - Re-architected room inventory into an interactive administrative table with executive summary KPI cards.
+  - Cards: Total Inventory, Live Occupancy %, Daily Rate Capacity, Estimated Monthly Capacity (30-day projected potential), and Total Historical Collected Revenue.
+  - Interactive search bar (search by room name, property, or guest) and filter pills (All, Short-Stay Only, Vacant & Ready, Occupied/Booked, Needs Cleaning).
+- [x] **Open Custom Room Renaming (`POST /hospitality/rooms/<id>/update`)**:
+  - Each landlord/user can freely rename rooms according to their branding needs (e.g., "Sunset Suite 101", "Deluxe Ocean Penthouse", "Studio B-4").
+  - Configures daily/nightly rates, monthly equivalent rent, room type, max guest capacity, cleaning status, and room notes/keypad codes.
+- [x] **Financial Transparency per Room**:
+  - **Rate / Day**: Nightly charge clearly formatted (e.g. `KES 4,500 / night`).
+  - **Rate / Month**: 30-day projected capacity or monthly rent (e.g. `KES 135,000 / mo`).
+  - **Total Collected**: All-time actual revenue received and paid for that specific room from bookings.
+- [x] **Live Occupancy Status & Timelines**:
+  - Displays whether room is Booked/Occupied, Reserved, or Vacant & Ready.
+  - For booked rooms: displays active guest name, contact phone, check-in date ➜ check-out date, nights count, and paid status.
+- [x] **1-Click Operational Controls & Guest Communication**:
+  - **Book Room**: Instant booking modal pre-populated with room identifier and daily rate.
+  - **Check-In / Check-Out**: Direct actions to check in arriving guests or complete departures.
+  - **1-Click Cleaning Toggle (`POST /hospitality/rooms/<id>/toggle-cleaning`)**: Instant toggle between Clean & Ready and Dirty turnover.
+  - **Direct Room SMS (`POST /hospitality/rooms/<id>/send-sms`)**: Dispatches SMS messages with one-click templates (Check-in directions & keybox code, WiFi credentials & house rules, Checkout reminder).
+- [x] Automated test suite (`tests/test_phase21_hospitality_rooms_tabular.py` — 4/4 passing).
+
 ---
 
 ## 5. Current Progress Log
@@ -218,3 +240,4 @@ Each component in the codebase has been audited and classified according to the 
 - **2026-11-19 07:48**: Implemented Consolidated Commercial P&L Report (`reports.consolidated`), Dynamic Seasonal Pricing (`RoomPricingRule`), Multi-Room Booking Calendar (`hospitality.calendar`), and SMS Delivery History (`communication.sms_history`).
 - **2026-11-19 07:54**: Full test suite verified at **68 out of 68 passing tests** (zero regressions across all 19 test phases). All changes staged and committed.
 - **2026-11-19 08:35**: Phase 20 completed: Commercial self-onboarding portal, 14-day free trial engine, user impersonation for superadmin, SMS credits wallet and billing, subscription timeline management. Full test suite verified at **72 out of 72 passing tests** (zero regressions across all 20 test phases).
+- **2026-11-19 08:57**: Phase 21 completed: Tabular Airbnb room inventory, custom room renaming by landlords, daily/monthly/total collected financial columns, live occupancy timelines, 1-click booking, 1-click cleaning status toggle, and direct guest SMS communication. Full test suite verified at **76 out of 76 passing tests** (zero regressions across all 21 test phases).

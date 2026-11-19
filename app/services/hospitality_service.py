@@ -342,3 +342,132 @@ class HospitalityService:
             'monthly_revenue_display': format_currency(total_revenue_cents),
             'cleaning_counts': cleaning_counts
         }
+
+    @classmethod
+    def get_rooms_management_overview(cls, organization_id=None):
+        """
+        Retrieves all accommodation rooms/units with:
+        - Scoped to organization if provided
+        - Current active reservation details (guest, check-in, check-out, status)
+        - Financials: Daily rate, monthly potential/rate, and total historical collected amounts
+        - Aggregate financial & operational KPIs for administrative management
+        """
+        from app.models.property import Property
+        from sqlalchemy import func
+        from app.utils.currency import format_currency
+        today = date.today()
+
+        # Query properties scoped to organization
+        prop_query = Property.query
+        if organization_id:
+            prop_query = prop_query.filter(
+                (Property.organization_id == organization_id) | (Property.organization_id.is_(None))
+            )
+        properties = prop_query.order_by(Property.name.asc()).all()
+        prop_ids = [p.id for p in properties]
+
+        if not prop_ids:
+            return {
+                'rooms': [],
+                'properties': [],
+                'stats': {
+                    'total_rooms': 0,
+                    'short_stay_count': 0,
+                    'occupied_count': 0,
+                    'vacant_count': 0,
+                    'occupancy_rate': 0.0,
+                    'total_daily_rate_cents': 0,
+                    'total_monthly_potential_cents': 0,
+                    'total_collected_cents': 0,
+                    'total_daily_rate_display': format_currency(0),
+                    'total_monthly_potential_display': format_currency(0),
+                    'total_collected_display': format_currency(0),
+                }
+            }
+
+        # Query units for those properties
+        units = RentalUnit.query.filter(RentalUnit.property_id.in_(prop_ids)).order_by(RentalUnit.unit_number.asc()).all()
+        unit_ids = [u.id for u in units]
+
+        # Query active / in-house reservations for today
+        active_reservations = HospitalityReservation.query.filter(
+            HospitalityReservation.rental_unit_id.in_(unit_ids),
+            HospitalityReservation.check_in_date <= today,
+            HospitalityReservation.check_out_date > today,
+            HospitalityReservation.status.in_(['CHECKED_IN', 'CONFIRMED'])
+        ).all()
+        active_res_by_unit = {r.rental_unit_id: r for r in active_reservations}
+
+        # Query all-time collected amounts per unit from HospitalityReservation
+        collected_data = db.session.query(
+            HospitalityReservation.rental_unit_id,
+            func.coalesce(func.sum(HospitalityReservation.paid_amount_cents), 0).label('total_paid')
+        ).filter(
+            HospitalityReservation.rental_unit_id.in_(unit_ids),
+            HospitalityReservation.status != 'CANCELLED'
+        ).group_by(HospitalityReservation.rental_unit_id).all()
+        collected_by_unit = {row[0]: int(row[1]) for row in collected_data}
+
+        # Decorate each unit with computed administrative metadata
+        decorated_rooms = []
+        total_daily_rate_cents = 0
+        total_monthly_potential_cents = 0
+        total_collected_all_cents = 0
+        occupied_count = 0
+        short_stay_count = 0
+
+        for u in units:
+            active_res = active_res_by_unit.get(u.id)
+            collected_cents = collected_by_unit.get(u.id, 0)
+            
+            # Daily rate
+            daily_cents = u.daily_rate_cents or 0
+            
+            # Monthly potential: explicit rent_amount_cents or daily_rate * 30
+            monthly_cents = u.rent_amount_cents if u.rent_amount_cents > 0 else (daily_cents * 30)
+
+            is_occupied = active_res is not None or u.occupancy_status == 'OCCUPIED'
+            is_short_stay = (u.operational_type == 'SHORT_STAY')
+
+            if is_short_stay:
+                short_stay_count += 1
+                total_daily_rate_cents += daily_cents
+                total_monthly_potential_cents += monthly_cents
+                total_collected_all_cents += collected_cents
+                if is_occupied:
+                    occupied_count += 1
+
+            room_info = {
+                'unit': u,
+                'active_reservation': active_res,
+                'is_occupied': is_occupied,
+                'daily_rate_cents': daily_cents,
+                'monthly_potential_cents': monthly_cents,
+                'total_collected_cents': collected_cents,
+                'daily_rate_display': format_currency(daily_cents),
+                'monthly_potential_display': format_currency(monthly_cents),
+                'total_collected_display': format_currency(collected_cents),
+            }
+            decorated_rooms.append(room_info)
+
+        occupancy_rate = round((occupied_count / max(1, short_stay_count)) * 100, 1)
+
+        stats = {
+            'total_rooms': len(units),
+            'short_stay_count': short_stay_count,
+            'occupied_count': occupied_count,
+            'vacant_count': max(0, short_stay_count - occupied_count),
+            'occupancy_rate': occupancy_rate,
+            'total_daily_rate_cents': total_daily_rate_cents,
+            'total_monthly_potential_cents': total_monthly_potential_cents,
+            'total_collected_cents': total_collected_all_cents,
+            'total_daily_rate_display': format_currency(total_daily_rate_cents),
+            'total_monthly_potential_display': format_currency(total_monthly_potential_cents),
+            'total_collected_display': format_currency(total_collected_all_cents),
+        }
+
+        return {
+            'rooms': decorated_rooms,
+            'properties': properties,
+            'stats': stats
+        }

@@ -1,140 +1,683 @@
 {% extends "base.html" %}
 
-{% block title %}Short-Stay Units &amp; Daily Pricing - {{ app_name }}{% endblock %}
+{% block title %}Short-Stay / Airbnb Room Inventory & Administration - {{ app_name }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <div>
-        <h3 class="fw-bold mb-0">Short-Stay Unit Inventory &amp; Nightly Rates</h3>
-        <p class="text-muted small mb-0">Classify units between Long-Term Rentals and Hospitality / Airbnb accommodation, and configure nightly pricing.</p>
+        <h3 class="fw-bold mb-0">Short-Stay / Airbnb Room Inventory & Administration</h3>
+        <p class="text-muted small mb-0">Manage daily rates, custom room naming, live occupancy timelines, guest communication, and total revenue collected.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('hospitality.calendar') }}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-calendar3 me-1"></i> Availability Calendar
+        </a>
+        <a href="{{ url_for('hospitality.reservations') }}" class="btn btn-danger btn-sm">
+            <i class="bi bi-calendar-plus me-1"></i> All Reservations
+        </a>
     </div>
 </div>
 
-<div class="card card-custom bg-white">
+<!-- Financial & Operational Administrative KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="card card-custom bg-white h-100 p-3">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="text-muted small fw-semibold">Total Inventory</span>
+                <span class="badge bg-primary-subtle text-primary"><i class="bi bi-building"></i></span>
+            </div>
+            <h4 class="fw-bold mb-0 text-dark">{{ stats.total_rooms }} Rooms</h4>
+            <div class="text-muted small mt-1">{{ stats.short_stay_count }} Short-Stay / Airbnb</div>
+        </div>
+    </div>
+
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="card card-custom bg-white h-100 p-3">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="text-muted small fw-semibold">Live Occupancy</span>
+                <span class="badge bg-danger-subtle text-danger"><i class="bi bi-person-check-fill"></i></span>
+            </div>
+            <h4 class="fw-bold mb-0 text-dark">{{ stats.occupied_count }} Occupied</h4>
+            <div class="text-success small mt-1">
+                <i class="bi bi-door-open me-1"></i>{{ stats.vacant_count }} Vacant ({{ stats.occupancy_rate }}%)
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="card card-custom bg-white h-100 p-3">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="text-muted small fw-semibold">Daily Rate Inventory</span>
+                <span class="badge bg-info-subtle text-info"><i class="bi bi-tag-fill"></i></span>
+            </div>
+            <h4 class="fw-bold mb-0 text-info">{{ stats.total_daily_rate_display }}</h4>
+            <div class="text-muted small mt-1">Total per day capacity</div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 col-sm-6">
+        <div class="card card-custom bg-white h-100 p-3">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="text-muted small fw-semibold">Estimated Monthly Capacity</span>
+                <span class="badge bg-warning-subtle text-warning"><i class="bi bi-graph-up-arrow"></i></span>
+            </div>
+            <h4 class="fw-bold mb-0 text-dark">{{ stats.total_monthly_potential_display }}</h4>
+            <div class="text-muted small mt-1">30-day projected potential</div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 col-sm-12">
+        <div class="card card-custom bg-white h-100 p-3 border-start border-4 border-success">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="text-muted small fw-semibold">Total Collected (Historical)</span>
+                <span class="badge bg-success-subtle text-success"><i class="bi bi-cash-stack"></i></span>
+            </div>
+            <h4 class="fw-bold mb-0 text-success">{{ stats.total_collected_display }}</h4>
+            <div class="text-muted small mt-1">Actual revenue received from bookings</div>
+        </div>
+    </div>
+</div>
+
+<!-- Search & Filtering Controls -->
+<div class="card card-custom bg-white p-3 mb-4">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-5">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                <input type="text" id="roomSearchInput" class="form-control border-start-0" placeholder="Search room name, property, or current guest..."/>
+            </div>
+        </div>
+        <div class="col-md-7 text-md-end">
+            <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn btn-outline-secondary active filter-btn" data-filter="all">All Rooms ({{ rooms|length }})</button>
+                <button type="button" class="btn btn-outline-danger filter-btn" data-filter="shortstay">Short-Stay Only ({{ stats.short_stay_count }})</button>
+                <button type="button" class="btn btn-outline-success filter-btn" data-filter="vacant">Vacant ({{ stats.vacant_count }})</button>
+                <button type="button" class="btn btn-outline-warning filter-btn" data-filter="occupied">Occupied / Booked ({{ stats.occupied_count }})</button>
+                <button type="button" class="btn btn-outline-secondary filter-btn" data-filter="dirty">Needs Cleaning</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Rooms Table -->
+<div class="card card-custom bg-white shadow-sm">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0" id="roomsTable">
                 <thead class="table-light small">
                     <tr>
-                        <th class="ps-3">Unit Number</th>
-                        <th>Property</th>
-                        <th>Type / Bedrooms</th>
-                        <th>Operational Classification</th>
-                        <th>Nightly Rate ({{ currency }})</th>
-                        <th>Max Capacity</th>
-                        <th>Cleaning Status</th>
-                        <th>Occupancy</th>
-                        <th class="text-end pe-3">Actions</th>
+                        <th class="ps-3" style="min-width: 200px;">Room / Suite Name</th>
+                        <th style="min-width: 140px;">Property &amp; Type</th>
+                        <th style="min-width: 110px;">Classification</th>
+                        <th style="min-width: 140px;">Rate / Day</th>
+                        <th style="min-width: 140px;">Rate / Month</th>
+                        <th style="min-width: 140px;">Total Collected</th>
+                        <th style="min-width: 220px;">Current Status &amp; Timeline</th>
+                        <th style="min-width: 120px;">Cleaning</th>
+                        <th class="text-end pe-3" style="min-width: 210px;">Operational Actions</th>
                     </tr>
                 </thead>
                 <tbody class="small">
-                    {% for u in units %}
-                    <tr>
-                        <td class="ps-3 fw-bold text-dark">
-                            Unit {{ u.unit_number }}
+                    {% for r in rooms %}
+                    {% set u = r.unit %}
+                    {% set res = r.active_reservation %}
+                    <tr class="room-row"
+                        data-operational="{{ 'shortstay' if u.operational_type == 'SHORT_STAY' else 'longterm' }}"
+                        data-status="{{ 'occupied' if r.is_occupied else 'vacant' }}"
+                        data-cleaning="{{ u.cleaning_status.lower() }}"
+                        data-search="{{ u.unit_number|lower }} {{ u.property.name|lower if u.property else '' }} {{ res.guest.full_name|lower if res and res.guest else '' }}">
+
+                        <!-- Room Name (Customizable by Landlord) -->
+                        <td class="ps-3">
+                            <div class="d-flex align-items-center">
+                                <div class="avatar-sm rounded bg-light text-dark fw-bold d-flex align-items-center justify-content-center me-2 border" style="width: 38px; height: 38px; min-width: 38px;">
+                                    <i class="bi bi-door-closed text-danger"></i>
+                                </div>
+                                <div>
+                                    <span class="fw-bold text-dark d-block text-truncate" style="max-width: 170px;" title="{{ u.unit_number }}">
+                                        {{ u.unit_number }}
+                                    </span>
+                                    <small class="text-muted d-block">
+                                        <i class="bi bi-people me-1"></i>Max {{ u.max_guests or 2 }} Guests
+                                    </small>
+                                </div>
+                            </div>
                         </td>
-                        <td>{{ u.property.name if u.property else '' }}</td>
-                        <td>{{ u.unit_type }} ({{ u.bedrooms }} Bed / {{ u.bathrooms }} Bath)</td>
+
+                        <!-- Property & Type -->
+                        <td>
+                            <div class="fw-semibold text-dark text-truncate" style="max-width: 140px;" title="{{ u.property.name if u.property else 'Unassigned' }}">
+                                {{ u.property.name if u.property else 'Unassigned' }}
+                            </div>
+                            <small class="text-muted d-block">
+                                {{ u.unit_type }} {% if u.bedrooms %}({{ u.bedrooms }} Bed){% endif %}
+                            </small>
+                        </td>
+
+                        <!-- Operational Classification -->
                         <td>
                             {% if u.operational_type == 'SHORT_STAY' %}
                                 <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold">
-                                    <i class="bi bi-cup-hot me-1"></i>Short-Stay / Airbnb
+                                    <i class="bi bi-cup-hot me-1"></i>Airbnb / Short
                                 </span>
                             {% else %}
                                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
-                                    <i class="bi bi-building me-1"></i>Long-Term Rental
+                                    <i class="bi bi-building me-1"></i>Long-Term
                                 </span>
                             {% endif %}
                         </td>
-                        <td class="fw-bold">
-                            {% if u.daily_rate_cents > 0 %}
-                                KES {{ (u.daily_rate_cents / 100) | round(2) }}
-                            {% else %}
-                                <span class="text-muted fst-italic">Not set</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ u.max_guests or 2 }} Guests</td>
+
+                        <!-- Amount Per Room Per Day -->
                         <td>
-                            {% if u.cleaning_status == 'CLEAN' %}
-                                <span class="badge bg-success">Clean</span>
-                            {% elif u.cleaning_status == 'DIRTY' %}
-                                <span class="badge bg-danger">Dirty</span>
-                            {% elif u.cleaning_status == 'INSPECTED' %}
-                                <span class="badge bg-primary">Inspected</span>
-                            {% else %}
-                                <span class="badge bg-secondary">Out of Order</span>
-                            {% endif %}
+                            <div class="fw-bold text-dark fs-6">
+                                {{ r.daily_rate_display }}
+                            </div>
+                            <small class="text-muted">per night</small>
                         </td>
+
+                        <!-- Amount Per Room Per Month -->
                         <td>
-                            {% if u.occupancy_status == 'OCCUPIED' %}
-                                <span class="badge bg-info text-white">Occupied</span>
-                            {% elif u.occupancy_status == 'RESERVED' %}
-                                <span class="badge bg-warning text-dark">Reserved</span>
+                            <div class="fw-semibold text-secondary">
+                                {{ r.monthly_potential_display }}
+                            </div>
+                            <small class="text-muted">30-day capacity</small>
+                        </td>
+
+                        <!-- Total Collected Amount -->
+                        <td>
+                            <div class="fw-bold text-success">
+                                {{ r.total_collected_display }}
+                            </div>
+                            <small class="text-muted">Historical Total</small>
+                        </td>
+
+                        <!-- Live Status & Timeline -->
+                        <td>
+                            {% if res and res.status == 'CHECKED_IN' %}
+                                <div class="mb-1">
+                                    <span class="badge bg-danger text-white fw-semibold">
+                                        <i class="bi bi-person-fill-check me-1"></i>Occupied / In-House
+                                    </span>
+                                </div>
+                                <div class="fw-bold text-dark text-truncate" style="max-width: 200px;">
+                                    <i class="bi bi-person me-1 text-muted"></i>{{ res.guest.full_name }}
+                                </div>
+                                <div class="text-muted small">
+                                    <i class="bi bi-calendar-range me-1 text-info"></i>
+                                    {{ res.check_in_date.strftime('%d %b') }} &rarr; {{ res.check_out_date.strftime('%d %b') }}
+                                    <span class="badge bg-light text-dark border ms-1">{{ res.num_nights }}n</span>
+                                </div>
+                            {% elif res and res.status == 'CONFIRMED' %}
+                                <div class="mb-1">
+                                    <span class="badge bg-warning text-dark fw-semibold">
+                                        <i class="bi bi-clock-history me-1"></i>Reserved (Arrival)
+                                    </span>
+                                </div>
+                                <div class="fw-bold text-dark text-truncate" style="max-width: 200px;">
+                                    {{ res.guest.full_name }}
+                                </div>
+                                <div class="text-muted small">
+                                    Arriving: {{ res.check_in_date.strftime('%d %b') }} &rarr; {{ res.check_out_date.strftime('%d %b') }}
+                                </div>
                             {% else %}
-                                <span class="badge bg-success-subtle text-success">Vacant</span>
+                                {% if u.cleaning_status == 'CLEAN' %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle py-1 px-2 fw-semibold">
+                                        <i class="bi bi-check-circle-fill me-1"></i>Vacant &amp; Ready
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle py-1 px-2 fw-semibold">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>Vacant (Dirty)
+                                    </span>
+                                {% endif %}
+                                <div class="text-muted small mt-1">Available for immediate booking</div>
                             {% endif %}
                         </td>
+
+                        <!-- Cleaning Status with Quick 1-Click Toggle -->
+                        <td>
+                            <form method="POST" action="{{ url_for('hospitality.toggle_room_cleaning', unit_id=u.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                {% if u.cleaning_status == 'CLEAN' %}
+                                    <button type="submit" class="btn btn-outline-success btn-sm py-0 px-2 rounded-pill fw-semibold" title="Click to mark Dirty">
+                                        <i class="bi bi-stars me-1"></i> Clean
+                                    </button>
+                                {% elif u.cleaning_status == 'DIRTY' %}
+                                    <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2 rounded-pill fw-semibold" title="Click to mark Clean">
+                                        <i class="bi bi-trash3 me-1"></i> Dirty
+                                    </button>
+                                {% elif u.cleaning_status == 'INSPECTED' %}
+                                    <button type="submit" class="btn btn-outline-primary btn-sm py-0 px-2 rounded-pill fw-semibold" title="Inspected">
+                                        <i class="bi bi-shield-check me-1"></i> Inspected
+                                    </button>
+                                {% else %}
+                                    <span class="badge bg-secondary">Out of Order</span>
+                                {% endif %}
+                            </form>
+                        </td>
+
+                        <!-- Operational Actions -->
                         <td class="text-end pe-3">
-                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#editRoomModal{{ u.id }}">
-                                <i class="bi bi-pencil-square me-1"></i> Configure
-                            </button>
+                            <div class="d-inline-flex gap-1 flex-wrap justify-content-end">
+                                <!-- 1. Instant Book Button (Always available to book vacant or advance dates) -->
+                                <button type="button" class="btn btn-sm btn-danger py-1 px-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#bookRoomModal{{ u.id }}" title="Book this room">
+                                    <i class="bi bi-calendar-plus me-1"></i> Book
+                                </button>
+
+                                <!-- 2. Check In (if reserved) -->
+                                {% if res and res.status == 'CONFIRMED' %}
+                                <form method="POST" action="{{ url_for('hospitality.check_in', res_id=res.id) }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="btn btn-sm btn-success py-1 px-2 fw-semibold" title="Check In Guest">
+                                        <i class="bi bi-box-arrow-in-right me-1"></i> Check In
+                                    </button>
+                                </form>
+                                {% endif %}
+
+                                <!-- 3. Check Out (if checked in) -->
+                                {% if res and res.status == 'CHECKED_IN' %}
+                                <button type="button" class="btn btn-sm btn-warning py-1 px-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#checkOutModal{{ res.id }}" title="Check Out Guest">
+                                    <i class="bi bi-box-arrow-right me-1"></i> Check Out
+                                </button>
+                                {% endif %}
+
+                                <!-- 4. Direct SMS Communication to Guest -->
+                                <button type="button" class="btn btn-sm btn-outline-info py-1 px-2" data-bs-toggle="modal" data-bs-target="#smsRoomModal{{ u.id }}" title="Send SMS message to guest or staff">
+                                    <i class="bi bi-chat-dots-fill"></i>
+                                </button>
+
+                                <!-- 5. Rename & Configure Room Modal -->
+                                <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2" data-bs-toggle="modal" data-bs-target="#editRoomModal{{ u.id }}" title="Rename room and configure rates">
+                                    <i class="bi bi-pencil-square"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>
 
-                    <!-- Edit Room Modal -->
+                    <!-- ========================================== -->
+                    <!-- MODAL 1: Rename & Configure Room Modal     -->
+                    <!-- ========================================== -->
                     <div class="modal fade" id="editRoomModal{{ u.id }}" tabindex="-1" aria-hidden="true">
-                        <div class="modal-dialog">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title fw-bold">Configure Unit {{ u.unit_number }}</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content border-0 shadow">
+                                <div class="modal-header bg-dark text-white">
+                                    <h5 class="modal-title fw-bold">
+                                        <i class="bi bi-gear-fill me-2 text-danger"></i>Rename &amp; Configure Room
+                                    </h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                                 </div>
                                 <form method="POST" action="{{ url_for('hospitality.update_room_config', unit_id=u.id) }}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                     <div class="modal-body">
+                                        <!-- Custom Room Name / Unit Number -->
                                         <div class="mb-3">
-                                            <label class="form-label small fw-semibold">Operational Classification *</label>
-                                            <select name="operational_type" class="form-select">
-                                                <option value="LONG_TERM" {% if u.operational_type == 'LONG_TERM' %}selected{% endif %}>Long-Term Rental (Residential / Commercial)</option>
-                                                <option value="SHORT_STAY" {% if u.operational_type == 'SHORT_STAY' %}selected{% endif %}>Short-Stay / Hospitality (Airbnb / Serviced)</option>
-                                            </select>
-                                            <div class="form-text">Short-stay units appear in the hospitality reservation grid and guest booking forms.</div>
-                                        </div>
-
-                                        <div class="mb-3">
-                                            <label class="form-label small fw-semibold">Nightly Daily Rate ({{ currency }})</label>
-                                            <input type="number" step="0.01" name="daily_rate" class="form-control" value="{{ u.daily_rate_cents / 100 }}" placeholder="e.g. 3500">
-                                            <div class="form-text">Rate charged per night for short-stay accommodation.</div>
+                                            <label class="form-label small fw-bold">Room / Suite Name *</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text bg-light"><i class="bi bi-tag-fill text-danger"></i></span>
+                                                <input type="text" name="unit_number" class="form-control" value="{{ u.unit_number }}" required placeholder="e.g. Sunset Suite 101, Ocean Studio 4B, Room 12"/>
+                                            </div>
+                                            <div class="form-text">Landlords can give each room their own custom descriptive name or code.</div>
                                         </div>
 
                                         <div class="row g-2 mb-3">
                                             <div class="col-md-6">
-                                                <label class="form-label small fw-semibold">Maximum Guest Capacity</label>
-                                                <input type="number" name="max_guests" class="form-control" value="{{ u.max_guests or 2 }}" min="1" max="20">
+                                                <label class="form-label small fw-semibold">Room Type</label>
+                                                <input type="text" name="unit_type" class="form-control" value="{{ u.unit_type }}" placeholder="e.g. Studio, Suite, 1 Bed Apartment"/>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Operational Classification *</label>
+                                                <select name="operational_type" class="form-select">
+                                                    <option value="SHORT_STAY" {% if u.operational_type == 'SHORT_STAY' %}selected{% endif %}>Short-Stay / Airbnb</option>
+                                                    <option value="LONG_TERM" {% if u.operational_type == 'LONG_TERM' %}selected{% endif %}>Long-Term Rental</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <!-- Pricing Inputs -->
+                                        <div class="row g-2 mb-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-bold text-danger">Rate Per Day / Night (KES) *</label>
+                                                <input type="number" step="0.01" name="daily_rate" class="form-control fw-bold" value="{{ (u.daily_rate_cents / 100) | round(2) }}" required placeholder="e.g. 4500"/>
+                                                <div class="form-text">Nightly rate for short-stay guests.</div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Rate Per Month (KES)</label>
+                                                <input type="number" step="0.01" name="monthly_rent" class="form-control" value="{{ (u.rent_amount_cents / 100) | round(2) if u.rent_amount_cents else 0 }}" placeholder="e.g. 120000"/>
+                                                <div class="form-text">Monthly rental / equivalent.</div>
+                                            </div>
+                                        </div>
+
+                                        <div class="row g-2 mb-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Max Guests Capacity</label>
+                                                <input type="number" name="max_guests" class="form-control" value="{{ u.max_guests or 2 }}" min="1" max="30"/>
                                             </div>
                                             <div class="col-md-6">
                                                 <label class="form-label small fw-semibold">Cleaning Status</label>
                                                 <select name="cleaning_status" class="form-select">
-                                                    <option value="CLEAN" {% if u.cleaning_status == 'CLEAN' %}selected{% endif %}>Clean & Ready</option>
-                                                    <option value="DIRTY" {% if u.cleaning_status == 'DIRTY' %}selected{% endif %}>Dirty (Turnover)</option>
+                                                    <option value="CLEAN" {% if u.cleaning_status == 'CLEAN' %}selected{% endif %}>Clean &amp; Ready</option>
+                                                    <option value="DIRTY" {% if u.cleaning_status == 'DIRTY' %}selected{% endif %}>Dirty (Needs Turnover)</option>
                                                     <option value="INSPECTED" {% if u.cleaning_status == 'INSPECTED' %}selected{% endif %}>Inspected</option>
                                                     <option value="OUT_OF_SERVICE" {% if u.cleaning_status == 'OUT_OF_SERVICE' %}selected{% endif %}>Out of Service</option>
                                                 </select>
                                             </div>
                                         </div>
+
+                                        <div class="mb-2">
+                                            <label class="form-label small fw-semibold">Room Description / Amenities / Access Instructions</label>
+                                            <textarea name="description" class="form-control" rows="2" placeholder="e.g. Master En-suite, High Speed WiFi, Balcony view, Smart Keypad Code #4492">{{ u.description or '' }}</textarea>
+                                        </div>
                                     </div>
                                     <div class="modal-footer">
                                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                                        <button type="submit" class="btn btn-primary-custom">Save Configuration</button>
+                                        <button type="submit" class="btn btn-danger fw-semibold px-4">Save Configuration</button>
                                     </div>
                                 </form>
                             </div>
                         </div>
                     </div>
+
+                    <!-- ========================================== -->
+                    <!-- MODAL 2: Instant Room Booking Modal        -->
+                    <!-- ========================================== -->
+                    <div class="modal fade" id="bookRoomModal{{ u.id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-lg modal-dialog-centered">
+                            <div class="modal-content border-0 shadow">
+                                <div class="modal-header bg-danger text-white">
+                                    <h5 class="modal-title fw-bold">
+                                        <i class="bi bi-calendar-plus me-2"></i>Book Room: {{ u.unit_number }} ({{ u.property.name if u.property else '' }})
+                                    </h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                </div>
+                                <form method="POST" action="{{ url_for('hospitality.create_reservation') }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <input type="hidden" name="rental_unit_id" value="{{ u.id }}"/>
+                                    <div class="modal-body">
+                                        <!-- Room & Financial Snapshot -->
+                                        <div class="p-3 bg-light rounded border mb-3">
+                                            <div class="row g-2 text-center text-md-start">
+                                                <div class="col-md-4">
+                                                    <span class="text-muted small d-block">Room Selected:</span>
+                                                    <strong class="text-dark fs-6">{{ u.unit_number }}</strong>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <span class="text-muted small d-block">Daily Rate (KES):</span>
+                                                    <strong class="text-danger fs-6">{{ r.daily_rate_display }}</strong>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <span class="text-muted small d-block">Max Capacity:</span>
+                                                    <strong class="text-dark fs-6">{{ u.max_guests or 2 }} Guests</strong>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <h6 class="fw-bold text-uppercase text-secondary small border-bottom pb-1 mb-3">1. Guest Information</h6>
+                                        <div class="row g-2 mb-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">First Name *</label>
+                                                <input type="text" name="first_name" class="form-control" required placeholder="e.g. John"/>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Last Name *</label>
+                                                <input type="text" name="last_name" class="form-control" required placeholder="e.g. Mwangi"/>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Phone (for M-Pesa &amp; SMS) *</label>
+                                                <input type="text" name="phone" class="form-control" required placeholder="e.g. 0712345678"/>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Email Address</label>
+                                                <input type="email" name="email" class="form-control" placeholder="e.g. john@example.com"/>
+                                            </div>
+                                        </div>
+
+                                        <h6 class="fw-bold text-uppercase text-secondary small border-bottom pb-1 mb-3">2. Stay Dates &amp; Timelines</h6>
+                                        <div class="row g-2 mb-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Check-In Date *</label>
+                                                <input type="date" name="check_in_date" class="form-control" required/>
+                                                <div class="form-text">Standard check-in time: 14:00</div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Check-Out Date *</label>
+                                                <input type="date" name="check_out_date" class="form-control" required/>
+                                                <div class="form-text">Standard check-out time: 10:00</div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-semibold">Custom Daily Rate (Optional)</label>
+                                                <input type="number" step="0.01" name="daily_rate" class="form-control" value="{{ (u.daily_rate_cents / 100) | round(2) if u.daily_rate_cents else '' }}" placeholder="Default room rate"/>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-semibold">Number of Guests</label>
+                                                <input type="number" name="num_guests" class="form-control" value="1" min="1" max="{{ u.max_guests or 20 }}"/>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-semibold">Booking Source</label>
+                                                <select name="booking_source" class="form-select">
+                                                    <option value="DIRECT" selected>Direct / Phone / Walk-in</option>
+                                                    <option value="AIRBNB">Airbnb</option>
+                                                    <option value="BOOKING_COM">Booking.com</option>
+                                                    <option value="WEBSITE">Website</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-12">
+                                                <label class="form-label small fw-semibold">Special Requests / Keycode Notes</label>
+                                                <textarea name="special_requests" class="form-control" rows="2" placeholder="e.g. Late check-in after 8 PM, requires baby cot, airport pickup requested..."></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-danger fw-semibold px-4">Confirm Room Reservation</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- MODAL 3: Direct Guest SMS Communication    -->
+                    <!-- ========================================== -->
+                    <div class="modal fade" id="smsRoomModal{{ u.id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content border-0 shadow">
+                                <div class="modal-header bg-info-subtle">
+                                    <h5 class="modal-title fw-bold text-dark">
+                                        <i class="bi bi-chat-dots-fill me-2 text-info"></i>Direct SMS &mdash; Room {{ u.unit_number }}
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <form method="POST" action="{{ url_for('hospitality.send_room_sms', unit_id=u.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <div class="modal-body">
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-bold">Recipient Mobile Phone *</label>
+                                            <input type="text" name="phone" class="form-control fw-semibold" value="{{ res.guest.phone if res and res.guest else '' }}" required placeholder="e.g. +254712345678"/>
+                                            <div class="form-text">
+                                                {% if res and res.guest %}
+                                                    Pre-filled for active guest: <strong>{{ res.guest.full_name }}</strong>
+                                                {% else %}
+                                                    Enter guest or caretaker phone number.
+                                                {% endif %}
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-semibold">Quick Message Templates</label>
+                                            <select class="form-select form-select-sm" onchange="applyTemplate(this, 'msgBox{{ u.id }}', '{{ u.unit_number }}', '{{ res.guest.first_name if res and res.guest else 'Guest' }}')">
+                                                <option value="">-- Choose a standard template or type below --</option>
+                                                <option value="checkin">Check-in Instructions &amp; Keypad Code</option>
+                                                <option value="wifi">WiFi Network &amp; House Rules</option>
+                                                <option value="checkout">Check-Out Reminder Notice (10:00 AM)</option>
+                                                <option value="welcome">Warm Welcome &amp; Host Contact</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-bold">SMS Message Content *</label>
+                                            <textarea id="msgBox{{ u.id }}" name="message" class="form-control" rows="4" required placeholder="Type SMS message to dispatch via Twilio...">Dear {{ res.guest.full_name if res and res.guest else 'Guest' }}, welcome to {{ u.unit_number }} at {{ u.property.name if u.property else 'our apartments' }}! Check-in: 14:00, Check-out: 10:00. Enjoy your stay!</textarea>
+                                        </div>
+
+                                        <div class="alert alert-light border small text-muted mb-0">
+                                            <i class="bi bi-info-circle me-1 text-info"></i> Dispatches via Twilio SMS gateway and logs into audit history.
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-info fw-semibold text-white px-4">
+                                            <i class="bi bi-send-fill me-1"></i> Send SMS
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================== -->
+                    <!-- MODAL 4: Check-Out Modal (If In-House)     -->
+                    <!-- ========================================== -->
+                    {% if res and res.status == 'CHECKED_IN' %}
+                    <div class="modal fade" id="checkOutModal{{ res.id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content border-0 shadow">
+                                <div class="modal-header bg-warning-subtle">
+                                    <h5 class="modal-title fw-bold text-dark">
+                                        <i class="bi bi-box-arrow-right me-2 text-warning-emphasis"></i>Guest Departure &amp; Check-Out
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <form method="POST" action="{{ url_for('hospitality.check_out', res_id=res.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <div class="modal-body">
+                                        <div class="p-3 bg-light rounded border mb-3">
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span>Guest:</span>
+                                                <strong>{{ res.guest.full_name }}</strong>
+                                            </div>
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span>Room / Suite:</span>
+                                                <strong>{{ u.unit_number }}</strong>
+                                            </div>
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span>Total Stay ({{ res.num_nights }} nights):</span>
+                                                <strong>KES {{ (res.total_stay_cents / 100) | round(2) }}</strong>
+                                            </div>
+                                            <div class="d-flex justify-content-between text-success mb-1">
+                                                <span>Already Paid:</span>
+                                                <strong>KES {{ (res.paid_amount_cents / 100) | round(2) }}</strong>
+                                            </div>
+                                            <div class="d-flex justify-content-between text-danger fw-bold border-top pt-1 mt-1">
+                                                <span>Outstanding Balance:</span>
+                                                <span>KES {{ ((res.total_stay_cents - res.paid_amount_cents) / 100) | round(2) }}</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-semibold">Settlement Amount (KES)</label>
+                                            <input type="number" step="0.01" name="payment_amount" class="form-control" value="{{ [0, (res.total_stay_cents - res.paid_amount_cents) / 100] | max }}"/>
+                                        </div>
+
+                                        <div class="row g-2 mb-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Payment Channel</label>
+                                                <select name="payment_method" class="form-select">
+                                                    <option value="MPESA" selected>M-Pesa</option>
+                                                    <option value="CASH">Cash</option>
+                                                    <option value="CARD">Card / POS</option>
+                                                    <option value="BANK">Bank Transfer</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Transaction / Receipt Ref</label>
+                                                <input type="text" name="payment_reference" class="form-control" placeholder="e.g. QK891234"/>
+                                            </div>
+                                        </div>
+
+                                        <div class="alert alert-warning small mb-0">
+                                            <i class="bi bi-exclamation-triangle me-1"></i> Checking out will record the departure time and immediately mark Room {{ u.unit_number }} as <strong>DIRTY</strong> for turnover housekeeping.
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-warning fw-semibold px-4">Complete Departure</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-5">
+                            <i class="bi bi-door-open fs-1 d-block mb-2 text-muted"></i>
+                            No rooms or rental units configured in system yet.
+                        </td>
+                    </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
 </div>
+
+<script>
+    // Live Search across Room Name, Property, Guest
+    document.getElementById('roomSearchInput').addEventListener('input', function(e) {
+        const query = e.target.value.toLowerCase().trim();
+        const rows = document.querySelectorAll('.room-row');
+        rows.forEach(row => {
+            const searchData = row.getAttribute('data-search') || '';
+            if (!query || searchData.includes(query)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+
+    // Filtering Tabs
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            const filter = this.getAttribute('data-filter');
+            const rows = document.querySelectorAll('.room-row');
+
+            rows.forEach(row => {
+                const op = row.getAttribute('data-operational');
+                const st = row.getAttribute('data-status');
+                const cl = row.getAttribute('data-cleaning');
+
+                if (filter === 'all') {
+                    row.style.display = '';
+                } else if (filter === 'shortstay') {
+                    row.style.display = (op === 'shortstay') ? '' : 'none';
+                } else if (filter === 'vacant') {
+                    row.style.display = (st === 'vacant') ? '' : 'none';
+                } else if (filter === 'occupied') {
+                    row.style.display = (st === 'occupied') ? '' : 'none';
+                } else if (filter === 'dirty') {
+                    row.style.display = (cl === 'dirty') ? '' : 'none';
+                }
+            });
+        });
+    });
+
+    // Apply quick SMS templates
+    function applyTemplate(selectElem, textAreaId, roomName, guestName) {
+        const val = selectElem.value;
+        const box = document.getElementById(textAreaId);
+        if (!box) return;
+
+        if (val === 'checkin') {
+            box.value = `Dear ${guestName}, welcome to ${roomName}! Check-in is at 14:00. Keybox code is 1234. Please contact us on 0712345678 if you need any assistance.`;
+        } else if (val === 'wifi') {
+            box.value = `Dear ${guestName}, WiFi credentials for ${roomName}: Network: 'Angaza_Guest', Password: 'WelcomeHome2026!'. Please observe quiet hours from 10 PM.`;
+        } else if (val === 'checkout') {
+            box.value = `Dear ${guestName}, friendly reminder that check-out for ${roomName} is today at 10:00 AM. Please leave the keys on the counter. Thank you for staying with us!`;
+        } else if (val === 'welcome') {
+            box.value = `Dear ${guestName}, welcome to ${roomName}! We hope you have a pleasant stay. Let us know if you need any supplies or recommendations.`;
+        }
+    }
+</script>
 {% endblock %}
