@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Short-Stay Units &amp; Daily Pricing - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h3 class="fw-bold mb-0">Short-Stay Unit Inventory &amp; Nightly Rates</h3>
+        <p class="text-muted small mb-0">Classify units between Long-Term Rentals and Hospitality / Airbnb accommodation, and configure nightly pricing.</p>
+    </div>
+</div>
+
+<div class="card card-custom bg-white">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light small">
+                    <tr>
+                        <th class="ps-3">Unit Number</th>
+                        <th>Property</th>
+                        <th>Type / Bedrooms</th>
+                        <th>Operational Classification</th>
+                        <th>Nightly Rate ({{ currency }})</th>
+                        <th>Max Capacity</th>
+                        <th>Cleaning Status</th>
+                        <th>Occupancy</th>
+                        <th class="text-end pe-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="small">
+                    {% for u in units %}
+                    <tr>
+                        <td class="ps-3 fw-bold text-dark">
+                            Unit {{ u.unit_number }}
+                        </td>
+                        <td>{{ u.property.name if u.property else '' }}</td>
+                        <td>{{ u.unit_type }} ({{ u.bedrooms }} Bed / {{ u.bathrooms }} Bath)</td>
+                        <td>
+                            {% if u.operational_type == 'SHORT_STAY' %}
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold">
+                                    <i class="bi bi-cup-hot me-1"></i>Short-Stay / Airbnb
+                                </span>
+                            {% else %}
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                    <i class="bi bi-building me-1"></i>Long-Term Rental
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="fw-bold">
+                            {% if u.daily_rate_cents > 0 %}
+                                KES {{ (u.daily_rate_cents / 100) | round(2) }}
+                            {% else %}
+                                <span class="text-muted fst-italic">Not set</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ u.max_guests or 2 }} Guests</td>
+                        <td>
+                            {% if u.cleaning_status == 'CLEAN' %}
+                                <span class="badge bg-success">Clean</span>
+                            {% elif u.cleaning_status == 'DIRTY' %}
+                                <span class="badge bg-danger">Dirty</span>
+                            {% elif u.cleaning_status == 'INSPECTED' %}
+                                <span class="badge bg-primary">Inspected</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Out of Order</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if u.occupancy_status == 'OCCUPIED' %}
+                                <span class="badge bg-info text-white">Occupied</span>
+                            {% elif u.occupancy_status == 'RESERVED' %}
+                                <span class="badge bg-warning text-dark">Reserved</span>
+                            {% else %}
+                                <span class="badge bg-success-subtle text-success">Vacant</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-3">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#editRoomModal{{ u.id }}">
+                                <i class="bi bi-pencil-square me-1"></i> Configure
+                            </button>
+                        </td>
+                    </tr>
+
+                    <!-- Edit Room Modal -->
+                    <div class="modal fade" id="editRoomModal{{ u.id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title fw-bold">Configure Unit {{ u.unit_number }}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <form method="POST" action="{{ url_for('hospitality.update_room_config', unit_id=u.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <div class="modal-body">
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-semibold">Operational Classification *</label>
+                                            <select name="operational_type" class="form-select">
+                                                <option value="LONG_TERM" {% if u.operational_type == 'LONG_TERM' %}selected{% endif %}>Long-Term Rental (Residential / Commercial)</option>
+                                                <option value="SHORT_STAY" {% if u.operational_type == 'SHORT_STAY' %}selected{% endif %}>Short-Stay / Hospitality (Airbnb / Serviced)</option>
+                                            </select>
+                                            <div class="form-text">Short-stay units appear in the hospitality reservation grid and guest booking forms.</div>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-semibold">Nightly Daily Rate ({{ currency }})</label>
+                                            <input type="number" step="0.01" name="daily_rate" class="form-control" value="{{ u.daily_rate_cents / 100 }}" placeholder="e.g. 3500">
+                                            <div class="form-text">Rate charged per night for short-stay accommodation.</div>
+                                        </div>
+
+                                        <div class="row g-2 mb-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Maximum Guest Capacity</label>
+                                                <input type="number" name="max_guests" class="form-control" value="{{ u.max_guests or 2 }}" min="1" max="20">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Cleaning Status</label>
+                                                <select name="cleaning_status" class="form-select">
+                                                    <option value="CLEAN" {% if u.cleaning_status == 'CLEAN' %}selected{% endif %}>Clean & Ready</option>
+                                                    <option value="DIRTY" {% if u.cleaning_status == 'DIRTY' %}selected{% endif %}>Dirty (Turnover)</option>
+                                                    <option value="INSPECTED" {% if u.cleaning_status == 'INSPECTED' %}selected{% endif %}>Inspected</option>
+                                                    <option value="OUT_OF_SERVICE" {% if u.cleaning_status == 'OUT_OF_SERVICE' %}selected{% endif %}>Out of Service</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-primary-custom">Save Configuration</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

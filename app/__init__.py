@@ -104,6 +104,7 @@ def create_app(config_name=None):
     from app.routes.communication_bp import communication_bp
     from app.routes.utilities_bp import utilities_bp
     from app.routes.tenant_portal_bp import tenant_portal_bp
+    from app.routes.hospitality_bp import hospitality_bp
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -122,5 +123,6 @@ def create_app(config_name=None):
     app.register_blueprint(communication_bp)
     app.register_blueprint(utilities_bp)
     app.register_blueprint(tenant_portal_bp)
+    app.register_blueprint(hospitality_bp)
     
     return app

@@ -1,0 +1,180 @@
+import os
+import requests
+from datetime import datetime
+from app.extensions import db
+from app.models.communication import Notification
+from app.services.personalization_service import PersonalizationService
+
+class SmsService:
+    """
+    Twilio SMS integration service.
+    Handles message composition, E.164 phone number formatting (Kenya +254 and international),
+    Twilio HTTP REST API dispatch, delivery logging, and sandbox/simulation fallbacks.
+    """
+
+    @staticmethod
+    def format_phone_number(phone: str) -> str:
+        """
+        Formats phone number into standard E.164 format.
+        Supports Kenyan formats:
+          0712345678 -> +254712345678
+          0112345678 -> +254112345678
+          254712345678 -> +254712345678
+          +254712345678 -> +254712345678
+        """
+        if not phone:
+            return ""
+        clean = phone.replace(' ', '').replace('-', '').replace('(', '').replace(')', '').strip()
+        if clean.startswith('+'):
+            return clean
+        if clean.startswith('0'):
+            return '+254' + clean[1:]
+        if clean.startswith('254'):
+            return '+' + clean
+        if clean.startswith('7') or clean.startswith('1'):
+            return '+254' + clean
+        return '+' + clean
+
+    @classmethod
+    def get_twilio_credentials(cls):
+        """
+        Retrieves Twilio configuration from system settings or environment.
+        """
+        account_sid = PersonalizationService.get_setting('twilio_account_sid', os.environ.get('TWILIO_ACCOUNT_SID', ''))
+        auth_token = PersonalizationService.get_setting('twilio_auth_token', os.environ.get('TWILIO_AUTH_TOKEN', ''))
+        from_number = PersonalizationService.get_setting('twilio_from_number', os.environ.get('TWILIO_FROM_NUMBER', ''))
+        is_enabled = PersonalizationService.get_setting('twilio_sms_enabled', 'false').lower() in ('true', '1', 'yes')
+
+        return {
+            'account_sid': account_sid.strip() if account_sid else '',
+            'auth_token': auth_token.strip() if auth_token else '',
+            'from_number': from_number.strip() if from_number else '',
+            'is_enabled': is_enabled
+        }
+
+    @classmethod
+    def send_sms(cls, to_phone: str, message: str, notification_type='GENERAL', landlord_id=None, recipient_user_id=None):
+        """
+        Sends an SMS to the target recipient.
+        If Twilio credentials are not set or disabled, logs a SIMULATED notification.
+        """
+        formatted_phone = cls.format_phone_number(to_phone)
+        if not formatted_phone:
+            return {'success': False, 'error': 'Invalid recipient phone number'}
+
+        creds = cls.get_twilio_credentials()
+
+        notif = Notification(
+            recipient_user_id=recipient_user_id,
+            landlord_id=landlord_id,
+            title=f"SMS to {formatted_phone}",
+            message=message,
+            channel='SMS',
+            notification_type=notification_type,
+            sent_status='PENDING'
+        )
+        db.session.add(notif)
+        db.session.commit()
+
+        # If credentials are not configured or SMS is disabled, log as SIMULATED
+        if not creds['is_enabled'] or not creds['account_sid'] or not creds['auth_token'] or not creds['from_number']:
+            notif.sent_status = 'SIMULATED'
+            notif.sent_at = datetime.utcnow()
+            notif.error_details = 'Simulated delivery (Twilio credentials not configured or disabled)'
+            db.session.commit()
+            return {'success': True, 'simulated': True, 'notification_id': notif.id}
+
+        # Dispatch via Twilio REST API
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{creds['account_sid']}/Messages.json"
+        data = {
+            'To': formatted_phone,
+            'From': creds['from_number'],
+            'Body': message
+        }
+
+        try:
+            resp = requests.post(url, data=data, auth=(creds['account_sid'], creds['auth_token']), timeout=10)
+            if resp.status_code in (200, 201):
+                res_json = resp.json()
+                notif.sent_status = 'SENT'
+                notif.sent_at = datetime.utcnow()
+                notif.error_details = f"Twilio SID: {res_json.get('sid', '')}"
+                db.session.commit()
+                return {'success': True, 'sid': res_json.get('sid'), 'notification_id': notif.id}
+            else:
+                err_msg = f"Twilio error [{resp.status_code}]: {resp.text}"
+                notif.sent_status = 'FAILED'
+                notif.error_details = err_msg
+                db.session.commit()
+                return {'success': False, 'error': err_msg, 'notification_id': notif.id}
+        except requests.RequestException as e:
+            err_msg = f"Network error contacting Twilio: {str(e)}"
+            notif.sent_status = 'FAILED'
+            notif.error_details = err_msg
+            db.session.commit()
+            return {'success': False, 'error': err_msg, 'notification_id': notif.id}
+
+    @classmethod
+    def send_payment_sms(cls, payment):
+        """
+        Triggered after a successful verified payment.
+        Sends SMS to:
+          1. Tenant: Payment receipt confirmation with remaining balance.
+          2. Landlord: Notification of revenue received.
+        """
+        tenant = payment.tenant
+        unit = payment.rental_unit
+        prop = payment.property
+        landlord = prop.landlord if prop else None
+
+        from app.services.tenant_service import TenantService
+        summary = TenantService.get_tenant_financial_summary(tenant.id) if tenant else {'outstanding_cents': 0}
+        from app.utils.currency import format_currency
+        balance_str = format_currency(summary['outstanding_cents'])
+
+        # 1. SMS to Tenant
+        if tenant and tenant.phone:
+            tenant_msg = (
+                f"Dear {tenant.first_name}, payment of {payment.amount_display} for Unit {unit.unit_number} ({prop.name}) "
+                f"has been confirmed. Receipt: {payment.receipt_number}. Remaining Balance: {balance_str}. Thank you!"
+            )
+            cls.send_sms(
+                to_phone=tenant.phone,
+                message=tenant_msg,
+                notification_type='RENT_PAYMENT_CONFIRMED',
+                landlord_id=landlord.id if landlord else None
+            )
+
+        # 2. SMS to Landlord
+        if landlord and landlord.phone:
+            landlord_msg = (
+                f"Payment Alert: Rent {payment.amount_display} received from {tenant.full_name} for Unit {unit.unit_number} "
+                f"({prop.name}). Ref: {payment.transaction_reference or payment.receipt_number}."
+            )
+            cls.send_sms(
+                to_phone=landlord.phone,
+                message=landlord_msg,
+                notification_type='RENT_PAYMENT_CONFIRMED',
+                landlord_id=landlord.id
+            )
+
+    @classmethod
+    def send_booking_sms(cls, booking):
+        """
+        Dispatches booking confirmation SMS to prospective tenant/guest.
+        """
+        if not booking.prospective_phone:
+            return
+        unit = booking.rental_unit
+        prop = unit.property if unit else None
+        msg = (
+            f"Dear {booking.prospective_name}, your reservation for Unit {unit.unit_number} at {prop.name} "
+            f"has been received! Ref: {booking.booking_reference}. Move-in date: {booking.expected_move_in_date}. "
+            f"Our team will contact you shortly."
+        )
+        cls.send_sms(
+            to_phone=booking.prospective_phone,
+            message=msg,
+            notification_type='BOOKING_CREATED',
+            landlord_id=prop.landlord_id if prop else None
+        )

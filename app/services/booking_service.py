@@ -57,6 +57,13 @@ class BookingService:
         db.session.add(booking)
         db.session.commit()
 
+        # Send booking confirmation SMS
+        from app.services.sms_service import SmsService
+        try:
+            SmsService.send_booking_sms(booking)
+        except Exception:
+            pass
+
         AuditService.log('CREATE_BOOKING', 'Booking', booking.id, new_values={'ref': ref, 'unit': unit.unit_number, 'name': prospective_name})
         return booking
 
@@ -75,6 +82,13 @@ class BookingService:
             booking.booking_deposit_cents = to_cents(holding_deposit)
         unit.occupancy_status = 'RESERVED'
         db.session.commit()
+
+        from app.services.sms_service import SmsService
+        try:
+            SmsService.send_booking_sms(booking)
+        except Exception:
+            pass
+
         AuditService.log('APPROVE_BOOKING', 'Booking', booking.id, new_values={'unit': unit.unit_number, 'name': booking.prospective_name})
         return booking
 

@@ -32,6 +32,16 @@
             <i class="bi bi-bell-fill me-1 text-warning"></i> Automated System Alerts ({{ notifications|length }})
         </a>
     </li>
+    <li class="nav-item">
+        <a class="nav-link fw-semibold {% if active_tab == 'sms' %}active{% endif %}" href="{{ url_for('communication.index', tab='sms') }}">
+            <i class="bi bi-chat-dots-fill me-1 text-info"></i> Twilio SMS Gateway
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link fw-semibold {% if active_tab == 'bulk' %}active{% endif %}" href="{{ url_for('communication.index', tab='bulk') }}">
+            <i class="bi bi-broadcast-pin me-1 text-danger"></i> Bulk SMS Broadcast
+        </a>
+    </li>
 </ul>
 
 <div class="tab-content">
@@ -248,6 +258,116 @@
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+    {% elif active_tab == 'sms' %}
+    <!-- Twilio SMS Gateway Tab -->
+    <div class="row g-4">
+        <div class="col-md-7">
+            <div class="card card-custom bg-white p-4">
+                <h5 class="fw-bold mb-3"><i class="bi bi-chat-square-text-fill me-2 text-info"></i> Twilio SMS Gateway Configuration</h5>
+                <p class="text-muted small">Configure your Twilio account to enable automated SMS notifications for rent payments, arrears reminders, and booking confirmations.</p>
+                
+                <form method="POST" action="{{ url_for('communication.save_twilio_config') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Twilio Account SID</label>
+                        <input type="text" name="twilio_account_sid" class="form-control" value="{{ twilio_creds.account_sid }}" placeholder="e.g. ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Twilio Auth Token</label>
+                        <input type="password" name="twilio_auth_token" class="form-control" value="{{ twilio_creds.auth_token }}" placeholder="e.g. your_auth_token">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Sender ID / Twilio Phone Number</label>
+                        <input type="text" name="twilio_from_number" class="form-control" value="{{ twilio_creds.from_number }}" placeholder="e.g. +1234567890 or Registered Sender ID">
+                        <div class="form-text">Must be a verified Twilio phone number (in E.164 format) or an approved alphanumeric Sender ID.</div>
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" name="twilio_sms_enabled" id="smsSwitch" {% if twilio_creds.is_enabled %}checked{% endif %}>
+                        <label class="form-check-label fw-semibold" for="smsSwitch">Enable Live SMS Dispatch</label>
+                        <div class="form-text">When disabled or credentials are empty, all SMS dispatches are simulated and logged safely for auditing.</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary-custom px-4">
+                        <i class="bi bi-save me-1"></i> Save Gateway Configuration
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="col-md-5">
+            <div class="card card-custom bg-white p-4">
+                <h5 class="fw-bold mb-3"><i class="bi bi-send-check me-2 text-primary"></i> Send Test SMS</h5>
+                <p class="text-muted small">Verify your Twilio connection by sending an immediate test SMS to a mobile number.</p>
+                
+                <form method="POST" action="{{ url_for('communication.test_twilio_sms') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Recipient Mobile Number *</label>
+                        <input type="text" name="test_phone" class="form-control" placeholder="e.g. 0712345678 or +254712345678" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Test Message Content</label>
+                        <textarea name="test_message" class="form-control" rows="3">Test message from Angaza Rental Management System. Twilio SMS gateway is operational!</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-outline-primary w-100">
+                        <i class="bi bi-broadcast me-1"></i> Dispatch Test SMS
+                    </button>
+                </form>
+
+                <div class="alert alert-light border mt-4 mb-0 small">
+                    <div class="fw-bold mb-1"><i class="bi bi-info-circle text-info me-1"></i> Automated SMS Triggers</div>
+                    <ul class="mb-0 ps-3 text-muted">
+                        <li><strong>M-Pesa Rent Payments:</strong> Instant SMS receipt to tenant & alert to landlord.</li>
+                        <li><strong>Rent Invoices & Reminders:</strong> Arrears notices sent with account number.</li>
+                        <li><strong>Unit Reservations:</strong> Booking confirmation SMS to prospective tenants.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% elif active_tab == 'bulk' %}
+    <!-- Bulk SMS Broadcast Tab -->
+    <div class="card card-custom bg-white p-4">
+        <div class="row">
+            <div class="col-md-8">
+                <h5 class="fw-bold mb-2"><i class="bi bi-broadcast-pin me-2 text-danger"></i> Bulk SMS Broadcast to Tenants</h5>
+                <p class="text-muted small mb-4">Send announcements, water shut-off notices, power interruptions, or general alerts to all active tenants or tenants of a specific property.</p>
+                
+                <form method="POST" action="{{ url_for('communication.send_bulk_sms') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Target Property Audience</label>
+                        <select name="property_id" class="form-select">
+                            <option value="">Broadcast to All Active Tenants Across All Properties</option>
+                            {% for p in properties %}
+                            <option value="{{ p.id }}">{{ p.name }} ({{ p.location }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Broadcast Message *</label>
+                        <textarea name="bulk_message" class="form-control" rows="5" placeholder="Dear {name}, please note that maintenance will take place this Saturday from 9 AM to 1 PM..." required></textarea>
+                        <div class="form-text">Placeholders supported: <code>{name}</code> (First name), <code>{full_name}</code> (Full name).</div>
+                    </div>
+                    <button type="submit" class="btn btn-danger px-4" onclick="return confirm('Are you sure you want to broadcast this SMS message to the selected tenants?');">
+                        <i class="bi bi-send-fill me-1"></i> Send Bulk Broadcast Now
+                    </button>
+                </form>
+            </div>
+            <div class="col-md-4 border-start ps-4">
+                <h6 class="fw-bold mb-3"><i class="bi bi-lightning-charge text-warning me-1"></i> Broadcast Guidelines</h6>
+                <div class="small text-muted mb-3">
+                    <p>Personalized tags automatically substitute the tenant's real name to maintain a professional touch.</p>
+                    <p>Only active tenants with registered phone numbers will receive the broadcast.</p>
+                </div>
+                <div class="card bg-light border-0 p-3">
+                    <div class="fw-semibold small mb-1">Standard Kenya Formats:</div>
+                    <span class="badge bg-secondary mb-1">07XXXXXXXX</span>
+                    <span class="badge bg-secondary mb-1">01XXXXXXXX</span>
+                    <span class="badge bg-secondary mb-1">+254XXXXXXXXX</span>
+                </div>
             </div>
         </div>
     </div>

@@ -7,6 +7,7 @@ class Property(db.Model):
     __tablename__ = 'properties'
     
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id', ondelete='SET NULL'), nullable=True, index=True)
     landlord_id = db.Column(db.Integer, db.ForeignKey('landlords.id', ondelete='CASCADE'), nullable=False, index=True)
     name = db.Column(db.String(150), nullable=False, index=True)
     ref_number = db.Column(db.String(50), unique=True, nullable=False, index=True)
@@ -19,6 +20,7 @@ class Property(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    organization = db.relationship('Organization', back_populates='properties')
     landlord = db.relationship('Landlord', back_populates='properties')
     buildings = db.relationship('Building', back_populates='property', lazy='dynamic', cascade='all, delete-orphan')
     rental_units = db.relationship('RentalUnit', back_populates='property', lazy='dynamic', cascade='all, delete-orphan')
@@ -82,6 +84,13 @@ class RentalUnit(db.Model):
     occupancy_status = db.Column(db.String(20), nullable=False, default='VACANT', index=True)
     current_tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='SET NULL'), nullable=True, index=True)
     availability_date = db.Column(db.Date)
+    
+    # Hospitality / Short-Stay extensions (Module B)
+    operational_type = db.Column(db.String(30), nullable=False, default='LONG_TERM', index=True)  # LONG_TERM, SHORT_STAY
+    daily_rate_cents = db.Column(db.Integer, nullable=False, default=0)
+    max_guests = db.Column(db.Integer, default=2)
+    cleaning_status = db.Column(db.String(30), nullable=False, default='CLEAN', index=True)  # CLEAN, DIRTY, INSPECTED, OUT_OF_SERVICE
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

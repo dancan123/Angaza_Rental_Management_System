@@ -10,9 +10,12 @@ from app.models.communication import Notification, NotificationSetting
 from app.models.system import SystemSetting, AuditLog, DatabaseBackup
 from app.models.utility import Meter, MeterReading
 from app.models.lead import HouseSeekerLead, ExternalPropertyListing
+from app.models.hospitality import Guest, HospitalityReservation, HousekeepingTask
+from app.models.organization import Organization
 
 __all__ = [
     'Role', 'Permission', 'RolePermission', 'Landlord', 'LandlordUser', 'User',
+    'Organization',
     'Property', 'Building', 'Floor', 'RentalUnit',
     'Tenant', 'TenantDocument', 'NextOfKin',
     'Booking',
@@ -23,6 +26,7 @@ __all__ = [
     'Notification', 'NotificationSetting',
     'SystemSetting', 'AuditLog', 'DatabaseBackup',
     'Meter', 'MeterReading',
-    'HouseSeekerLead', 'ExternalPropertyListing'
+    'HouseSeekerLead', 'ExternalPropertyListing',
+    'Guest', 'HospitalityReservation', 'HousekeepingTask'
 ]
 

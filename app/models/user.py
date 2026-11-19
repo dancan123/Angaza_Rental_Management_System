@@ -86,6 +86,7 @@ class User(UserMixin, db.Model):
     __tablename__ = 'users'
     
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id', ondelete='SET NULL'), nullable=True, index=True)
     username = db.Column(db.String(64), unique=True, nullable=False, index=True)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     phone = db.Column(db.String(30), index=True)
@@ -97,6 +98,7 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    organization = db.relationship('Organization', back_populates='users')
     role = db.relationship('Role', back_populates='users')
     landlords = db.relationship('Landlord', secondary='landlord_users', back_populates='users')
     audit_logs = db.relationship('AuditLog', back_populates='user', lazy='dynamic')

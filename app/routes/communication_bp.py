@@ -36,6 +36,10 @@ def index():
     properties = Property.query.filter_by(management_status='ACTIVE').all()
     recipients = User.query.filter(User.id != user_id, User.is_active.is_(True)).all()
 
+    # Twilio configuration
+    from app.services.sms_service import SmsService
+    twilio_creds = SmsService.get_twilio_credentials()
+
     return render_template(
         'communication/index.html',
         inbox=inbox,
@@ -43,6 +47,7 @@ def index():
         notifications=notifications,
         properties=properties,
         recipients=recipients,
+        twilio_creds=twilio_creds,
         active_tab=tab
     )
 
@@ -112,3 +117,83 @@ def reply_message(msg_id):
     db.session.commit()
     flash(f"Response saved and request marked as {new_status}.", 'success')
     return redirect(url_for('communication.index', tab='inbox'))
+
+@communication_bp.route('/twilio/save', methods=['POST'])
+@login_required
+def save_twilio_config():
+    user = cast(Any, current_user)
+    if not user.is_superadmin() and not user.has_permission('settings.manage'):
+        flash('Unauthorized: Administrative permission required to update Twilio settings.', 'danger')
+        return redirect(url_for('communication.index', tab='sms'))
+
+    from app.services.personalization_service import PersonalizationService
+    sid = request.form.get('twilio_account_sid', '').strip()
+    token = request.form.get('twilio_auth_token', '').strip()
+    from_num = request.form.get('twilio_from_number', '').strip()
+    enabled = 'true' if request.form.get('twilio_sms_enabled') else 'false'
+
+    PersonalizationService.set_setting('twilio_account_sid', sid, 'Twilio Account SID for live SMS')
+    PersonalizationService.set_setting('twilio_auth_token', token, 'Twilio Auth Token')
+    PersonalizationService.set_setting('twilio_from_number', from_num, 'Twilio verified Sender ID or Phone Number')
+    PersonalizationService.set_setting('twilio_sms_enabled', enabled, 'Flag indicating whether live SMS dispatch is active')
+
+    flash('Twilio SMS gateway configuration saved successfully.', 'success')
+    return redirect(url_for('communication.index', tab='sms'))
+
+@communication_bp.route('/twilio/test', methods=['POST'])
+@login_required
+def test_twilio_sms():
+    phone = request.form.get('test_phone', '').strip()
+    msg = request.form.get('test_message', 'Test message from Angaza Property Management System. Twilio gateway operational!').strip()
+
+    if not phone:
+        flash('Recipient phone number is required for test SMS.', 'danger')
+        return redirect(url_for('communication.index', tab='sms'))
+
+    from app.services.sms_service import SmsService
+    res = SmsService.send_sms(to_phone=phone, message=msg, notification_type='TEST_SMS')
+
+    if res.get('success'):
+        if res.get('simulated'):
+            flash(f"Test SMS simulation logged successfully for {phone}. (Twilio credentials not configured/active)", 'info')
+        else:
+            flash(f"Live Test SMS successfully dispatched to {phone} via Twilio! (SID: {res.get('sid')})", 'success')
+    else:
+        flash(f"Twilio SMS dispatch failed: {res.get('error')}", 'danger')
+
+    return redirect(url_for('communication.index', tab='sms'))
+
+@communication_bp.route('/bulk-sms', methods=['POST'])
+@login_required
+def send_bulk_sms():
+    user = cast(Any, current_user)
+    if not user.has_permission('tenants.manage') and not user.is_superadmin():
+        flash('Unauthorized: Permission required to send bulk SMS.', 'danger')
+        return redirect(url_for('communication.index', tab='bulk'))
+
+    property_id = request.form.get('property_id', type=int)
+    message = request.form.get('bulk_message', '').strip()
+
+    if not message:
+        flash('Message text is required for bulk dispatch.', 'danger')
+        return redirect(url_for('communication.index', tab='bulk'))
+
+    from app.models.tenant import Tenant
+    from app.models.property import RentalUnit
+    from app.services.sms_service import SmsService
+
+    query = Tenant.query.filter_by(is_active=True)
+    if property_id:
+        query = query.join(RentalUnit, Tenant.id == RentalUnit.current_tenant_id).filter(RentalUnit.property_id == property_id)
+
+    tenants = query.all()
+    count = 0
+    for t in tenants:
+        if t.phone:
+            personalized_msg = message.replace('{name}', t.first_name).replace('{full_name}', t.full_name)
+            SmsService.send_sms(to_phone=t.phone, message=personalized_msg, notification_type='BULK_SMS')
+            count += 1
+
+    flash(f"Bulk SMS broadcast queued and dispatched to {count} active tenant(s).", 'success')
+    return redirect(url_for('communication.index', tab='bulk'))
+

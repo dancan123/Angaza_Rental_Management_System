@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block title %}Housekeeping & Room Status Board - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h3 class="fw-bold mb-0">Housekeeping &amp; Room Readiness Board</h3>
+        <p class="text-muted small mb-0">Track room hygiene, turnover sanitization, inspections, and assign cleaning duties to staff.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-warning fw-semibold" data-bs-toggle="modal" data-bs-target="#newTaskModal">
+            <i class="bi bi-plus-circle me-1"></i> Assign Cleaning Task
+        </button>
+    </div>
+</div>
+
+<!-- Room Status Cards Grid -->
+<div class="card card-custom bg-white p-4 mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold mb-0"><i class="bi bi-grid-fill text-warning me-2"></i> All Units Housekeeping Readiness</h5>
+        <div class="d-flex gap-2 small">
+            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">Clean &amp; Ready</span>
+            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">Dirty (Turnover)</span>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">Inspected</span>
+            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">Out of Order</span>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        {% for u in rooms %}
+        <div class="col-sm-6 col-md-4 col-lg-3">
+            <div class="card border h-100 p-3 {% if u.cleaning_status == 'DIRTY' %}border-danger bg-danger-subtle bg-opacity-10{% elif u.cleaning_status == 'CLEAN' %}border-success bg-success-subtle bg-opacity-10{% elif u.cleaning_status == 'INSPECTED' %}border-primary bg-primary-subtle bg-opacity-10{% else %}border-secondary{% endif %}">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <h5 class="fw-bold mb-0">Unit {{ u.unit_number }}</h5>
+                        <small class="text-muted">{{ u.property.name if u.property else '' }}</small>
+                    </div>
+                    {% if u.cleaning_status == 'CLEAN' %}
+                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Clean</span>
+                    {% elif u.cleaning_status == 'DIRTY' %}
+                        <span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>Dirty</span>
+                    {% elif u.cleaning_status == 'INSPECTED' %}
+                        <span class="badge bg-primary"><i class="bi bi-shield-check me-1"></i>Inspected</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Out of Order</span>
+                    {% endif %}
+                </div>
+
+                <div class="small text-muted mb-3">
+                    <div>Type: <strong>{{ u.unit_type }}</strong></div>
+                    <div>Occupancy: <strong>{{ u.occupancy_status }}</strong></div>
+                    <div>Op Mode: <span class="badge bg-light text-dark border">{{ u.operational_type }}</span></div>
+                </div>
+
+                <!-- Quick Change Status Form -->
+                <form method="POST" action="{{ url_for('hospitality.update_cleaning_status') }}" class="mt-auto">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <input type="hidden" name="unit_id" value="{{ u.id }}"/>
+                    <div class="input-group input-group-sm">
+                        <select name="cleaning_status" class="form-select form-select-sm">
+                            <option value="CLEAN" {% if u.cleaning_status == 'CLEAN' %}selected{% endif %}>Clean</option>
+                            <option value="DIRTY" {% if u.cleaning_status == 'DIRTY' %}selected{% endif %}>Dirty</option>
+                            <option value="INSPECTED" {% if u.cleaning_status == 'INSPECTED' %}selected{% endif %}>Inspected</option>
+                            <option value="OUT_OF_SERVICE" {% if u.cleaning_status == 'OUT_OF_SERVICE' %}selected{% endif %}>Out of Order</option>
+                        </select>
+                        <button class="btn btn-outline-secondary" type="submit" title="Save Status">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Housekeeping Tasks Queue -->
+<div class="card card-custom bg-white p-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold mb-0"><i class="bi bi-list-task text-primary me-2"></i> Housekeeping Work Orders ({{ tasks|length }})</h5>
+        <span class="text-muted small">Cleaning queues and sanitization tasks</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light small">
+                <tr>
+                    <th>Unit</th>
+                    <th>Task Type</th>
+                    <th>Priority</th>
+                    <th>Assigned Cleaner</th>
+                    <th>Scheduled Date</th>
+                    <th>Notes</th>
+                    <th>Status</th>
+                    <th class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody class="small">
+                {% for t in tasks %}
+                <tr>
+                    <td class="fw-bold text-dark">Unit {{ t.rental_unit.unit_number }}</td>
+                    <td>
+                        <span class="badge bg-light text-dark border">{{ t.task_type | replace('_', ' ') }}</span>
+                    </td>
+                    <td>
+                        {% if t.priority == 'URGENT' or t.priority == 'HIGH' %}
+                            <span class="badge bg-danger">{{ t.priority }}</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ t.priority }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if t.assigned_user %}
+                            <div class="fw-semibold">{{ t.assigned_user.full_name }}</div>
+                        {% else %}
+                            <span class="text-muted fst-italic">Unassigned</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ t.scheduled_date.strftime('%d/%m/%Y') }}</td>
+                    <td style="max-width:300px;">
+                        <div class="text-truncate">{{ t.notes or '&mdash;' }}</div>
+                    </td>
+                    <td>
+                        {% if t.status == 'COMPLETED' %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle">Completed</span>
+                        {% elif t.status == 'IN_PROGRESS' %}
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">In Progress</span>
+                        {% else %}
+                            <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Pending</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        {% if t.status != 'COMPLETED' %}
+                        <form method="POST" action="{{ url_for('hospitality.complete_housekeeping_task', task_id=t.id) }}" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="btn btn-success btn-sm fw-semibold">
+                                <i class="bi bi-check2-circle me-1"></i> Mark Done
+                            </button>
+                        </form>
+                        {% else %}
+                        <small class="text-muted">{{ t.completed_at.strftime('%d/%m %H:%M') if t.completed_at else '' }}</small>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">No housekeeping tasks scheduled.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Assign Cleaning Task Modal -->
+<div class="modal fade" id="newTaskModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning-subtle">
+                <h5 class="modal-title fw-bold">Assign Housekeeping Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('hospitality.create_housekeeping_task') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Select Room / Unit *</label>
+                        <select name="rental_unit_id" class="form-select" required>
+                            {% for u in rooms %}
+                            <option value="{{ u.id }}">Unit {{ u.unit_number }} ({{ u.property.name if u.property else '' }}) &mdash; {{ u.cleaning_status }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Cleaning Staff Member</label>
+                        <select name="assigned_user_id" class="form-select">
+                            <option value="">-- Leave Unassigned / Open Pool --</option>
+                            {% for s in staff %}
+                            <option value="{{ s.id }}">{{ s.full_name }} ({{ s.role.display_name if s.role else 'Staff' }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Task Type</label>
+                            <select name="task_type" class="form-select">
+                                <option value="TURNOVER_CLEAN">Turnover Sanitization</option>
+                                <option value="DAILY_REFRESH">Daily Refresh / Linen</option>
+                                <option value="DEEP_CLEAN">Deep Clean / Scrub</option>
+                                <option value="INSPECTION">Manager Inspection</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Priority</label>
+                            <select name="priority" class="form-select">
+                                <option value="NORMAL">Normal</option>
+                                <option value="HIGH">High (Guest arriving today)</option>
+                                <option value="URGENT">Urgent</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Special Instructions</label>
+                        <textarea name="notes" class="form-control" rows="3" placeholder="Change duvets, restock toiletries, check AC remote..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning fw-semibold">Create Cleaning Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

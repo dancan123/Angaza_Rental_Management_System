@@ -1,0 +1,288 @@
+from datetime import datetime, date
+from typing import Any, cast
+from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask_login import login_required, current_user
+from app.extensions import db
+from app.models.property import RentalUnit, Property
+from app.models.hospitality import Guest, HospitalityReservation, HousekeepingTask
+from app.models.user import User
+from app.services.hospitality_service import HospitalityService
+from app.utils.decorators import permission_required
+from app.utils.currency import to_cents
+
+hospitality_bp = Blueprint('hospitality', __name__, url_prefix='/hospitality')
+
+@hospitality_bp.route('/')
+@login_required
+@permission_required('bookings.view')
+def index():
+    """
+    Dedicated Module B Dashboard:
+    ADR, RevPAR, Occupancy %, Today's Arrivals & Departures, Room Status Board.
+    """
+    kpis = HospitalityService.get_hospitality_dashboard_kpis()
+    today = date.today()
+
+    # Upcoming arrivals & departures
+    arrivals = HospitalityReservation.query.filter(
+        HospitalityReservation.check_in_date == today,
+        HospitalityReservation.status == 'CONFIRMED'
+    ).order_by(HospitalityReservation.id.asc()).all()
+
+    departures = HospitalityReservation.query.filter(
+        HospitalityReservation.check_out_date == today,
+        HospitalityReservation.status == 'CHECKED_IN'
+    ).order_by(HospitalityReservation.id.asc()).all()
+
+    in_house = HospitalityReservation.query.filter_by(status='CHECKED_IN').order_by(HospitalityReservation.check_out_date.asc()).all()
+
+    # Room status grid
+    rooms = RentalUnit.query.order_by(RentalUnit.unit_number.asc()).all()
+
+    return render_template(
+        'hospitality/index.html',
+        kpis=kpis,
+        arrivals=arrivals,
+        departures=departures,
+        in_house=in_house,
+        rooms=rooms,
+        today=today
+    )
+
+@hospitality_bp.route('/reservations')
+@login_required
+@permission_required('bookings.view')
+def reservations():
+    status = request.args.get('status')
+    source = request.args.get('source')
+    search = request.args.get('q', '').strip()
+
+    query = HospitalityReservation.query.join(Guest).join(RentalUnit)
+
+    if status:
+        query = query.filter(HospitalityReservation.status == status)
+    if source:
+        query = query.filter(HospitalityReservation.booking_source == source)
+    if search:
+        query = query.filter(
+            (Guest.first_name.ilike(f"%{search}%")) |
+            (Guest.last_name.ilike(f"%{search}%")) |
+            (Guest.phone.ilike(f"%{search}%")) |
+            (RentalUnit.unit_number.ilike(f"%{search}%")) |
+            (HospitalityReservation.reservation_code.ilike(f"%{search}%"))
+        )
+
+    all_reservations = query.order_by(HospitalityReservation.check_in_date.desc(), HospitalityReservation.id.desc()).all()
+    properties = Property.query.filter_by(management_status='ACTIVE').all()
+    available_units = RentalUnit.query.filter(RentalUnit.current_tenant_id.is_(None)).all()
+
+    return render_template(
+        'hospitality/reservations.html',
+        reservations=all_reservations,
+        properties=properties,
+        available_units=available_units,
+        status_filter=status,
+        source_filter=source,
+        search=search
+    )
+
+@hospitality_bp.route('/reservations/create', methods=['POST'])
+@login_required
+@permission_required('bookings.manage')
+def create_reservation():
+    user = cast(Any, current_user)
+    try:
+        unit_id = request.form.get('rental_unit_id', type=int)
+        check_in = datetime.strptime(request.form.get('check_in_date', ''), '%Y-%m-%d').date()
+        check_out = datetime.strptime(request.form.get('check_out_date', ''), '%Y-%m-%d').date()
+        num_guests = request.form.get('num_guests', type=int) or 1
+        daily_rate = float(request.form.get('daily_rate', 0)) if request.form.get('daily_rate') else None
+        source = request.form.get('booking_source', 'DIRECT')
+        notes = request.form.get('special_requests', '').strip()
+
+        guest_data = {
+            'first_name': request.form.get('first_name', '').strip(),
+            'last_name': request.form.get('last_name', '').strip(),
+            'phone': request.form.get('phone', '').strip(),
+            'email': request.form.get('email', '').strip(),
+            'id_passport_number': request.form.get('id_passport_number', '').strip(),
+            'nationality': request.form.get('nationality', 'Kenyan').strip(),
+            'emergency_contact': request.form.get('emergency_contact', '').strip(),
+            'emergency_phone': request.form.get('emergency_phone', '').strip()
+        }
+
+        if not guest_data['first_name'] or not guest_data['phone']:
+            flash('Guest name and phone number are required.', 'danger')
+            return redirect(url_for('hospitality.reservations'))
+
+        res = HospitalityService.create_reservation(
+            unit_id=unit_id,
+            guest_data=guest_data,
+            check_in_date=check_in,
+            check_out_date=check_out,
+            num_guests=num_guests,
+            daily_rate=daily_rate,
+            booking_source=source,
+            special_requests=notes,
+            user_id=user.id
+        )
+
+        flash(f"Hospitality reservation {res.reservation_code} confirmed for {res.guest.full_name}!", 'success')
+    except Exception as e:
+        flash(f"Booking Error: {str(e)}", 'danger')
+
+    return redirect(url_for('hospitality.reservations'))
+
+@hospitality_bp.route('/reservations/<int:res_id>/check-in', methods=['POST'])
+@login_required
+@permission_required('bookings.manage')
+def check_in(res_id):
+    user = cast(Any, current_user)
+    try:
+        res = HospitalityService.check_in_reservation(res_id, user_id=user.id)
+        flash(f"Guest {res.guest.full_name} successfully checked into Unit {res.rental_unit.unit_number}.", 'success')
+    except Exception as e:
+        flash(f"Check-In Error: {str(e)}", 'danger')
+
+    return redirect(request.referrer or url_for('hospitality.index'))
+
+@hospitality_bp.route('/reservations/<int:res_id>/check-out', methods=['POST'])
+@login_required
+@permission_required('bookings.manage')
+def check_out(res_id):
+    user = cast(Any, current_user)
+    try:
+        paid_amount = float(request.form.get('payment_amount', 0)) if request.form.get('payment_amount') else None
+        method = request.form.get('payment_method', 'MPESA')
+        ref = request.form.get('payment_reference', '').strip()
+
+        res = HospitalityService.check_out_reservation(
+            reservation_id=res_id,
+            paid_amount=paid_amount,
+            payment_method=method,
+            payment_ref=ref,
+            user_id=user.id
+        )
+        flash(f"Guest {res.guest.full_name} checked out. Room {res.rental_unit.unit_number} flagged for turnover cleaning.", 'success')
+    except Exception as e:
+        flash(f"Check-Out Error: {str(e)}", 'danger')
+
+    return redirect(request.referrer or url_for('hospitality.index'))
+
+@hospitality_bp.route('/reservations/<int:res_id>/cancel', methods=['POST'])
+@login_required
+@permission_required('bookings.manage')
+def cancel_reservation(res_id):
+    user = cast(Any, current_user)
+    reason = request.form.get('cancellation_reason', '').strip()
+    try:
+        res = HospitalityService.cancel_reservation(res_id, reason=reason, user_id=user.id)
+        flash(f"Reservation {res.reservation_code} has been cancelled.", 'info')
+    except Exception as e:
+        flash(f"Cancellation Error: {str(e)}", 'danger')
+
+    return redirect(url_for('hospitality.reservations'))
+
+@hospitality_bp.route('/housekeeping')
+@login_required
+@permission_required('maintenance.view')
+def housekeeping():
+    rooms = RentalUnit.query.order_by(RentalUnit.unit_number.asc()).all()
+    tasks = HousekeepingTask.query.order_by(HousekeepingTask.scheduled_date.desc(), HousekeepingTask.id.desc()).all()
+    staff = User.query.filter_by(is_active=True).all()
+
+    return render_template(
+        'hospitality/housekeeping.html',
+        rooms=rooms,
+        tasks=tasks,
+        staff=staff
+    )
+
+@hospitality_bp.route('/housekeeping/status', methods=['POST'])
+@login_required
+@permission_required('maintenance.manage')
+def update_cleaning_status():
+    user = cast(Any, current_user)
+    unit_id = request.form.get('unit_id', type=int)
+    new_status = request.form.get('cleaning_status', 'CLEAN')
+    try:
+        unit = HospitalityService.update_cleaning_status(unit_id, new_status, user_id=user.id)
+        flash(f"Unit {unit.unit_number} cleaning status updated to {new_status}.", 'success')
+    except Exception as e:
+        flash(f"Error: {str(e)}", 'danger')
+
+    return redirect(url_for('hospitality.housekeeping'))
+
+@hospitality_bp.route('/housekeeping/tasks/create', methods=['POST'])
+@login_required
+@permission_required('maintenance.manage')
+def create_housekeeping_task():
+    try:
+        unit_id = request.form.get('rental_unit_id', type=int)
+        assigned_user_id = request.form.get('assigned_user_id', type=int)
+        task_type = request.form.get('task_type', 'TURNOVER_CLEAN')
+        priority = request.form.get('priority', 'NORMAL')
+        notes = request.form.get('notes', '').strip()
+
+        task = HousekeepingTask(
+            rental_unit_id=unit_id,
+            assigned_user_id=assigned_user_id if assigned_user_id else None,
+            task_type=task_type,
+            priority=priority,
+            status='PENDING',
+            notes=notes
+        )
+        db.session.add(task)
+        db.session.commit()
+        flash('Housekeeping task created and assigned successfully.', 'success')
+    except Exception as e:
+        flash(f"Error creating task: {str(e)}", 'danger')
+
+    return redirect(url_for('hospitality.housekeeping'))
+
+@hospitality_bp.route('/housekeeping/tasks/<int:task_id>/complete', methods=['POST'])
+@login_required
+@permission_required('maintenance.manage')
+def complete_housekeeping_task(task_id):
+    task = db.session.get(HousekeepingTask, task_id)
+    if not task:
+        from flask import abort; abort(404)
+
+    task.status = 'COMPLETED'
+    task.completed_at = datetime.utcnow()
+    # Auto-update room cleaning status to CLEAN
+    task.rental_unit.cleaning_status = 'CLEAN'
+    db.session.commit()
+
+    flash(f"Housekeeping task marked complete. Unit {task.rental_unit.unit_number} is now CLEAN & ready for guests.", 'success')
+    return redirect(url_for('hospitality.housekeeping'))
+
+@hospitality_bp.route('/rooms')
+@login_required
+@permission_required('properties.manage')
+def rooms():
+    units = RentalUnit.query.order_by(RentalUnit.unit_number.asc()).all()
+    properties = Property.query.filter_by(management_status='ACTIVE').all()
+    return render_template('hospitality/rooms.html', units=units, properties=properties)
+
+@hospitality_bp.route('/rooms/<int:unit_id>/update', methods=['POST'])
+@login_required
+@permission_required('properties.manage')
+def update_room_config(unit_id):
+    unit = db.session.get(RentalUnit, unit_id)
+    if not unit:
+        from flask import abort; abort(404)
+
+    op_type = request.form.get('operational_type', 'LONG_TERM')
+    daily_rate = float(request.form.get('daily_rate', 0))
+    max_guests = request.form.get('max_guests', type=int) or 2
+    cleaning_status = request.form.get('cleaning_status', 'CLEAN')
+
+    unit.operational_type = op_type
+    unit.daily_rate_cents = to_cents(daily_rate)
+    unit.max_guests = max_guests
+    unit.cleaning_status = cleaning_status
+    db.session.commit()
+
+    flash(f"Room configuration for Unit {unit.unit_number} updated ({op_type}).", 'success')
+    return redirect(url_for('hospitality.rooms'))

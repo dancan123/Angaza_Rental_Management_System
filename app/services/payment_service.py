@@ -114,9 +114,14 @@ class PaymentService:
 
         db.session.commit()
 
-        # Landlord notification trigger
+        # Landlord notification & SMS trigger
         from app.services.notification_service import NotificationService
+        from app.services.sms_service import SmsService
         NotificationService.notify_rent_payment(payment)
+        try:
+            SmsService.send_payment_sms(payment)
+        except Exception:
+            pass
 
         AuditService.log('CONFIRM_PAYMENT', 'Payment', payment.id, new_values={'receipt': payment.receipt_number, 'amount': payment.amount_cents})
         return payment
