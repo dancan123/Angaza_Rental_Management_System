@@ -1,8 +1,9 @@
-from datetime import datetime
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from datetime import datetime, timedelta
+from flask import Blueprint, render_template, redirect, url_for, flash, request, session
 from flask_login import login_user, logout_user, login_required, current_user
 from app.extensions import db
-from app.models.user import User
+from app.models.user import User, Role, Landlord
+from app.models.organization import Organization
 from app.services.audit_service import AuditService
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
@@ -45,10 +46,161 @@ def login():
 @auth_bp.route('/logout')
 @login_required
 def logout():
+    session.pop('impersonator_id', None)
     AuditService.log('LOGOUT', 'User', current_user.id, old_values={'username': current_user.username})
     logout_user()
     flash('You have been securely logged out.', 'info')
     return redirect(url_for('auth.login'))
+
+
+# ─── Public Self-Onboarding (14-Day Free Trial) ──────────────────────────────
+
+@auth_bp.route('/register', methods=['GET', 'POST'])
+def register():
+    """
+    Public self-onboarding portal for external landlords & property management businesses.
+    Automatically provisions a logical Organization tenant with a 14-day free trial
+    and 50 complimentary SMS credits.
+    """
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard.index'))
+
+    if request.method == 'POST':
+        org_name = request.form.get('organization_name', '').strip()
+        full_name = request.form.get('full_name', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        phone = request.form.get('phone', '').strip()
+        password = request.form.get('password', '')
+        suite_tier = request.form.get('subscription_tier', 'COMBINED_SUITE')
+
+        if not org_name or not email or not password or not full_name:
+            flash('Organization name, full name, work email, and password are required.', 'danger')
+            return render_template('auth/register.html')
+
+        # Check existing user/email
+        if User.query.filter((User.email == email) | (User.username == email)).first():
+            flash('An account with this email address already exists. Please log in instead.', 'warning')
+            return redirect(url_for('auth.login'))
+
+        slug = org_name.lower().replace(' ', '-').replace("'", '')[:50]
+        # Ensure unique slug
+        base_slug = slug
+        counter = 1
+        while Organization.query.filter_by(slug=slug).first():
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+
+        # 1. Provision customer Organization tenant with 14-day trial & 50 SMS credits
+        trial_expiry = datetime.utcnow() + timedelta(days=14)
+        org = Organization(
+            name=org_name,
+            slug=slug,
+            contact_email=email,
+            contact_phone=phone if phone else None,
+            subscription_tier=suite_tier,
+            subscription_status='TRIAL',
+            subscription_expires_at=trial_expiry,
+            max_properties=25,
+            max_units=100,
+            max_users=5,
+            sms_credits=50
+        )
+        db.session.add(org)
+        db.session.flush()
+
+        # 2. Create primary Property Manager role user
+        manager_role = Role.query.filter_by(name='PROPERTY_MANAGER').first()
+        if not manager_role:
+            manager_role = Role.query.filter_by(name='SUPERADMIN').first()
+
+        user = User(
+            username=email.split('@')[0],
+            email=email,
+            phone=phone if phone else None,
+            full_name=full_name,
+            organization_id=org.id,
+            role=manager_role,
+            is_active=True
+        )
+        user.set_password(password)
+        db.session.add(user)
+        db.session.flush()
+
+        # 3. Create default Landlord record for immediate property onboarding
+        landlord = Landlord(
+            name=org_name,
+            contact_person=full_name,
+            email=email,
+            phone=phone if phone else '+254700000000',
+            is_active=True
+        )
+        db.session.add(landlord)
+        db.session.commit()
+
+        # Auto-login to system
+        login_user(user)
+        AuditService.log('SELF_ONBOARDING_TRIAL', 'Organization', org.id, new_values={'name': org_name, 'tier': suite_tier, 'expires_at': str(trial_expiry)})
+
+        flash(
+            f"🎉 Welcome to Angaza, {full_name}! Your 14-day complimentary trial for '{org_name}' "
+            f"is now active with 50 free SMS credits. Explore your dedicated management suite!",
+            'success'
+        )
+        return redirect(url_for('dashboard.index'))
+
+    return render_template('auth/register.html')
+
+
+# ─── Super Admin User Impersonation ──────────────────────────────────────────
+
+@auth_bp.route('/impersonate/<int:user_id>')
+@login_required
+def impersonate(user_id):
+    """
+    Superadmin capability: impersonate any junior user, manager, or landlord
+    to inspect their dashboard and resolve issues directly on their behalf.
+    """
+    if not current_user.is_superadmin():
+        flash('Unauthorized: Platform Superadmin privileges required to impersonate accounts.', 'danger')
+        return redirect(url_for('dashboard.index'))
+
+    target_user = db.session.get(User, user_id)
+    if not target_user:
+        flash('Target account not found.', 'danger')
+        return redirect(url_for('users.index'))
+
+    if target_user.id == current_user.id:
+        flash('You cannot impersonate your own active superadmin session.', 'warning')
+        return redirect(url_for('users.index'))
+
+    # Store real superadmin ID in session before switching
+    session['impersonator_id'] = current_user.id
+    target_name = target_user.full_name
+    target_role = target_user.role.display_name if target_user.role else 'Staff'
+
+    login_user(target_user)
+    AuditService.log('IMPERSONATE_USER', 'User', target_user.id, new_values={'target': target_name, 'role': target_role})
+
+    flash(f"⚡ Switched into account: {target_name} ({target_role}). You are now operating as this user.", 'info')
+    return redirect(url_for('dashboard.index'))
+
+
+@auth_bp.route('/stop-impersonation')
+@login_required
+def stop_impersonation():
+    """Exit impersonation mode and return to Superadmin session."""
+    impersonator_id = session.pop('impersonator_id', None)
+    if not impersonator_id:
+        return redirect(url_for('dashboard.index'))
+
+    admin_user = db.session.get(User, impersonator_id)
+    if admin_user and admin_user.is_superadmin():
+        login_user(admin_user)
+        AuditService.log('STOP_IMPERSONATION', 'User', admin_user.id)
+        flash('✅ Returned to your Platform Superadmin session.', 'success')
+        return redirect(url_for('platform.organizations'))
+
+    return redirect(url_for('auth.logout'))
 
 
 def seed_initial_data():

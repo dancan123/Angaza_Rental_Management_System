@@ -27,6 +27,7 @@ class Organization(db.Model):
     max_properties = db.Column(db.Integer, default=50)
     max_units = db.Column(db.Integer, default=250)
     max_users = db.Column(db.Integer, default=15)
+    sms_credits = db.Column(db.Integer, default=50)
     is_active = db.Column(db.Boolean, default=True, index=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -34,6 +35,18 @@ class Organization(db.Model):
 
     properties = db.relationship('Property', back_populates='organization', lazy='dynamic')
     users = db.relationship('User', back_populates='organization', lazy='dynamic')
+
+    @property
+    def is_trial(self) -> bool:
+        return self.subscription_status == 'TRIAL'
+
+    @property
+    def days_remaining(self) -> int:
+        if not self.subscription_expires_at:
+            return 999
+        from datetime import datetime as _dt
+        diff = (self.subscription_expires_at - _dt.utcnow()).days
+        return max(0, diff)
 
     def can_access_rental_module(self) -> bool:
         return self.subscription_tier in ['RENTAL_STANDARD', 'COMBINED_SUITE', 'ENTERPRISE']

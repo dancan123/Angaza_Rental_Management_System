@@ -53,14 +53,41 @@ class SmsService:
         }
 
     @classmethod
-    def send_sms(cls, to_phone: str, message: str, notification_type='GENERAL', landlord_id=None, recipient_user_id=None):
+    def send_sms(cls, to_phone: str, message: str, notification_type='GENERAL', landlord_id=None, recipient_user_id=None, organization_id=None):
         """
         Sends an SMS to the target recipient.
+        Deducts from organization's SMS credit balance if applicable.
         If Twilio credentials are not set or disabled, logs a SIMULATED notification.
         """
         formatted_phone = cls.format_phone_number(to_phone)
         if not formatted_phone:
             return {'success': False, 'error': 'Invalid recipient phone number'}
+
+        # Verify Organization SMS credit balance
+        from flask_login import current_user
+        from app.models.organization import Organization
+        target_org = None
+        if organization_id:
+            target_org = db.session.get(Organization, organization_id)
+        elif current_user and current_user.is_authenticated:
+            org_id = getattr(current_user, 'organization_id', None)
+            if org_id:
+                target_org = db.session.get(Organization, org_id)
+                if target_org:
+                    db.session.refresh(target_org)
+            if not target_org:
+                target_org = getattr(current_user, 'active_organization', None)
+                if target_org:
+                    db.session.refresh(target_org)
+
+        # Superadmin has unlimited SMS bypass
+        is_admin_bypass = current_user and current_user.is_authenticated and current_user.is_superadmin()
+        if target_org and not is_admin_bypass:
+            if target_org.sms_credits <= 0:
+                return {
+                    'success': False,
+                    'error': f"Insufficient SMS credits. Organization '{target_org.name}' has 0 credits remaining. Please contact Superadmin to top up."
+                }
 
         creds = cls.get_twilio_credentials()
 
@@ -75,6 +102,11 @@ class SmsService:
         )
         db.session.add(notif)
         db.session.commit()
+
+        # Deduct SMS credit from organization wallet
+        if target_org and not is_admin_bypass:
+            target_org.sms_credits = max(0, target_org.sms_credits - 1)
+            db.session.commit()
 
         # If credentials are not configured or SMS is disabled, log as SIMULATED
         if not creds['is_enabled'] or not creds['account_sid'] or not creds['auth_token'] or not creds['from_number']:

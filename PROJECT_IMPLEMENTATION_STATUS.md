@@ -178,9 +178,32 @@ Each component in the codebase has been audited and classified according to the 
   - Type filters: rent payment receipts, booking confirmations, guest check-in SMS, and bulk broadcasts.
 
 ### Phase 10: Quality Assurance & Full Regression Verification (DONE)
-- [x] Full test suite executed: **68 out of 68 tests passing** across 19 comprehensive test phases.
+- [x] Full test suite executed: **72 out of 72 tests passing** across 20 comprehensive test phases.
 - [x] Zero pyflakes linter errors across all models, services, blueprints, and utilities.
 - [x] All database operations safely backward-compatible and non-destructive.
+
+### Phase 11 / Phase 20: Commercial Self-Onboarding, Impersonation & SMS Credit Sales (DONE)
+- [x] **Public Self-Onboarding (`/auth/register`)**:
+  - Open customer registration portal requiring organization name, manager name, contact email/phone, and chosen subscription tier.
+  - Automatically provisions `Organization` with `TRIAL` status, 14-day expiry date, and complimentary 50 SMS credits.
+  - Provisions primary `User` with `PROPERTY_MANAGER` role, default `Landlord` profile, and links them to the new organization.
+  - Automatically signs in the user and routes them directly to their operational dashboard.
+- [x] **Superadmin User Impersonation (`/auth/impersonate/<user_id>`)**:
+  - Platform Superadmin can impersonate any organization manager or landlord directly from the UI (`/platform/organizations/<id>/users` or `/users`).
+  - Seamlessly switches session context to view properties, billing, and reservations as that user.
+  - Yellow sticky alert bar displayed across all pages with an instant "Exit Impersonation" action (`/auth/stop-impersonation`) restoring the superadmin session safely.
+- [x] **SMS Credit Wallet & Billing System**:
+  - `Organization.sms_credits` balance tracked per organization.
+  - `SmsService.send_sms()` verifies and deducts 1 credit per dispatched SMS.
+  - Automatic out-of-credit blocking with clear user feedback prompting top-up.
+  - Platform Superadmin has unlimited SMS bypass for system administration.
+  - Superadmin can sell / top-up SMS credits for any organization (`POST /platform/organizations/<id>/add-sms`).
+  - Real-time SMS credit balance badge shown in the top navigation bar.
+- [x] **Subscription Timeline Management**:
+  - Superadmin can extend or adjust trial / subscription duration (`POST /platform/organizations/<id>/update-timeline`).
+  - Real-time trial countdown badge ("X days trial left") displayed in navigation.
+  - Subscription suspension middleware automatically handles expired organizations.
+- [x] Automated test suite (`tests/test_phase20_commercial_onboarding_and_sms.py` — 4/4 passing).
 
 ---
 
@@ -194,3 +217,4 @@ Each component in the codebase has been audited and classified according to the 
 - **2026-11-19 07:45**: Implemented Platform Super Admin Control Plane (`platform_bp`), account suspension enforcement middleware, user organization assignments, and cross-tenant platform usage analytics.
 - **2026-11-19 07:48**: Implemented Consolidated Commercial P&L Report (`reports.consolidated`), Dynamic Seasonal Pricing (`RoomPricingRule`), Multi-Room Booking Calendar (`hospitality.calendar`), and SMS Delivery History (`communication.sms_history`).
 - **2026-11-19 07:54**: Full test suite verified at **68 out of 68 passing tests** (zero regressions across all 19 test phases). All changes staged and committed.
+- **2026-11-19 08:35**: Phase 20 completed: Commercial self-onboarding portal, 14-day free trial engine, user impersonation for superadmin, SMS credits wallet and billing, subscription timeline management. Full test suite verified at **72 out of 72 passing tests** (zero regressions across all 20 test phases).

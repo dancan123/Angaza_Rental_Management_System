@@ -51,6 +51,11 @@ def initialize_database():
             if 'organization_id' not in bank_cols:
                 cursor.execute("ALTER TABLE bank_accounts ADD COLUMN organization_id INTEGER")
 
+            cursor.execute("PRAGMA table_info(organizations)")
+            org_cols = [r[1] for r in cursor.fetchall()]
+            if 'sms_credits' not in org_cols:
+                cursor.execute("ALTER TABLE organizations ADD COLUMN sms_credits INTEGER DEFAULT 50")
+
             conn.commit()
         except Exception as e:
             print(f"[Startup Warning] Schema check: {e}")

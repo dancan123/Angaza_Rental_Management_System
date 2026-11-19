@@ -96,6 +96,20 @@ def create_app(config_name=None):
             return None
         try:
             org = getattr(cu, 'active_organization', None)
+            if org and org.subscription_expires_at:
+                from datetime import datetime as _dt
+                if org.subscription_expires_at < _dt.utcnow():
+                    if org.subscription_status != 'EXPIRED':
+                        org.subscription_status = 'EXPIRED'
+                        db.session.commit()
+                    if req.endpoint not in ('auth.login', 'auth.logout'):
+                        flash(
+                            'Your 14-day trial / subscription period has ended. '
+                            'Please contact support or upgrade your plan to restore access.',
+                            'warning'
+                        )
+                        return redirect(url_for('auth.login'))
+
             if org and org.subscription_status == 'SUSPENDED':
                 if req.endpoint not in ('auth.login', 'auth.logout'):
                     flash(

@@ -44,6 +44,7 @@
                         <th>Role</th>
                         <th>Status</th>
                         <th>Last Login</th>
+                        <th class="text-end pe-3">Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -64,10 +65,15 @@
                             {% endif %}
                         </td>
                         <td class="small text-muted">{{ u.last_login_at.strftime('%d %b %Y, %H:%M') if u.last_login_at else 'Never' }}</td>
+                        <td class="text-end pe-3">
+                            <a href="{{ url_for('auth.impersonate', user_id=u.id) }}" class="btn btn-sm btn-outline-dark py-0 px-2" title="Log in as this user">
+                                <i class="bi bi-box-arrow-in-right me-1"></i> Impersonate
+                            </a>
+                        </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" class="text-center py-4 text-muted">
+                        <td colspan="8" class="text-center py-4 text-muted">
                             <i class="bi bi-people fs-2 d-block mb-2"></i>
                             No users currently assigned to this organization.
                         </td>

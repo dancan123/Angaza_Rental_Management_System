@@ -145,6 +145,93 @@ def update_organization_subscription(org_id):
     return redirect(url_for('platform.organizations'))
 
 
+@platform_bp.route('/organizations/<int:org_id>/add-sms', methods=['POST'])
+@login_required
+def add_organization_sms(org_id):
+    """Sell / allocate SMS credits to a customer organization."""
+    if not superadmin_only():
+        return redirect(url_for('dashboard.index'))
+    org = db.session.get(Organization, org_id)
+    if not org:
+        from flask import abort; abort(404)
+
+    credits_to_add = request.form.get('credits', type=int) or 0
+    if credits_to_add <= 0:
+        flash('Please enter a positive number of SMS credits to allocate.', 'warning')
+        return redirect(url_for('platform.organizations'))
+
+    org.sms_credits = (org.sms_credits or 0) + credits_to_add
+    db.session.commit()
+    from app.services.audit_service import AuditService
+    AuditService.log('ADD_SMS_CREDITS', 'Organization', org.id, new_values={'added': credits_to_add, 'new_total': org.sms_credits})
+    flash(f"Successfully allocated {credits_to_add} SMS credits to '{org.name}'. New balance: {org.sms_credits} SMS.", 'success')
+    return redirect(url_for('platform.organizations'))
+
+
+@platform_bp.route('/organizations/<int:org_id>/timeline', methods=['POST'])
+@login_required
+def update_organization_timeline(org_id):
+    """Manage customer organization trial/subscription timeline and expiration."""
+    if not superadmin_only():
+        return redirect(url_for('dashboard.index'))
+    org = db.session.get(Organization, org_id)
+    if not org:
+        from flask import abort; abort(404)
+
+    days_to_add = request.form.get('days', type=int) or 0
+    status_override = request.form.get('status')
+    from datetime import datetime as _dt, timedelta as _td
+
+    base_time = org.subscription_expires_at if (org.subscription_expires_at and org.subscription_expires_at > _dt.utcnow()) else _dt.utcnow()
+    org.subscription_expires_at = base_time + _td(days=days_to_add)
+    if status_override:
+        org.subscription_status = status_override
+    elif org.subscription_status == 'EXPIRED':
+        org.subscription_status = 'ACTIVE'
+    org.is_active = True
+    db.session.commit()
+
+    from app.services.audit_service import AuditService
+    AuditService.log('EXTEND_SUBSCRIPTION_TIMELINE', 'Organization', org.id, new_values={'days_added': days_to_add, 'new_expiry': str(org.subscription_expires_at)})
+    flash(f"Subscription timeline for '{org.name}' extended by {days_to_add} days (Expires: {org.subscription_expires_at.strftime('%d %b %Y')}).", 'success')
+    return redirect(url_for('platform.organizations'))
+
+
+@platform_bp.route('/sms/broadcast', methods=['POST'])
+@login_required
+def superadmin_broadcast_sms():
+    """Superadmin master SMS broadcast across organizations/tenants."""
+    if not superadmin_only():
+        return redirect(url_for('dashboard.index'))
+
+    target_group = request.form.get('target_group', 'ALL_ORGANIZATIONS')
+    message = request.form.get('message', '').strip()
+
+    if not message:
+        flash('Broadcast message text is required.', 'danger')
+        return redirect(url_for('communication.sms_history'))
+
+    from app.models.tenant import Tenant
+    from app.services.sms_service import SmsService
+
+    count = 0
+    if target_group in ('ALL_ORGANIZATIONS', 'ORGANIZATION_OWNERS'):
+        orgs = Organization.query.filter_by(is_active=True).all()
+        for o in orgs:
+            if o.contact_phone:
+                SmsService.send_sms(to_phone=o.contact_phone, message=f"[Angaza Platform Alert]\n{message}", notification_type='PLATFORM_BROADCAST')
+                count += 1
+    elif target_group == 'ALL_TENANTS':
+        tenants = Tenant.query.filter_by(is_active=True).all()
+        for t in tenants:
+            if t.phone:
+                SmsService.send_sms(to_phone=t.phone, message=message, notification_type='PLATFORM_BROADCAST')
+                count += 1
+
+    flash(f"Platform master SMS broadcast dispatched to {count} recipient(s) via Twilio gateway.", 'success')
+    return redirect(url_for('communication.sms_history'))
+
+
 @platform_bp.route('/analytics')
 @login_required
 def analytics():
