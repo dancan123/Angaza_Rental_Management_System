@@ -150,4 +150,28 @@ def export_vacant_excel():
         download_name=f"Vacant_Houses_Report_{datetime.utcnow().strftime('%Y%m%d')}.xlsx"
     )
 
+@reports_bp.route('/consolidated')
+@login_required
+@permission_required('reports.view')
+def consolidated():
+    start_str = request.args.get('start_date')
+    end_str = request.args.get('end_date')
+    property_id = request.args.get('property_id', type=int)
+
+    start_date = datetime.strptime(start_str, '%Y-%m-%d').date() if start_str else None
+    end_date = datetime.strptime(end_str, '%Y-%m-%d').date() if end_str else None
+
+    summary = ReportService.get_consolidated_financial_summary(start_date, end_date, property_id)
+    properties = Property.query.filter_by(management_status='ACTIVE').all()
+
+    return render_template(
+        'reports/consolidated.html',
+        summary=summary,
+        properties=properties,
+        start_date=start_str,
+        end_date=end_str,
+        selected_property=property_id
+    )
+
+
 

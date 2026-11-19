@@ -328,18 +328,75 @@ class ReportService:
             ])
 
         # Summary Row
-        summary_row = ws.max_row + 1
-        ws.cell(row=summary_row, column=6, value=f"TOTAL VACANT UNITS: {len(vacant_units)}").font = Font(name='Arial', bold=True)
-        tot_rent_cell = ws.cell(row=summary_row, column=7, value=total_potential_rent)
-        tot_rent_cell.font = Font(name='Arial', bold=True, color='0E9F6E')
-        tot_rent_cell.number_format = '#,##0.00'
-
-        for col in ws.columns:
-            max_len = max(len(str(cell.value or '')) for cell in col)
-            col_letter = openpyxl.utils.get_column_letter(col[0].column)
-            ws.column_dimensions[col_letter].width = max(max_len + 3, 14)
-
         out = io.BytesIO()
         wb.save(out)
         out.seek(0)
         return out.getvalue()
+
+    @staticmethod
+    def get_consolidated_financial_summary(start_date=None, end_date=None, property_id=None):
+        """
+        Consolidated Commercial P&L Executive Report (Shared Platform Services).
+        Aggregates both Rental Property Revenue AND Hospitality / Short-Stay Revenue,
+        alongside total operating expenses, net operating income (NOI), and profit margins.
+        """
+        from app.models.hospitality import HospitalityReservation
+        from app.utils.currency import format_currency
+
+        # 1. Rental Collections
+        rent_query = Payment.query.filter_by(payment_status='CONFIRMED')
+        if start_date:
+            rent_query = rent_query.filter(Payment.payment_date >= start_date)
+        if end_date:
+            rent_query = rent_query.filter(Payment.payment_date <= end_date)
+        if property_id:
+            rent_query = rent_query.filter(Payment.property_id == property_id)
+
+        rental_payments = rent_query.all()
+        rental_income_cents = sum(p.amount_cents for p in rental_payments)
+
+        # 2. Hospitality / Short-Stay Revenue
+        hosp_query = HospitalityReservation.query.filter(
+            HospitalityReservation.status.in_(['CHECKED_IN', 'CHECKED_OUT', 'CONFIRMED'])
+        )
+        if start_date:
+            hosp_query = hosp_query.filter(HospitalityReservation.check_in_date >= start_date)
+        if end_date:
+            hosp_query = hosp_query.filter(HospitalityReservation.check_in_date <= end_date)
+
+        hosp_reservations = hosp_query.all()
+        hospitality_income_cents = sum(r.total_stay_cents for r in hosp_reservations)
+
+        # 3. Operating Expenses
+        exp_query = Expense.query
+        if start_date:
+            exp_query = exp_query.filter(Expense.expense_date >= start_date)
+        if end_date:
+            exp_query = exp_query.filter(Expense.expense_date <= end_date)
+        if property_id:
+            exp_query = exp_query.filter(Expense.property_id == property_id)
+
+        expenses = exp_query.all()
+        total_expenses_cents = sum(e.amount_cents for e in expenses)
+
+        # 4. Consolidated Totals
+        total_revenue_cents = rental_income_cents + hospitality_income_cents
+        net_operating_income_cents = total_revenue_cents - total_expenses_cents
+        profit_margin_pct = round((net_operating_income_cents / max(1, total_revenue_cents)) * 100, 1) if total_revenue_cents > 0 else 0.0
+
+        return {
+            'rental_income_cents': rental_income_cents,
+            'rental_income_display': format_currency(rental_income_cents),
+            'hospitality_income_cents': hospitality_income_cents,
+            'hospitality_income_display': format_currency(hospitality_income_cents),
+            'total_revenue_cents': total_revenue_cents,
+            'total_revenue_display': format_currency(total_revenue_cents),
+            'total_expenses_cents': total_expenses_cents,
+            'total_expenses_display': format_currency(total_expenses_cents),
+            'net_operating_income_cents': net_operating_income_cents,
+            'net_operating_income_display': format_currency(net_operating_income_cents),
+            'profit_margin_pct': profit_margin_pct,
+            'rental_payments_count': len(rental_payments),
+            'hospitality_reservations_count': len(hosp_reservations),
+            'expenses_count': len(expenses)
+        }

@@ -121,6 +121,14 @@ class User(UserMixin, db.Model):
         return self.role and self.role.name == 'SUPERADMIN'
 
     @property
+    def active_organization(self):
+        """Returns user's organization or system default organization."""
+        if self.organization:
+            return self.organization
+        from app.models.organization import Organization
+        return Organization.query.first()
+
+    @property
     def role_level(self):
         if not self.role:
             return 0

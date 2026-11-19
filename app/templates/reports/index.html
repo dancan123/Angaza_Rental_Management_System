@@ -90,6 +90,25 @@
             </div>
         </div>
     </div>
+
+    <!-- 6. Consolidated Executive P&L (Rental + Hospitality) -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card card-custom bg-white h-100 p-4 border border-success border-2 shadow-sm">
+            <div class="stat-card-icon bg-dark text-white mb-3">
+                <i class="bi bi-layers-fill text-warning"></i>
+            </div>
+            <div class="d-flex align-items-center gap-1 mb-1">
+                <span class="badge bg-danger" style="font-size:0.65rem;">SUITE</span>
+                <h5 class="fw-bold mb-0">Consolidated Executive P&amp;L</h5>
+            </div>
+            <p class="text-muted small mb-3">Unified corporate P&amp;L consolidating conventional lease collections with short-stay Airbnb revenues and operational expenditure.</p>
+            <div class="mt-auto">
+                <a href="{{ url_for('reports.consolidated') }}" class="btn btn-dark btn-sm w-100 fw-semibold">
+                    <i class="bi bi-graph-up-arrow me-1 text-success"></i> Open Consolidated Statement
+                </a>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 

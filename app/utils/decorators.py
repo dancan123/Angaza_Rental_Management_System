@@ -35,6 +35,34 @@ def role_required(*role_names):
         return decorated_function
     return decorator
 
+def subscription_required(module_name):
+    """
+    Decorator to enforce modular SaaS subscription entitlements:
+    'rental' -> Organization must have RENTAL_STANDARD, COMBINED_SUITE, or ENTERPRISE
+    'hospitality' -> Organization must have HOSPITALITY_STANDARD, COMBINED_SUITE, or ENTERPRISE
+    Platform Superadmin bypasses all subscription restrictions.
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not current_user.is_authenticated:
+                return redirect(url_for('auth.login', next=request.path))
+            if current_user.is_superadmin():
+                return f(*args, **kwargs)
+
+            org = getattr(current_user, 'active_organization', None)
+            if org:
+                if module_name == 'rental' and not org.can_access_rental_module():
+                    flash('Your organization subscription does not include the Rental Property Management module. Please upgrade your plan to access this feature.', 'warning')
+                    return redirect(url_for('hospitality.index'))
+                elif module_name == 'hospitality' and not org.can_access_hospitality_module():
+                    flash('Your organization subscription does not include the Hospitality & Short-Stay module. Please upgrade your plan to access this feature.', 'warning')
+                    return redirect(url_for('dashboard.index'))
+
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
 def landlord_scoped(query, model):
     """
     Utility helper that scopes an SQLAlchemy query to the current user's assigned landlords,

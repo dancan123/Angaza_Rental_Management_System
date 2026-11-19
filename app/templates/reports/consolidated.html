@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Consolidated Executive P&amp;L Report - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-success px-3 py-1 text-uppercase fw-bold"><i class="bi bi-graph-up-arrow me-1"></i> Executive Suite</span>
+            <h3 class="fw-bold mb-0">Consolidated Commercial Financial Overview</h3>
+        </div>
+        <p class="text-muted small mb-0">Unified Profit &amp; Loss aggregation combining Long-Term Rental Collections and Hospitality / Short-Stay revenue with operating expenditure.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('reports.index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> All Reports
+        </a>
+        <button class="btn btn-primary-custom" onclick="window.print()">
+            <i class="bi bi-printer-fill me-1"></i> Print P&amp;L Statement
+        </button>
+    </div>
+</div>
+
+<!-- Filters Bar -->
+<div class="card card-custom bg-white p-3 mb-4">
+    <form method="GET" action="{{ url_for('reports.consolidated') }}" class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label small fw-semibold">Start Date</label>
+            <input type="date" name="start_date" class="form-control form-control-sm" value="{{ start_date or '' }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small fw-semibold">End Date</label>
+            <input type="date" name="end_date" class="form-control form-control-sm" value="{{ end_date or '' }}">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label small fw-semibold">Filter by Property Portfolio</label>
+            <select name="property_id" class="form-select form-select-sm">
+                <option value="">All Portfolios &amp; Accommodation Facilities</option>
+                {% for p in properties %}
+                <option value="{{ p.id }}" {% if selected_property == p.id %}selected{% endif %}>{{ p.name }} ({{ p.location }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2 text-end">
+            <button type="submit" class="btn btn-primary btn-sm w-100">
+                <i class="bi bi-funnel-fill me-1"></i> Filter
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Executive KPI Summary Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-success">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase">Total Consolidated Revenue</span>
+                    <h3 class="fw-bold my-1 text-success">{{ summary.total_revenue_display }}</h3>
+                    <span class="text-muted small">Rental + Short-Stay Gross</span>
+                </div>
+                <div class="stat-card-icon bg-success-subtle text-success">
+                    <i class="bi bi-cash-stack"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-primary">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase">Module A: Rental Income</span>
+                    <h3 class="fw-bold my-1 text-primary">{{ summary.rental_income_display }}</h3>
+                    <span class="text-muted small">{{ summary.rental_payments_count }} verified rent payment(s)</span>
+                </div>
+                <div class="stat-card-icon bg-primary-subtle text-primary">
+                    <i class="bi bi-building"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-danger">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase">Module B: Hospitality Revenue</span>
+                    <h3 class="fw-bold my-1 text-danger">{{ summary.hospitality_income_display }}</h3>
+                    <span class="text-muted small">{{ summary.hospitality_reservations_count }} guest stay(s)</span>
+                </div>
+                <div class="stat-card-icon bg-danger-subtle text-danger">
+                    <i class="bi bi-cup-hot-fill"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-custom p-3 bg-white h-100 border-start border-4 border-dark">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase">Net Operating Income (NOI)</span>
+                    <h3 class="fw-bold my-1 {% if summary.net_operating_income_cents >= 0 %}text-dark{% else %}text-danger{% endif %}">
+                        {{ summary.net_operating_income_display }}
+                    </h3>
+                    <span class="text-muted small">Operating Margin: <strong>{{ summary.profit_margin_pct }}%</strong></span>
+                </div>
+                <div class="stat-card-icon bg-light text-dark">
+                    <i class="bi bi-graph-up"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statement Table Breakdown -->
+<div class="card card-custom bg-white p-4">
+    <h5 class="fw-bold mb-3"><i class="bi bi-receipt text-primary me-2"></i> Profit &amp; Loss Statement Breakdown</h5>
+    <div class="table-responsive">
+        <table class="table table-bordered align-middle mb-0">
+            <thead class="table-dark small">
+                <tr>
+                    <th style="width: 50%;">Revenue / Expense Account</th>
+                    <th>Module Classification</th>
+                    <th class="text-end" style="width: 25%;">Amount ({{ currency }})</th>
+                </tr>
+            </thead>
+            <tbody class="small">
+                <!-- Operating Revenues -->
+                <tr class="table-light">
+                    <td colspan="3" class="fw-bold text-uppercase text-secondary">
+                        <i class="bi bi-arrow-down-circle-fill text-success me-1"></i> Operating Gross Revenue
+                    </td>
+                </tr>
+                <tr>
+                    <td class="ps-4">Long-Term Tenancy Rent Collections</td>
+                    <td><span class="badge bg-primary-subtle text-primary border border-primary-subtle">Rental Management</span></td>
+                    <td class="text-end fw-semibold text-success">{{ summary.rental_income_display }}</td>
+                </tr>
+                <tr>
+                    <td class="ps-4">Hospitality &amp; Short-Stay Guest Bookings</td>
+                    <td><span class="badge bg-danger-subtle text-danger border border-danger-subtle">Hospitality Management</span></td>
+                    <td class="text-end fw-semibold text-success">{{ summary.hospitality_income_display }}</td>
+                </tr>
+                <tr class="table-success fw-bold">
+                    <td colspan="2">TOTAL GROSS OPERATING REVENUE</td>
+                    <td class="text-end">{{ summary.total_revenue_display }}</td>
+                </tr>
+
+                <!-- Operating Expenses -->
+                <tr class="table-light">
+                    <td colspan="3" class="fw-bold text-uppercase text-secondary pt-3">
+                        <i class="bi bi-arrow-up-circle-fill text-danger me-1"></i> Operating Expenses &amp; Maintenance Costs
+                    </td>
+                </tr>
+                <tr>
+                    <td class="ps-4">Direct Property Operating &amp; Maintenance Expenditure</td>
+                    <td><span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Shared Infrastructure</span></td>
+                    <td class="text-end fw-semibold text-danger">({{ summary.total_expenses_display }})</td>
+                </tr>
+                <tr class="table-danger fw-bold">
+                    <td colspan="2">TOTAL OPERATING EXPENSES</td>
+                    <td class="text-end">({{ summary.total_expenses_display }})</td>
+                </tr>
+
+                <!-- Net Bottom Line -->
+                <tr class="table-dark fs-6 fw-bold">
+                    <td colspan="2">NET OPERATING INCOME (NOI)</td>
+                    <td class="text-end text-success">{{ summary.net_operating_income_display }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
