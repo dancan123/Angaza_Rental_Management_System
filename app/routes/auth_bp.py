@@ -14,13 +14,58 @@ def login():
         return redirect(url_for('dashboard.index'))
         
     if request.method == 'POST':
+        org_code = request.form.get('org_code', '').strip().upper()
         username_or_email = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         remember = bool(request.form.get('remember'))
-        
-        user = User.query.filter(
-            (User.username == username_or_email) | (User.email == username_or_email)
-        ).first()
+
+        # Support slash or at notation e.g. "SARAH/admin" or "admin@SARAH"
+        if not org_code and ('/' in username_or_email or ('@' in username_or_email and not ('.' in username_or_email.split('@')[-1]))):
+            if '/' in username_or_email:
+                parts = username_or_email.split('/', 1)
+                org_code = parts[0].strip().upper()
+                username_or_email = parts[1].strip()
+            elif '@' in username_or_email:
+                parts = username_or_email.split('@', 1)
+                username_or_email = parts[0].strip()
+                org_code = parts[1].strip().upper()
+
+        user = None
+        if org_code and org_code != 'SYSTEM':
+            # Multi-Tenant scoped login for specific business / organization
+            org = Organization.query.filter(
+                (Organization.org_code == org_code) |
+                (Organization.slug == org_code.lower()) |
+                (Organization.name.ilike(f"%{org_code}%"))
+            ).first()
+
+            if not org:
+                flash(f"Business Code '{org_code}' was not found. Please verify with your system administrator.", 'danger')
+                return render_template('auth/login.html')
+
+            # 1. Look for user belonging to this organization
+            user = User.query.filter(
+                User.organization_id == org.id,
+                (User.username == username_or_email) |
+                (User.email == username_or_email) |
+                (User.username == f"{org_code.lower()}_{username_or_email}")
+            ).first()
+
+            # 2. If user entered generic 'admin' or 'manager', find the organization's manager/admin
+            if not user and username_or_email.lower() in ('admin', 'manager', 'owner'):
+                user = User.query.filter(
+                    User.organization_id == org.id,
+                    User.is_active == True
+                ).order_by(User.id.asc()).first()
+        else:
+            # Global / direct login (Superadmin or direct unique username/email)
+            user = User.query.filter(
+                (User.username == username_or_email) | (User.email == username_or_email)
+            ).first()
+
+            # If username is generic 'admin' and no business code given, default to Superadmin
+            if not user and username_or_email.lower() == 'admin':
+                user = User.query.filter(User.username == 'admin').first()
         
         if user and user.check_password(password):
             if not user.is_active:
@@ -31,7 +76,7 @@ def login():
             user.last_login_at = datetime.utcnow()
             db.session.commit()
             
-            AuditService.log('LOGIN', 'User', user.id, new_values={'username': user.username})
+            AuditService.log('LOGIN', 'User', user.id, new_values={'username': user.username, 'org_code': org_code or 'GLOBAL'})
             flash(f'Welcome back, {user.full_name}!', 'success')
             
             next_page = request.args.get('next')

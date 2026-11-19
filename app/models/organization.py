@@ -12,6 +12,7 @@ class Organization(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), unique=True, nullable=False, index=True)
     slug = db.Column(db.String(60), unique=True, nullable=False, index=True)
+    org_code = db.Column(db.String(30), unique=True, nullable=True, index=True)
     contact_email = db.Column(db.String(120), index=True)
     contact_phone = db.Column(db.String(30))
     tax_pin = db.Column(db.String(50))
@@ -37,6 +38,10 @@ class Organization(db.Model):
 
     properties = db.relationship('Property', back_populates='organization', lazy='dynamic')
     users = db.relationship('User', back_populates='organization', lazy='dynamic')
+
+    @property
+    def business_code(self) -> str:
+        return self.org_code or (self.slug.upper().replace('-', '_') if self.slug else f"ORG{self.id}")
 
     @property
     def is_trial(self) -> bool:
