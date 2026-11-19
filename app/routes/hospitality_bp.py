@@ -271,6 +271,63 @@ def rooms():
         stats=data['stats']
     )
 
+@hospitality_bp.route('/rooms/create', methods=['POST'])
+@login_required
+@permission_required('properties.manage')
+def create_room():
+    property_id = request.form.get('property_id', type=int)
+    unit_number = request.form.get('unit_number', '').strip()
+    unit_type = request.form.get('unit_type', 'Studio').strip()
+    daily_rate = float(request.form.get('daily_rate', 0) or 0)
+    monthly_rent = float(request.form.get('monthly_rent', 0) or 0)
+    max_guests = request.form.get('max_guests', type=int) or 2
+    cleaning_status = request.form.get('cleaning_status', 'CLEAN')
+    description = request.form.get('description', '').strip()
+
+    if not property_id:
+        flash("Please select a property for this room.", "danger")
+        return redirect(url_for('hospitality.rooms'))
+
+    if not unit_number:
+        flash("Room / Suite name is required.", "danger")
+        return redirect(url_for('hospitality.rooms'))
+
+    if daily_rate <= 0:
+        flash("A valid nightly/daily rate is required for short-stay units.", "danger")
+        return redirect(url_for('hospitality.rooms'))
+
+    # Check for duplicate unit name within the same property
+    existing = RentalUnit.query.filter_by(property_id=property_id, unit_number=unit_number).first()
+    if existing:
+        flash(f"A room named '{unit_number}' already exists in this property.", "danger")
+        return redirect(url_for('hospitality.rooms'))
+
+    # Multi-tenant quota check
+    user = cast(Any, current_user)
+    if user.active_organization and not user.is_superadmin():
+        org = user.active_organization
+        if not org.can_add_unit():
+            flash(f"Unit limit reached ({org.unit_count}/{org.max_units}). Please upgrade your subscription tier.", "danger")
+            return redirect(url_for('hospitality.rooms'))
+
+    unit = RentalUnit(
+        property_id=property_id,
+        unit_number=unit_number,
+        unit_type=unit_type,
+        operational_type='SHORT_STAY',
+        daily_rate_cents=to_cents(daily_rate),
+        rent_amount_cents=to_cents(monthly_rent) if monthly_rent > 0 else to_cents(daily_rate * 30),
+        max_guests=max_guests,
+        cleaning_status=cleaning_status,
+        occupancy_status='VACANT',
+        description=description
+    )
+    db.session.add(unit)
+    db.session.commit()
+
+    flash(f"Short-Stay Room '{unit.unit_number}' successfully created and added to inventory!", "success")
+    return redirect(url_for('hospitality.rooms'))
+
 @hospitality_bp.route('/rooms/<int:unit_id>/update', methods=['POST'])
 @login_required
 @permission_required('properties.manage')

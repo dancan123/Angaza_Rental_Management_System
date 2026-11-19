@@ -307,3 +307,40 @@ def test_lifecycle_hook_marks_room_dirty_when_vacated(app, client):
         # Must automatically be marked DIRTY by the model event listener
         assert room.cleaning_status == 'DIRTY'
 
+
+def test_create_short_stay_room_directly_from_rooms_view(app, client):
+    """Verify landlord can add a new short-stay room directly via /hospitality/rooms/create."""
+    client.post('/auth/login', data={
+        'username': 'safari_admin',
+        'password': 'SafariPass2026!'
+    }, follow_redirects=True)
+
+    with app.app_context():
+        prop = Property.query.first()
+        prop_id = prop.id
+
+    res = client.post('/hospitality/rooms/create', data={
+        'property_id': prop_id,
+        'unit_number': 'Deluxe Ocean Villa 10',
+        'unit_type': 'Luxury Villa',
+        'daily_rate': 9500,
+        'monthly_rent': 250000,
+        'max_guests': 4,
+        'cleaning_status': 'CLEAN',
+        'description': 'Panoramic sea view, private patio, superfast fiber WiFi.'
+    }, follow_redirects=True)
+
+    assert res.status_code == 200
+    assert b'Deluxe Ocean Villa 10' in res.data
+    assert b'9,500' in res.data
+
+    with app.app_context():
+        new_room = RentalUnit.query.filter_by(unit_number='Deluxe Ocean Villa 10').first()
+        assert new_room is not None
+        assert new_room.operational_type == 'SHORT_STAY'
+        assert new_room.daily_rate_cents == 950000
+        assert new_room.max_guests == 4
+        assert new_room.cleaning_status == 'CLEAN'
+        assert new_room.occupancy_status == 'VACANT'
+
+
