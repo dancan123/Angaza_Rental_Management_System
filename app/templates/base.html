@@ -256,7 +256,7 @@
 
     <!-- Sidebar Navigation -->
     <aside class="sidebar" id="sidebar">
-        <a href="{{ url_for('hospitality.index') if current_mode == 'AIRBNB' else url_for('dashboard.index') }}" class="sidebar-brand">
+        <a href="{{ url_for('platform.organizations') if current_user.is_superadmin() else (url_for('hospitality.index') if current_mode == 'AIRBNB' else url_for('dashboard.index')) }}" class="sidebar-brand">
             {% if logo_url %}
             <img src="{{ logo_url }}" alt="Logo" onerror="this.style.display='none'; document.getElementById('brand-fallback-icon').style.display='inline-block';">
             <i class="bi bi-buildings-fill fs-2 text-primary" id="brand-fallback-icon" style="display: none;"></i>
@@ -266,9 +266,10 @@
             <div class="sidebar-brand-title">{{ app_name }}</div>
         </a>
 
-        {# ── Mode Switcher at top of sidebar (if organization/user has both modules) ── #}
-        {% set can_rentals = current_user.is_superadmin() or not current_user.active_organization or current_user.active_organization.can_access_rental_module() %}
-        {% set can_airbnb = current_user.is_superadmin() or not current_user.active_organization or current_user.active_organization.can_access_hospitality_module() %}
+        {# ── Mode Switcher at top of sidebar (hidden for SuperAdmin) ── #}
+        {% if not current_user.is_superadmin() %}
+        {% set can_rentals = not current_user.active_organization or current_user.active_organization.can_access_rental_module() %}
+        {% set can_airbnb = not current_user.active_organization or current_user.active_organization.can_access_hospitality_module() %}
 
         {% if can_rentals and can_airbnb %}
         <div class="px-3 pt-2 pb-1">
@@ -286,11 +287,51 @@
             </div>
         </div>
         {% endif %}
+        {% endif %}
 
         <div class="sidebar-menu">
             {# ══════════════════════════════════════════════════════════════════════
-               AIRBNB / HOSPITALITY WORKSPACE
+               SUPERADMIN — Platform Control Plane ONLY (No house/property menus)
             ══════════════════════════════════════════════════════════════════════ #}
+            {% if current_user.is_superadmin() %}
+            <div class="nav-item-header text-dark"><i class="bi bi-shield-lock-fill me-1"></i> Platform Control</div>
+            <a href="{{ url_for('platform.organizations') }}" class="sidebar-nav-link {% if 'platform.organizations' in request.endpoint or 'platform.organization' in request.endpoint %}active{% endif %}">
+                <i class="bi bi-buildings-fill text-dark"></i>
+                <span>Client Organizations</span>
+            </a>
+            <a href="{{ url_for('users.index') }}" class="sidebar-nav-link {% if 'users' in request.endpoint %}active{% endif %}">
+                <i class="bi bi-person-gear text-dark"></i>
+                <span>All System Users</span>
+            </a>
+            <a href="{{ url_for('platform.analytics') }}" class="sidebar-nav-link {% if request.endpoint == 'platform.analytics' %}active{% endif %}">
+                <i class="bi bi-graph-up-arrow text-dark"></i>
+                <span>Platform Analytics</span>
+            </a>
+            <div class="nav-item-header text-dark mt-2">Communications</div>
+            <a href="{{ url_for('communication.sms_history') }}" class="sidebar-nav-link {% if request.endpoint == 'communication.sms_history' %}active{% endif %}">
+                <i class="bi bi-chat-dots-fill"></i>
+                <span>SMS Delivery Logs</span>
+            </a>
+            <a href="{{ url_for('communication.index') }}" class="sidebar-nav-link {% if request.endpoint == 'communication.index' %}active{% endif %}">
+                <i class="bi bi-chat-left-text-fill"></i>
+                <span>Broadcast Messages</span>
+            </a>
+            <div class="nav-item-header text-dark mt-2">Governance</div>
+            <a href="{{ url_for('audit.index') }}" class="sidebar-nav-link {% if 'audit' in request.endpoint %}active{% endif %}">
+                <i class="bi bi-clock-history"></i>
+                <span>System Audit Trail</span>
+            </a>
+            <a href="{{ url_for('settings.index') }}" class="sidebar-nav-link {% if 'settings' in request.endpoint %}active{% endif %}">
+                <i class="bi bi-sliders"></i>
+                <span>Platform Settings</span>
+            </a>
+
+            {% else %}
+            {# ══════════════════════════════════════════════════════════════════════
+               NON-SUPERADMIN: derive module access from their organization
+            ══════════════════════════════════════════════════════════════════════ #}
+            {% set can_rentals = not current_user.active_organization or current_user.active_organization.can_access_rental_module() %}
+            {% set can_airbnb = not current_user.active_organization or current_user.active_organization.can_access_hospitality_module() %}
             {% if can_airbnb and current_mode == 'AIRBNB' %}
             <div class="nav-item-header text-danger"><i class="bi bi-cup-hot-fill me-1"></i> Hospitality &amp; Short-Stay</div>
             <a href="{{ url_for('hospitality.index') }}" class="sidebar-nav-link {% if request.endpoint == 'hospitality.index' %}active{% endif %}">
@@ -447,17 +488,7 @@
             {% endif %}
             {% endif %}
 
-            {% if current_user.is_superadmin() %}
-            <div class="nav-item-header text-dark"><i class="bi bi-shield-lock-fill me-1"></i> Platform Control</div>
-            <a href="{{ url_for('platform.organizations') }}" class="sidebar-nav-link {% if request.endpoint == 'platform.organizations' %}active{% endif %}">
-                <i class="bi bi-buildings-fill text-dark"></i>
-                <span>Client Organizations</span>
-            </a>
-            <a href="{{ url_for('platform.analytics') }}" class="sidebar-nav-link {% if request.endpoint == 'platform.analytics' %}active{% endif %}">
-                <i class="bi bi-graph-up-arrow text-dark"></i>
-                <span>Platform Analytics</span>
-            </a>
-            {% endif %}
+            {% endif %}{# end non-superadmin block #}
         </div>
     </aside>
 
@@ -468,7 +499,14 @@
                 <i class="bi bi-list fs-5"></i>
             </button>
             <div class="d-none d-sm-block">
-                {% if current_user.active_organization %}
+                {% if current_user.is_superadmin() %}
+                <span class="badge bg-dark text-white px-3 py-2 fw-semibold">
+                    <i class="bi bi-shield-lock-fill me-1 text-warning"></i> Platform Super Admin &bull; Control Plane
+                </span>
+                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-2 ms-1 fw-bold">
+                    Multi-Tenant Master
+                </span>
+                {% elif current_user.active_organization %}
                 <span class="badge bg-light text-dark border px-2 py-2 fw-semibold">
                     <i class="bi bi-buildings-fill text-primary me-1"></i> {{ current_user.active_organization.name }}
                 </span>
@@ -492,7 +530,8 @@
                     {{ currency }}
                 </span>
             </div>
-            <!-- Global Tenant & Client Quick Search Bar -->
+            <!-- Global Tenant & Client Quick Search Bar (hidden for SuperAdmin) -->
+            {% if not current_user.is_superadmin() %}
             <form method="GET" action="{{ url_for('tenants.index') }}" class="d-flex align-items-center ms-2" style="max-width: 320px;">
                 <input type="hidden" name="direct" value="1">
                 <div class="input-group input-group-sm">
@@ -501,11 +540,15 @@
                     <button class="btn btn-primary btn-sm px-2 fw-semibold" type="submit" title="Search Tenant Directory & Open Dossier">Find</button>
                 </div>
             </form>
+            {% endif %}
         </div>
 
         <div class="d-flex align-items-center gap-3">
-            <!-- Dual-Mode Workspace Switcher -->
-            {% if can_rentals and can_airbnb %}
+            <!-- Dual-Mode Workspace Switcher (hidden for SuperAdmin) -->
+            {% if not current_user.is_superadmin() %}
+            {% set can_rentals_top = not current_user.active_organization or current_user.active_organization.can_access_rental_module() %}
+            {% set can_airbnb_top = not current_user.active_organization or current_user.active_organization.can_access_hospitality_module() %}
+            {% if can_rentals_top and can_airbnb_top %}
             <div class="btn-group btn-group-sm d-none d-lg-inline-flex border rounded-pill p-1 bg-light shadow-sm" role="group">
                 <a href="{{ url_for('dashboard.switch_mode', mode='rentals') }}" class="btn btn-sm rounded-pill px-3 py-1 {% if current_mode == 'RENTALS' %}btn-primary text-white fw-bold shadow-sm{% else %}btn-light text-muted border-0{% endif %}" title="Switch to Long-Term Rental Management">
                     <i class="bi bi-building me-1"></i> Rentals Mode
@@ -514,6 +557,7 @@
                     <i class="bi bi-cup-hot-fill me-1"></i> Airbnb Mode
                 </a>
             </div>
+            {% endif %}
             {% endif %}
 
             {% if current_user.is_authenticated and current_user.organization and current_user.organization.org_code and not current_user.is_superadmin() %}

@@ -42,6 +42,10 @@ def rentals_mode():
 @dashboard_bp.route('/dashboard')
 @login_required
 def index():
+    # SuperAdmin has no properties — redirect straight to Platform Control
+    if current_user.is_superadmin():
+        return redirect(url_for('platform.organizations'))
+
     now = datetime.utcnow()
     current_month = now.month
     current_year = now.year

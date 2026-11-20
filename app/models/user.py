@@ -137,7 +137,9 @@ class User(UserMixin, db.Model):
 
     @property
     def active_organization(self):
-        """Returns user's organization or system default organization."""
+        """Returns user's organization or system default organization (None for Superadmin who has no properties)."""
+        if self.is_superadmin():
+            return None
         if self.organization:
             return self.organization
         from app.models.organization import Organization
