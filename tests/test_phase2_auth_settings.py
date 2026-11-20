@@ -135,7 +135,7 @@ def test_user_creation_and_status_toggle(client, app):
     res = client.post(f'/users/{user_id}/toggle-status', follow_redirects=True)
     assert res.status_code == 200
     with app.app_context():
-        u = User.query.get(user_id)
+        u = db.session.get(User, user_id)
         assert u.is_active is False
 
 def test_user_profile_and_password_change(client, app):

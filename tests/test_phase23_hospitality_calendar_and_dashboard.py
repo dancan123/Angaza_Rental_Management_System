@@ -248,7 +248,7 @@ def test_landlord_can_add_room_and_update_details(app, client):
     assert b'Executive Suite 3 - Ocean Breeze' in update_res.data
 
     with app.app_context():
-        updated_room = RentalUnit.query.get(new_room_id)
+        updated_room = db.session.get(RentalUnit, new_room_id)
         assert updated_room.unit_number == 'Executive Suite 3 - Ocean Breeze'
         assert updated_room.daily_rate_cents == 550000
         assert updated_room.max_guests == 4

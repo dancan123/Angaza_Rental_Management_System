@@ -78,7 +78,7 @@ def test_property_and_unit_service(app):
 
         # Update status of unit1 to MAINTENANCE
         PropertyService.update_unit_status(unit1.id, 'MAINTENANCE', reason='Painting walls')
-        u1_updated = RentalUnit.query.get(unit1.id)
+        u1_updated = db.session.get(RentalUnit, unit1.id)
         assert u1_updated.occupancy_status == 'MAINTENANCE'
 
         # Check occupancy stats

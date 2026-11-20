@@ -69,7 +69,7 @@ def test_maintenance_lifecycle_and_auto_expense(app):
 
         # 2. Assign technician
         MaintenanceService.assign_technician(req.id, 'Joshua Plumber', '+254700998877')
-        req_refreshed = MaintenanceRequest.query.get(req.id)
+        req_refreshed = db.session.get(MaintenanceRequest, req.id)
         assert req_refreshed.status == 'ASSIGNED'
         assert req_refreshed.assigned_to_technician == 'Joshua Plumber'
 
@@ -85,7 +85,7 @@ def test_maintenance_lifecycle_and_auto_expense(app):
 
         # Check linked expense was automatically created
         assert rec.expense_id is not None
-        linked_exp = Expense.query.get(rec.expense_id)
+        linked_exp = db.session.get(Expense, rec.expense_id)
         assert linked_exp is not None
         assert linked_exp.category == 'REPAIRS'
         assert linked_exp.amount_cents == 250000

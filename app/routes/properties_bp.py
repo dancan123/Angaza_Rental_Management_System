@@ -649,18 +649,21 @@ def onboard_external_to_managed(listing_id):
 
 @properties_bp.route('/occupancy')
 @login_required
-@permission_required('units.view')
+@permission_required('properties.view')
 def occupancy_grid():
     """
     Visual Property Occupancy Interface:
     Allows property managers and caretakers to see all rental units visually distinguished
     by status (Vacant, Occupied, Reserved, Maintenance) with live search and multi-criteria filters.
     """
+    from app.utils.decorators import multi_tenant_scoped
     status_filter = request.args.get('status')
     property_filter = request.args.get('property_id', type=int)
     search = request.args.get('search', '').strip()
 
-    query = RentalUnit.query
+    org_id = getattr(current_user, 'organization_id', None) if not current_user.is_superadmin() else None
+
+    query = multi_tenant_scoped(RentalUnit.query, RentalUnit)
     if property_filter:
         query = query.filter(RentalUnit.property_id == property_filter)
     if status_filter:
@@ -669,8 +672,8 @@ def occupancy_grid():
         query = query.filter(RentalUnit.unit_number.ilike(f"%{search}%"))
 
     units = query.order_by(RentalUnit.unit_number.asc()).all()
-    properties = Property.query.all()
-    stats = PropertyService.get_property_occupancy_stats(property_filter)
+    properties = multi_tenant_scoped(Property.query, Property).all()
+    stats = PropertyService.get_property_occupancy_stats(property_filter, organization_id=org_id)
 
     return render_template(
         'properties/occupancy.html',
@@ -684,7 +687,7 @@ def occupancy_grid():
 
 @properties_bp.route('/export-vacant-excel')
 @login_required
-@permission_required('units.view')
+@permission_required('properties.view')
 def export_vacant_excel():
     property_id = request.args.get('property_id', type=int)
     from app.services.report_service import ReportService

@@ -118,7 +118,7 @@ def test_meter_reading_and_auto_billing(app):
         assert reading.rent_charge_id is not None
 
         # Verify RentCharge created for tenant
-        charge = RentCharge.query.get(reading.rent_charge_id)
+        charge = db.session.get(RentCharge, reading.rent_charge_id)
         assert charge is not None
         assert charge.tenant_id == tenant.id
         assert charge.rental_unit_id == unit.id

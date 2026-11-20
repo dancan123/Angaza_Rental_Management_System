@@ -73,7 +73,7 @@ def test_booking_workflow_and_double_booking_prevention(app):
         )
         assert bkg.status == 'ACTIVE'
         # Unit must automatically change to RESERVED
-        u1_refreshed = RentalUnit.query.get(unit1.id)
+        u1_refreshed = db.session.get(RentalUnit, unit1.id)
         assert u1_refreshed.occupancy_status == 'RESERVED'
 
         # 2. Double-booking prevention: attempting to book C-101 again must raise ValueError

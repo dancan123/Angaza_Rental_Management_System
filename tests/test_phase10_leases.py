@@ -67,7 +67,7 @@ def test_lease_creation_and_pdf(app):
         assert lease.monthly_rent_cents == 4500000
 
         # Unit must now be OCCUPIED
-        unit_refreshed = RentalUnit.query.get(unit.id)
+        unit_refreshed = db.session.get(RentalUnit, unit.id)
         assert unit_refreshed.occupancy_status == 'OCCUPIED'
         assert unit_refreshed.current_tenant_id == tenant.id
 
