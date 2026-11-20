@@ -458,3 +458,89 @@ def test_same_region_two_orgs_fully_independent(app, orgs):
         leadsB_ids = {l.id for l in HouseSeekerLead.query.filter_by(organization_id=orgB.id).all()}
         assert leadsA_ids.isdisjoint(leadsB_ids), \
             f"Cross-contamination in leads! Shared: {leadsA_ids & leadsB_ids}"
+
+def test_enlisted_neighbour_apartment_isolation_and_bookings_tab(app, orgs):
+    """
+    Verify complete multi-tenant isolation for neighbour apartment enlistments across all organizations:
+    1. Org A only sees Org A's submitted apartments.
+    2. Org B only sees Org B's submitted apartments.
+    3. Neither can view, publish, or delete the other's enlistments.
+    4. Visiting /vacancies dynamically routes each org to their own dedicated window.
+    """
+    app.config['WTF_CSRF_ENABLED'] = False
+    r = orgs['r']
+    orgA = orgs['orgA']
+    orgB = orgs['orgB']
+    userA = orgs['userA']
+    userB = orgs['userB']
+
+    with app.app_context():
+        # Create partner enlistments for Org A and Org B
+        extA = ExternalPropertyListing(
+            organization_id=orgA.id,
+            owner_name=f'Landlord Alpha {r}',
+            owner_phone=f'+25471100{r}',
+            property_title=f'Alpha Suites {r}',
+            location='Westlands, Nairobi',
+            property_type='APARTMENT',
+            unit_type='2_BEDROOM',
+            monthly_rent_cents=5000000,
+            status='PENDING'
+        )
+        extB = ExternalPropertyListing(
+            organization_id=orgB.id,
+            owner_name=f'Landlord Beta {r}',
+            owner_phone=f'+25472200{r}',
+            property_title=f'Beta Court {r}',
+            location='Karen, Nairobi',
+            property_type='APARTMENT',
+            unit_type='3_BEDROOM',
+            monthly_rent_cents=9000000,
+            status='PENDING'
+        )
+        db.session.add_all([extA, extB])
+        db.session.commit()
+        extA_id = extA.id
+        extB_id = extB.id
+
+    with app.test_client() as client:
+        # --- TEST ORG A USER ---
+        client.post('/auth/login', data={'username': userA.username, 'password': 'Pass123!'})
+
+        # /vacancies must redirect user A to Org A's portal
+        vac_a = client.get('/vacancies', follow_redirects=False)
+        assert vac_a.status_code == 302
+        assert f"/vacancies/{orgA.org_code}" in vac_a.location
+
+        # Org A's Reservations & Inquiries enlistment tab
+        book_a = client.get('/bookings/?tab=enlistments')
+        assert book_a.status_code == 200
+        assert f'Alpha Suites {r}'.encode() in book_a.data
+        # Must NOT see Org B's listing
+        assert f'Beta Court {r}'.encode() not in book_a.data
+
+        # Org A cannot delete or modify Org B's listing (Forbidden 403)
+        hack_resp = client.post(f'/properties/external-listings/{extB_id}/delete')
+        assert hack_resp.status_code == 403
+
+        client.get('/auth/logout')
+
+        # --- TEST ORG B USER ---
+        client.post('/auth/login', data={'username': userB.username, 'password': 'Pass123!'})
+
+        # /vacancies must redirect user B to Org B's portal
+        vac_b = client.get('/vacancies', follow_redirects=False)
+        assert vac_b.status_code == 302
+        assert f"/vacancies/{orgB.org_code}" in vac_b.location
+
+        # Org B's Reservations & Inquiries enlistment tab
+        book_b = client.get('/bookings/?tab=enlistments')
+        assert book_b.status_code == 200
+        assert f'Beta Court {r}'.encode() in book_b.data
+        # Must NOT see Org A's listing
+        assert f'Alpha Suites {r}'.encode() not in book_b.data
+
+        # Org B cannot delete or modify Org A's listing (Forbidden 403)
+        hack_b_resp = client.post(f'/properties/external-listings/{extA_id}/delete')
+        assert hack_b_resp.status_code == 403
+
