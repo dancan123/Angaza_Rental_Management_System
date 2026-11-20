@@ -143,3 +143,51 @@ def test_cross_organization_data_isolation(client):
         # Attempting to download invoice PDF must return 404
         res_inv = client.get(f'/billing/invoices/{charge_org3.id}/pdf')
         assert res_inv.status_code == 404
+
+def test_register_with_admin_email_resolves_username_collision(client):
+    """
+    Ensure registering with an email like 'admin@gmail.com' (where 'admin' username already exists)
+    does NOT crash with a UNIQUE constraint failed on users.username,
+    and instead assigns a collision-safe username like 'angxxxx_admin'.
+    """
+    import random
+    rand_id = random.randint(10000, 99999)
+    email = f"admin{rand_id}@newlandlord.co.ke"
+    # Even if someone uses an email where the prefix is 'admin' by setting base
+    org_name = f"Admin Estate {rand_id}"
+
+    res = client.post('/auth/register', data={
+        'organization_name': org_name,
+        'full_name': 'Mwende John',
+        'email': f"admin_{rand_id}@gmail.com",
+        'phone': f'+254746{rand_id}',
+        'password': 'Password123!',
+        'subscription_tier': 'COMBINED_SUITE'
+    }, follow_redirects=True)
+
+    assert res.status_code == 200
+    assert b"Welcome to Angaza" in res.data
+
+    # Log out first user before testing second registration
+    client.get('/auth/logout', follow_redirects=True)
+
+    # Now register another one with exact 'admin' prefix email to trigger collision handling
+    org_name_2 = f"Mwende Agency {rand_id}"
+    email_2 = f"admin@clientdomain{rand_id}.com"
+
+    res2 = client.post('/auth/register', data={
+        'organization_name': org_name_2,
+        'full_name': 'Mwende John Second',
+        'email': email_2,
+        'phone': f'+2547460{rand_id}',
+        'password': 'Password123!',
+        'subscription_tier': 'COMBINED_SUITE'
+    }, follow_redirects=True)
+
+    assert res2.status_code == 200
+    assert b"Welcome to Angaza" in res2.data
+    # Verify user was created with a collision-free prefixed username
+    user = User.query.filter_by(email=email_2).first()
+    assert user is not None
+    assert user.username != "admin"
+    assert "admin" in user.username

@@ -168,62 +168,78 @@ def register():
         # 1. Provision customer Organization tenant with auto-generated unique business code (ANGxxxx)
         trial_expiry = datetime.utcnow() + timedelta(days=14)
         unique_org_code = Organization.generate_unique_org_code()
-        org = Organization(
-            name=org_name,
-            slug=slug,
-            org_code=unique_org_code,
-            contact_email=email,
-            contact_phone=phone if phone else None,
-            subscription_tier=suite_tier,
-            subscription_status='TRIAL',
-            subscription_expires_at=trial_expiry,
-            max_properties=25,
-            max_units=100,
-            max_users=5,
-            sms_credits=50
-        )
-        db.session.add(org)
-        db.session.flush()
 
-        # 2. Create primary Property Manager role user
-        manager_role = Role.query.filter_by(name='PROPERTY_MANAGER').first()
-        if not manager_role:
-            manager_role = Role.query.filter_by(name='SUPERADMIN').first()
+        # Determine collision-safe unique username (prevents crash when email username is 'admin', 'manager', etc.)
+        base_username = email.split('@')[0].strip().lower()
+        candidate_username = base_username
+        if User.query.filter_by(username=candidate_username).first():
+            candidate_username = f"{unique_org_code.lower()}_{base_username}"
+            counter = 1
+            while User.query.filter_by(username=candidate_username).first():
+                candidate_username = f"{unique_org_code.lower()}_{base_username}_{counter}"
+                counter += 1
 
-        user = User(
-            username=email.split('@')[0],
-            email=email,
-            phone=phone if phone else None,
-            full_name=full_name,
-            organization_id=org.id,
-            role=manager_role,
-            is_active=True
-        )
-        user.set_password(password)
-        db.session.add(user)
-        db.session.flush()
+        try:
+            org = Organization(
+                name=org_name,
+                slug=slug,
+                org_code=unique_org_code,
+                contact_email=email,
+                contact_phone=phone if phone else None,
+                subscription_tier=suite_tier,
+                subscription_status='TRIAL',
+                subscription_expires_at=trial_expiry,
+                max_properties=25,
+                max_units=100,
+                max_users=5,
+                sms_credits=50
+            )
+            db.session.add(org)
+            db.session.flush()
 
-        # 3. Create default Landlord record for immediate property onboarding
-        landlord = Landlord(
-            name=org_name,
-            contact_person=full_name,
-            email=email,
-            phone=phone if phone else '+254700000000',
-            is_active=True
-        )
-        db.session.add(landlord)
-        db.session.commit()
+            # 2. Create primary Property Manager role user
+            manager_role = Role.query.filter_by(name='PROPERTY_MANAGER').first()
+            if not manager_role:
+                manager_role = Role.query.filter_by(name='SUPERADMIN').first()
 
-        # Auto-login to system
-        login_user(user)
-        AuditService.log('SELF_ONBOARDING_TRIAL', 'Organization', org.id, new_values={'name': org_name, 'tier': suite_tier, 'org_code': unique_org_code, 'expires_at': str(trial_expiry)})
+            user = User(
+                username=candidate_username,
+                email=email,
+                phone=phone if phone else None,
+                full_name=full_name,
+                organization_id=org.id,
+                role=manager_role,
+                is_active=True
+            )
+            user.set_password(password)
+            db.session.add(user)
+            db.session.flush()
 
-        flash(
-            f"🎉 Welcome to Angaza, {full_name}! Your organization '{org_name}' is active with unique Business Code: "
-            f"'{unique_org_code}'. Please save this code for signing in to your isolated workspace. (14-day trial & 50 free SMS active)",
-            'success'
-        )
-        return redirect(url_for('dashboard.index'))
+            # 3. Create default Landlord record for immediate property onboarding
+            landlord = Landlord(
+                name=org_name,
+                contact_person=full_name,
+                email=email,
+                phone=phone if phone else '+254700000000',
+                is_active=True
+            )
+            db.session.add(landlord)
+            db.session.commit()
+
+            # Auto-login to system
+            login_user(user)
+            AuditService.log('SELF_ONBOARDING_TRIAL', 'Organization', org.id, new_values={'name': org_name, 'tier': suite_tier, 'org_code': unique_org_code, 'expires_at': str(trial_expiry)})
+
+            flash(
+                f"🎉 Welcome to Angaza, {full_name}! Your organization '{org_name}' is active with unique Business Code: "
+                f"'{unique_org_code}'. Please save this code for signing in to your isolated workspace. (14-day trial & 50 free SMS active)",
+                'success'
+            )
+            return redirect(url_for('dashboard.index'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Registration failed: {str(e)}", 'danger')
+            return render_template('auth/register.html')
 
     return render_template('auth/register.html')
 
