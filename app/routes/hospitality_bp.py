@@ -731,3 +731,84 @@ def calendar():
         short_stay_count=short_stay_count,
         all_units_count=all_units_count
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TWO-WAY ICAL (.ICS) CALENDAR SYNCHRONIZATION (AIRBNB / BOOKING.COM / VRBO)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@hospitality_bp.route('/units/<int:unit_id>/calendar.ics')
+@hospitality_bp.route('/export-ical/<string:token>.ics')
+def export_unit_ical(unit_id=None, token=None):
+    """
+    Public RFC 5545 iCal export feed for an accommodation unit.
+    Allows external platforms (Airbnb, Booking.com, VRBO, Google Calendar, Apple Calendar)
+    to automatically subscribe and block dates when local reservations occur.
+    """
+    import re
+    from flask import Response
+    from app.services.ical_service import ICalService
+
+    if token:
+        unit = RentalUnit.query.filter_by(ical_token=token).first()
+    elif unit_id:
+        unit = db.session.get(RentalUnit, unit_id)
+    else:
+        unit = None
+
+    if not unit:
+        from flask import abort; abort(404)
+
+    ics_content = ICalService.generate_unit_ical(unit)
+    safe_num = re.sub(r'[^A-Za-z0-9_-]', '_', unit.unit_number or 'unit')
+    filename = f"calendar_{safe_num}.ics"
+
+    return Response(
+        ics_content,
+        mimetype='text/calendar; charset=utf-8',
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        }
+    )
+
+
+@hospitality_bp.route('/units/<int:unit_id>/sync-ical', methods=['POST'])
+@login_required
+@permission_required('bookings.manage')
+def sync_unit_ical(unit_id):
+    """
+    Synchronizes an external iCal feed (from Airbnb, Booking.com, or direct paste)
+    into local reservations for the specified short-stay room.
+    """
+    from app.services.ical_service import ICalService
+    unit = db.session.get(RentalUnit, unit_id)
+    if not unit:
+        from flask import abort; abort(404)
+
+    feed_url = request.form.get('ical_import_url', '').strip()
+    raw_content = request.form.get('raw_ical_content', '').strip() or None
+
+    if feed_url:
+        unit.ical_import_url = feed_url
+        db.session.commit()
+
+    result = ICalService.sync_unit_external_ical(unit.id, feed_url=feed_url or unit.ical_import_url, ics_content=raw_content)
+
+    if result.get('success'):
+        imp = result.get('imported', 0)
+        upd = result.get('updated', 0)
+        flash(
+            f"iCal Calendar sync successful for Room '{unit.unit_number}'. "
+            f"Imported: {imp} new block(s), Updated: {upd} reservation(s). "
+            f"Calendar is locked against double bookings.",
+            'success'
+        )
+    else:
+        err = result.get('error', 'Unknown synchronization failure')
+        flash(f"iCal Sync failed for Room '{unit.unit_number}': {err}", 'danger')
+
+    return redirect(request.referrer or url_for('hospitality.rooms'))
+

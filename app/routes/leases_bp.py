@@ -47,6 +47,7 @@ def create_lease():
     due_day = request.form.get('payment_due_day', 5, type=int)
     notice = request.form.get('notice_period_days', 30, type=int)
     terms = request.form.get('terms_and_conditions')
+    prorate_first_month = request.form.get('prorate_first_month') in ('1', 'true', 'on', 'yes')
 
     if not rental_unit_id or not tenant_id or not start_date_str or not monthly_rent:
         flash('Rental unit, tenant, start date, and rent are mandatory.', 'danger')
@@ -65,7 +66,8 @@ def create_lease():
             deposit_amount=deposit,
             payment_due_day=due_day,
             notice_period_days=notice,
-            terms_and_conditions=terms
+            terms_and_conditions=terms,
+            prorate_first_month=prorate_first_month
         )
         flash(f"Tenancy Agreement {lease.lease_number} created and executed.", 'success')
         return redirect(url_for('leases.detail', lease_id=lease.id))

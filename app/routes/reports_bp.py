@@ -2,6 +2,7 @@ from datetime import datetime
 from io import BytesIO
 from flask import Blueprint, render_template, request, send_file
 from flask_login import login_required, current_user
+from app.extensions import db
 from app.models.property import Property
 from app.models.user import Landlord
 from app.services.report_service import ReportService
@@ -279,6 +280,47 @@ def hospitality_report():
         channels=channels,
         total_reservations=len(all_res)
     )
+
+
+@reports_bp.route('/balance-sheet')
+@login_required
+@permission_required('reports.view')
+def balance_sheet():
+    """Commercial Property Balance Sheet statement with Assets, Liabilities, and Equity."""
+    as_of_str = request.args.get('as_of_date')
+    as_of_date = datetime.strptime(as_of_str, '%Y-%m-%d').date() if as_of_str else datetime.utcnow().date()
+    org_id = getattr(current_user, 'organization_id', None)
+
+    bs = ReportService.get_balance_sheet(as_of_date=as_of_date, organization_id=org_id)
+    return render_template(
+        'reports/balance_sheet.html',
+        bs=bs,
+        as_of_date=as_of_date
+    )
+
+
+@reports_bp.route('/chart-of-accounts')
+@login_required
+@permission_required('reports.view')
+def chart_of_accounts():
+    """Standard 5-Category Chart of Accounts mapped to operational property ledgers."""
+    org_id = getattr(current_user, 'organization_id', None)
+    accounts = ReportService.get_chart_of_accounts(organization_id=org_id)
+
+    # Group by account type
+    grouped = {}
+    for acc in accounts:
+        t = acc['type']
+        if t not in grouped:
+            grouped[t] = []
+        grouped[t].append(acc)
+
+    return render_template(
+        'reports/chart_of_accounts.html',
+        accounts=accounts,
+        grouped=grouped
+    )
+
 
 
 

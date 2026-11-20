@@ -128,6 +128,44 @@
             </div>
         </div>
     </div>
+
+    <!-- 8. Commercial Balance Sheet -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card card-custom bg-white h-100 p-4 border border-primary border-2 shadow-sm">
+            <div class="stat-card-icon bg-primary-subtle text-primary mb-3">
+                <i class="bi bi-journal-bookmark-fill"></i>
+            </div>
+            <div class="d-flex align-items-center gap-1 mb-1">
+                <span class="badge bg-primary" style="font-size:0.65rem;">ACCOUNTING</span>
+                <h5 class="fw-bold mb-0">Balance Sheet Statement</h5>
+            </div>
+            <p class="text-muted small mb-3">Commercial Statement of Financial Position: Assets (Cash, Arrears), Liabilities (Security Deposits, Advances), and Owners' Equity.</p>
+            <div class="mt-auto">
+                <a href="{{ url_for('reports.balance_sheet') }}" class="btn btn-primary btn-sm w-100 fw-semibold">
+                    <i class="bi bi-journal-check me-1"></i> Open Balance Sheet
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 9. Chart of Accounts (COA) -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card card-custom bg-white h-100 p-4 border border-secondary border-2 shadow-sm">
+            <div class="stat-card-icon bg-secondary-subtle text-secondary mb-3">
+                <i class="bi bi-list-columns-reverse"></i>
+            </div>
+            <div class="d-flex align-items-center gap-1 mb-1">
+                <span class="badge bg-secondary" style="font-size:0.65rem;">GENERAL LEDGER</span>
+                <h5 class="fw-bold mb-0">Chart of Accounts (COA)</h5>
+            </div>
+            <p class="text-muted small mb-3">Standard 5-digit General Ledger Chart of Accounts mapping Assets, Liabilities, Equity, Revenues, and Operational Expenses with live balances.</p>
+            <div class="mt-auto">
+                <a href="{{ url_for('reports.chart_of_accounts') }}" class="btn btn-outline-dark btn-sm w-100 fw-semibold">
+                    <i class="bi bi-list-nested me-1"></i> View General Ledger COA
+                </a>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 

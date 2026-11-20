@@ -111,6 +111,7 @@ def app():
 
         today = date.today()
         res = HospitalityReservation(
+            organization_id=org.id,
             reservation_code='RES-WAT-001',
             guest_id=guest.id,
             rental_unit_id=room_airbnb.id,

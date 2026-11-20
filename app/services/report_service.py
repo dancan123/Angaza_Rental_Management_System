@@ -414,3 +414,131 @@ class ReportService:
             'hospitality_reservations_count': len(hosp_reservations),
             'expenses_count': len(expenses)
         }
+
+    @staticmethod
+    def get_balance_sheet(as_of_date=None, organization_id=None):
+        """
+        Generates a commercial Balance Sheet as of a specific date.
+        Formula: Total Assets = Total Liabilities + Total Equity
+        """
+        if not as_of_date:
+            as_of_date = datetime.utcnow().date()
+
+        from app.models.lease import Lease as _Lease
+        from app.models.property import Property as _Property
+        from app.models.finance import Payment as _Payment, RentCharge as _RentCharge
+        from app.models.maintenance import Expense as _Expense
+
+        # ── 1. ASSETS ──
+        pay_q = _Payment.query.filter(_Payment.payment_status == 'CONFIRMED', _Payment.payment_date <= as_of_date)
+        exp_q = _Expense.query.filter(_Expense.expense_date <= as_of_date)
+
+        if organization_id:
+            pay_q = pay_q.filter(_Payment.organization_id == organization_id)
+            org_prop_ids = [p.id for p in _Property.query.filter_by(organization_id=organization_id).all()]
+            exp_q = exp_q.filter(_Expense.property_id.in_(org_prop_ids)) if org_prop_ids else exp_q.filter(_Expense.id == -1)
+
+        confirmed_payments = pay_q.all()
+        operating_expenses = exp_q.all()
+
+        cash_cents = sum(p.amount_cents for p in confirmed_payments if p.payment_method == 'CASH')
+        mpesa_cents = sum(p.amount_cents for p in confirmed_payments if p.payment_method == 'MPESA')
+        bank_cents = sum(p.amount_cents for p in confirmed_payments if p.payment_method not in ('CASH', 'MPESA'))
+        total_expense_outflows_cents = sum(e.amount_cents for e in operating_expenses)
+
+        # Net operating cash equivalents
+        net_cash_equivalents_cents = max(0, (cash_cents + mpesa_cents + bank_cents) - total_expense_outflows_cents)
+
+        # Accounts Receivable (Unpaid & partially paid charges due on or before as_of_date)
+        chg_q = _RentCharge.query.filter(_RentCharge.due_date <= as_of_date, _RentCharge.status.in_(['UNPAID', 'PARTIALLY_PAID']))
+        if organization_id:
+            chg_q = chg_q.filter(_RentCharge.organization_id == organization_id)
+
+        uncollected_charges = chg_q.all()
+        rent_arrears_receivable_cents = sum(c.balance_cents for c in uncollected_charges if c.charge_type == 'RENT')
+        utility_receivable_cents = sum(c.balance_cents for c in uncollected_charges if c.charge_type in ('WATER', 'ELECTRICITY', 'UTILITY'))
+        other_receivables_cents = sum(c.balance_cents for c in uncollected_charges if c.charge_type not in ('RENT', 'WATER', 'ELECTRICITY', 'UTILITY'))
+        total_receivables_cents = rent_arrears_receivable_cents + utility_receivable_cents + other_receivables_cents
+
+        total_assets_cents = net_cash_equivalents_cents + total_receivables_cents
+
+        # ── 2. LIABILITIES ──
+        lease_q = _Lease.query.filter(_Lease.status == 'ACTIVE', _Lease.start_date <= as_of_date)
+        if organization_id:
+            from app.models.property import RentalUnit as _RU
+            lease_q = lease_q.join(_RU).join(_Property).filter(_Property.organization_id == organization_id)
+
+        active_leases = lease_q.all()
+        deposit_liabilities_cents = sum(l.deposit_cents for l in active_leases)
+        prepaid_rent_cents = 0
+        total_liabilities_cents = deposit_liabilities_cents + prepaid_rent_cents
+
+        # ── 3. OWNER'S EQUITY ──
+        equity_cents = total_assets_cents - total_liabilities_cents
+
+        from app.utils.currency import format_currency
+
+        return {
+            'as_of_date': as_of_date,
+            'cash_cents': cash_cents,
+            'cash_display': format_currency(cash_cents),
+            'mpesa_cents': mpesa_cents,
+            'mpesa_display': format_currency(mpesa_cents),
+            'bank_cents': bank_cents,
+            'bank_display': format_currency(bank_cents),
+            'net_cash_equivalents_cents': net_cash_equivalents_cents,
+            'net_cash_display': format_currency(net_cash_equivalents_cents),
+            'rent_arrears_receivable_cents': rent_arrears_receivable_cents,
+            'rent_arrears_display': format_currency(rent_arrears_receivable_cents),
+            'utility_receivable_cents': utility_receivable_cents,
+            'utility_receivable_display': format_currency(utility_receivable_cents),
+            'other_receivables_cents': other_receivables_cents,
+            'other_receivables_display': format_currency(other_receivables_cents),
+            'total_receivables_cents': total_receivables_cents,
+            'total_receivables_display': format_currency(total_receivables_cents),
+            'total_assets_cents': total_assets_cents,
+            'total_assets_display': format_currency(total_assets_cents),
+            'deposit_liabilities_cents': deposit_liabilities_cents,
+            'deposit_liabilities_display': format_currency(deposit_liabilities_cents),
+            'prepaid_rent_cents': prepaid_rent_cents,
+            'prepaid_rent_display': format_currency(prepaid_rent_cents),
+            'total_liabilities_cents': total_liabilities_cents,
+            'total_liabilities_display': format_currency(total_liabilities_cents),
+            'equity_cents': equity_cents,
+            'equity_display': format_currency(equity_cents),
+            'total_liabilities_and_equity_cents': total_liabilities_cents + equity_cents,
+            'total_liabilities_and_equity_display': format_currency(total_liabilities_cents + equity_cents),
+            'is_balanced': True
+        }
+
+    @staticmethod
+    def get_chart_of_accounts(organization_id=None):
+        """Standard 5-Category Chart of Accounts mapped to operational ledgers."""
+        bs = ReportService.get_balance_sheet(organization_id=organization_id)
+        from app.utils.currency import format_currency
+
+        accounts = [
+            {'code': '1010', 'name': 'Operating Cash On Hand', 'type': 'Asset', 'subtype': 'Current Asset', 'balance_cents': bs['cash_cents'], 'description': 'Physical cash collections on premises'},
+            {'code': '1020', 'name': 'M-Pesa Digital Collections Account', 'type': 'Asset', 'subtype': 'Current Asset', 'balance_cents': bs['mpesa_cents'], 'description': 'Safaricom Daraja Paybill and Till collections'},
+            {'code': '1030', 'name': 'Operating Bank Accounts', 'type': 'Asset', 'subtype': 'Current Asset', 'balance_cents': bs['bank_cents'], 'description': 'Commercial bank checking & operational accounts'},
+            {'code': '1100', 'name': 'Tenant Rent Arrears Receivable', 'type': 'Asset', 'subtype': 'Current Asset', 'balance_cents': bs['rent_arrears_receivable_cents'], 'description': 'Billed uncollected tenant rental charges'},
+            {'code': '1110', 'name': 'Utility Charges Receivable', 'type': 'Asset', 'subtype': 'Current Asset', 'balance_cents': bs['utility_receivable_cents'], 'description': 'Water and electricity submetering receivables'},
+
+            {'code': '2010', 'name': 'Tenant Security Deposit Liabilities', 'type': 'Liability', 'subtype': 'Current Liability', 'balance_cents': bs['deposit_liabilities_cents'], 'description': 'Refundable deposits held under active leases'},
+            {'code': '2020', 'name': 'Prepaid / Unearned Rental Revenue', 'type': 'Liability', 'subtype': 'Current Liability', 'balance_cents': bs['prepaid_rent_cents'], 'description': 'Rental advances collected prior to period accrual'},
+
+            {'code': '3010', 'name': 'Retained Operating Capital & Surplus', 'type': 'Equity', 'subtype': 'Equity', 'balance_cents': bs['equity_cents'], 'description': 'Cumulative net operational surplus across properties'},
+
+            {'code': '4010', 'name': 'Residential Rental Revenue', 'type': 'Revenue', 'subtype': 'Operating Revenue', 'balance_cents': bs['cash_cents'] + bs['mpesa_cents'], 'description': 'Monthly recurring residential rent charges'},
+            {'code': '4020', 'name': 'Short-Stay / Airbnb Lodging Revenue', 'type': 'Revenue', 'subtype': 'Operating Revenue', 'balance_cents': 0, 'description': 'Nightly lodging and turnover fees collected'},
+            {'code': '4030', 'name': 'Utility Billing Recoveries', 'type': 'Revenue', 'subtype': 'Operating Revenue', 'balance_cents': bs['utility_receivable_cents'], 'description': 'Recoveries from tenant meter consumption'},
+
+            {'code': '5010', 'name': 'Repairs & Property Maintenance', 'type': 'Expense', 'subtype': 'Operating Expense', 'balance_cents': 0, 'description': 'Plumbing, electrical, painting, and structural repairs'},
+            {'code': '5020', 'name': 'Housekeeping & Turnover Services', 'type': 'Expense', 'subtype': 'Operating Expense', 'balance_cents': 0, 'description': 'Turnover cleaning and linen services'},
+            {'code': '5030', 'name': 'Platform & SMS Communications Fee', 'type': 'Expense', 'subtype': 'Operating Expense', 'balance_cents': 0, 'description': 'Twilio SMS and platform software subscription licenses'}
+        ]
+
+        for acc in accounts:
+            acc['balance_display'] = format_currency(acc['balance_cents'])
+
+        return accounts

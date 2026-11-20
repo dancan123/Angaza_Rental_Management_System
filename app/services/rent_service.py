@@ -9,6 +9,43 @@ from app.utils.currency import to_cents
 
 class RentService:
     @staticmethod
+    def calculate_prorated_rent(monthly_rent_cents: int, start_date: date) -> dict:
+        """
+        Calculates daily prorated rent for a tenancy beginning mid-month.
+        Formula: (Monthly Rent / Days in Month) * Days Occupied in First Month.
+        """
+        import calendar
+        year = start_date.year
+        month = start_date.month
+        _, days_in_month = calendar.monthrange(year, month)
+        start_day = start_date.day
+
+        if start_day <= 1:
+            return {
+                'is_prorated': False,
+                'days_in_month': days_in_month,
+                'days_occupied': days_in_month,
+                'start_day': 1,
+                'prorated_cents': monthly_rent_cents,
+                'daily_rate_cents': int(round(monthly_rent_cents / float(days_in_month))),
+                'period_name': start_date.strftime('%B %Y')
+            }
+
+        days_occupied = days_in_month - start_day + 1
+        daily_rate_cents = int(round(monthly_rent_cents / float(days_in_month)))
+        prorated_cents = int(round(daily_rate_cents * days_occupied))
+
+        return {
+            'is_prorated': True,
+            'days_in_month': days_in_month,
+            'days_occupied': days_occupied,
+            'start_day': start_day,
+            'prorated_cents': prorated_cents,
+            'daily_rate_cents': daily_rate_cents,
+            'period_name': start_date.strftime('%B %Y')
+        }
+
+    @staticmethod
     def generate_monthly_charges(month: int, year: int, landlord_id=None):
         """
         Generates monthly rent charges for all active leases for the specified month and year.

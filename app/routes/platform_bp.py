@@ -357,7 +357,10 @@ def update_organization_timeline(org_id):
     from app.services.audit_service import AuditService
     expiry_fmt = org.subscription_expires_at.strftime('%d %b %Y') if org.subscription_expires_at else 'No Expiry'
     AuditService.log('SET_SUBSCRIPTION_TIMELINE', 'Organization', org.id, new_values={'expiry': str(org.subscription_expires_at), 'reason': org.suspension_reason})
-    flash(f"Subscription timeline for '{org.name}' updated (Expires: {expiry_fmt}). Lockout reason set.", 'success')
+    if days_to_add:
+        flash(f"Subscription timeline for '{org.name}' extended by {days_to_add} days (Expires: {expiry_fmt}). Lockout reason set.", 'success')
+    else:
+        flash(f"Subscription timeline for '{org.name}' updated (Expires: {expiry_fmt}). Lockout reason set.", 'success')
     return redirect(url_for('platform.organizations'))
 
 

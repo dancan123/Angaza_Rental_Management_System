@@ -14,9 +14,13 @@ from app.utils.currency import to_cents
 
 class LeaseService:
     @staticmethod
-    def create_lease(rental_unit_id: int, tenant_id: int, start_date: date, monthly_rent: float, deposit_amount: float, end_date: date = None, payment_due_day: int = 5, notice_period_days: int = 30, terms_and_conditions: str = None):
-        unit = RentalUnit.query.get_or_404(rental_unit_id)
-        tenant = Tenant.query.get_or_404(tenant_id)
+    def create_lease(rental_unit_id: int, tenant_id: int, start_date: date, monthly_rent: float, deposit_amount: float, end_date: date = None, payment_due_day: int = 5, notice_period_days: int = 30, terms_and_conditions: str = None, prorate_first_month: bool = True, generate_initial_charges: bool = True):
+        unit = db.session.get(RentalUnit, rental_unit_id)
+        if not unit:
+            from flask import abort; abort(404)
+        tenant = db.session.get(Tenant, tenant_id)
+        if not tenant:
+            from flask import abort; abort(404)
 
         lease_no = f"LSE-{unit.unit_number}-{datetime.utcnow().strftime('%Y%m%d%H%M')}"
         rent_cents = to_cents(monthly_rent)
@@ -46,11 +50,67 @@ class LeaseService:
             status='ACTIVE'
         )
         db.session.add(lease)
+        db.session.flush()
 
         # Update unit and tenant assignment
         unit.occupancy_status = 'OCCUPIED'
         unit.current_tenant_id = tenant.id
         tenant.is_active = True
+
+        # Generate Initial Rent & Deposit Billing Charges
+        if generate_initial_charges:
+            from app.models.finance import RentCharge
+            from app.services.rent_service import RentService
+
+            org_id = unit.property.organization_id if unit.property else None
+            # 1. Security Deposit charge
+            if deposit_cents > 0:
+                dep_inv = f"DEP-{start_date.strftime('%Y%m')}-{unit.unit_number}-{tenant.id}"
+                deposit_charge = RentCharge(
+                    lease_id=lease.id,
+                    tenant_id=tenant.id,
+                    rental_unit_id=unit.id,
+                    organization_id=org_id,
+                    invoice_number=dep_inv,
+                    charge_type='DEPOSIT',
+                    period_month=start_date.month,
+                    period_year=start_date.year,
+                    amount_cents=deposit_cents,
+                    amount_paid_cents=0,
+                    due_date=start_date,
+                    status='UNPAID',
+                    description=f"Refundable Security Deposit for Unit {unit.unit_number}"
+                )
+                db.session.add(deposit_charge)
+
+            # 2. First Month's Rent (Prorated if starting mid-month)
+            if rent_cents > 0:
+                proration = RentService.calculate_prorated_rent(rent_cents, start_date)
+                inv_no = f"INV-{start_date.strftime('%Y%m')}-{unit.unit_number}-{tenant.id}"
+                
+                if prorate_first_month and proration['is_prorated']:
+                    charge_amt = proration['prorated_cents']
+                    desc = f"Prorated Rent for {proration['period_name']} ({start_date.day} to {proration['days_in_month']} - {proration['days_occupied']} days @ KES {proration['daily_rate_cents']/100:,.2f}/day)"
+                else:
+                    charge_amt = rent_cents
+                    desc = f"Monthly Rent for {start_date.strftime('%B %Y')}"
+
+                rent_charge = RentCharge(
+                    lease_id=lease.id,
+                    tenant_id=tenant.id,
+                    rental_unit_id=unit.id,
+                    organization_id=org_id,
+                    invoice_number=inv_no,
+                    charge_type='RENT',
+                    period_month=start_date.month,
+                    period_year=start_date.year,
+                    amount_cents=charge_amt,
+                    amount_paid_cents=0,
+                    due_date=start_date,
+                    status='UNPAID',
+                    description=desc
+                )
+                db.session.add(rent_charge)
 
         db.session.commit()
         AuditService.log('CREATE_LEASE', 'Lease', lease.id, new_values={'lease_no': lease_no, 'unit': unit.unit_number, 'tenant': tenant.full_name})

@@ -83,6 +83,18 @@ def vacancies_directory():
 
     app_name = PersonalizationService.get_setting('business_name', 'Angaza Rental Management System')
 
+    # Partner listings – published external listings (not tied to a specific org portal)
+    partner_listings_q = ExternalPropertyListing.query.filter_by(status='PUBLISHED')
+    if search:
+        term = f"%{search}%"
+        partner_listings_q = partner_listings_q.filter(
+            or_(
+                ExternalPropertyListing.property_title.ilike(term),
+                ExternalPropertyListing.location.ilike(term),
+            )
+        )
+    partner_listings = partner_listings_q.order_by(ExternalPropertyListing.created_at.desc()).all()
+
     return render_template(
         'public/vacancies_directory.html',
         org_data=org_data,
@@ -90,6 +102,7 @@ def vacancies_directory():
         region_filter=region_filter,
         all_regions=all_regions,
         app_name=app_name,
+        partner_listings=partner_listings,
     )
 
 

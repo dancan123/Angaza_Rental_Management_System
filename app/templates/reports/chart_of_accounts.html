@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block title %}Chart of Accounts (COA) - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <h3 class="fw-bold mb-1 text-dark"><i class="bi bi-list-columns-reverse me-2 text-primary"></i>Standard Chart of Accounts (COA)</h3>
+            <p class="text-muted small mb-0">Master operational general ledger accounts mapped across long-term rentals and Airbnb hospitality.</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('reports.balance_sheet') }}" class="btn btn-outline-primary btn-sm shadow-sm">
+                <i class="bi bi-journal-bookmark me-1"></i> View Balance Sheet
+            </a>
+            <a href="javascript:window.print()" class="btn btn-outline-secondary btn-sm shadow-sm">
+                <i class="bi bi-printer me-1"></i> Print COA
+            </a>
+        </div>
+    </div>
+
+    <!-- Accounts Listing by Type -->
+    {% for acc_type, acc_list in grouped.items() %}
+    <div class="card card-custom shadow-sm mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center
+            {% if acc_type == 'Asset' %}bg-primary-subtle border-primary-subtle text-primary
+            {% elif acc_type == 'Liability' %}bg-danger-subtle border-danger-subtle text-danger
+            {% elif acc_type == 'Equity' %}bg-success-subtle border-success-subtle text-success
+            {% elif acc_type == 'Revenue' %}bg-info-subtle border-info-subtle text-info-emphasis
+            {% else %}bg-secondary-subtle border-secondary-subtle text-dark{% endif %}">
+            <h5 class="fw-bold mb-0">
+                <i class="bi {% if acc_type == 'Asset' %}bi-wallet2
+                             {% elif acc_type == 'Liability' %}bi-shield-lock
+                             {% elif acc_type == 'Equity' %}bi-graph-up-arrow
+                             {% elif acc_type == 'Revenue' %}bi-cash-coin
+                             {% else %}bi-receipt-cutoff{% endif %} me-2"></i>
+                {{ acc_type|upper }} ACCOUNTS
+            </h5>
+            <span class="badge bg-white text-dark border">{{ acc_list|length }} Accounts</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light small text-uppercase">
+                        <tr>
+                            <th class="ps-3" style="width: 120px;">Code</th>
+                            <th style="min-width: 200px;">Account Title</th>
+                            <th style="min-width: 150px;">Subtype</th>
+                            <th>Operational Ledger Description</th>
+                            <th class="text-end pe-3" style="min-width: 150px;">Live Balance ({{ currency }})</th>
+                        </tr>
+                    </thead>
+                    <tbody class="small">
+                        {% for acc in acc_list %}
+                        <tr>
+                            <td class="ps-3 fw-bold font-monospace text-primary">{{ acc.code }}</td>
+                            <td class="fw-semibold text-dark">{{ acc.name }}</td>
+                            <td><span class="badge bg-light text-dark border">{{ acc.subtype }}</span></td>
+                            <td class="text-muted">{{ acc.description }}</td>
+                            <td class="text-end pe-3 fw-bold
+                                {% if acc_type == 'Asset' %}text-primary
+                                {% elif acc_type == 'Liability' %}text-danger
+                                {% elif acc_type == 'Revenue' %}text-success
+                                {% else %}text-dark{% endif %}">
+                                {{ acc.balance_display }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

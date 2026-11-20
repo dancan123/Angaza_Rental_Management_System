@@ -92,6 +92,17 @@ class RentalUnit(db.Model):
     cleaning_status = db.Column(db.String(30), nullable=False, default='CLEAN', index=True)  # CLEAN, DIRTY, INSPECTED, OUT_OF_SERVICE
     image_url = db.Column(db.String(255))
 
+    # Two-Way iCal Calendar Sync (Airbnb, Booking.com, VRBO)
+    ical_token = db.Column(db.String(64), unique=True, index=True)
+    ical_import_url = db.Column(db.String(500), nullable=True)
+    ical_last_synced_at = db.Column(db.DateTime, nullable=True)
+
+    def ensure_ical_token(self):
+        if not self.ical_token:
+            import uuid
+            self.ical_token = uuid.uuid4().hex
+        return self.ical_token
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

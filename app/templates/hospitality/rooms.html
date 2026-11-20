@@ -305,9 +305,85 @@
                                 <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2" data-bs-toggle="modal" data-bs-target="#editRoomModal{{ u.id }}" title="Rename room and configure rates">
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
+
+                                <!-- 6. Two-Way iCal Sync Modal (Airbnb, Booking.com, VRBO) -->
+                                <button type="button" class="btn btn-sm btn-outline-dark py-1 px-2" data-bs-toggle="modal" data-bs-target="#icalRoomModal{{ u.id }}" title="iCal Calendar Synchronization (Airbnb, Booking.com)">
+                                    <i class="bi bi-calendar-event me-1 text-danger"></i> iCal
+                                </button>
                             </div>
                         </td>
                     </tr>
+
+                    <!-- ========================================== -->
+                    <!-- MODAL: iCal Two-Way Calendar Sync Modal    -->
+                    <!-- ========================================== -->
+                    <div class="modal fade" id="icalRoomModal{{ u.id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered modal-lg">
+                            <div class="modal-content border-0 shadow">
+                                <div class="modal-header bg-dark text-white">
+                                    <h5 class="modal-title fw-bold">
+                                        <i class="bi bi-calendar-sync me-2 text-warning"></i>iCal Two-Way Calendar Sync &bull; Room {{ u.unit_number }}
+                                    </h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body p-4">
+                                    <!-- 1. Export Calendar to Airbnb / Booking.com -->
+                                    <div class="card bg-light border p-3 mb-4">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <label class="form-label fw-bold text-dark mb-0">
+                                                <i class="bi bi-cloud-arrow-up-fill text-primary me-1"></i> Export Angaza Calendar to External Channels
+                                            </label>
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">RFC 5545 iCalendar</span>
+                                        </div>
+                                        <p class="small text-muted mb-2">Copy this calendar feed URL and paste it into your <strong>Airbnb Listing &rarr; Pricing and Availability &rarr; Calendar Sync &rarr; Import Calendar</strong> (also works with Booking.com and VRBO). External channels will automatically block dates when bookings occur on Angaza.</p>
+                                        <div class="input-group">
+                                            <input type="text" id="exportUrl{{ u.id }}" class="form-control font-monospace small bg-white" readonly value="{{ request.host_url.rstrip('/') }}{{ url_for('hospitality.export_unit_ical', token=u.ensure_ical_token()) }}">
+                                            <button class="btn btn-primary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('exportUrl{{ u.id }}').value); this.innerHTML='<i class=\'bi bi-check2\'></i> Copied!'; setTimeout(() => this.innerHTML='<i class=\'bi bi-clipboard\'></i> Copy URL', 2000);">
+                                                <i class="bi bi-clipboard"></i> Copy URL
+                                            </button>
+                                            <a href="{{ url_for('hospitality.export_unit_ical', token=u.ensure_ical_token()) }}" class="btn btn-outline-secondary" title="Download .ics file" download>
+                                                <i class="bi bi-download"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+
+                                    <!-- 2. Import External iCal Feed (From Airbnb / Booking.com) -->
+                                    <form method="POST" action="{{ url_for('hospitality.sync_unit_ical', unit_id=u.id) }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                        <div class="card border p-3 mb-3">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <label class="form-label fw-bold text-danger mb-0">
+                                                    <i class="bi bi-cloud-arrow-down-fill me-1"></i> Import External Airbnb / Booking.com Calendar
+                                                </label>
+                                                {% if u.ical_last_synced_at %}
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                                    <i class="bi bi-clock-history me-1"></i> Last Synced: {{ u.ical_last_synced_at.strftime('%d/%m/%Y %H:%M') }}
+                                                </span>
+                                                {% else %}
+                                                <span class="badge bg-secondary-subtle text-muted">Never Synced</span>
+                                                {% endif %}
+                                            </div>
+                                            <p class="small text-muted mb-2">Paste the export iCal link from your external channel (e.g. <code>https://www.airbnb.com/calendar/ical/...ics</code>). Angaza will import external reservations and automatically block your availability calendar to eliminate double bookings.</p>
+                                            <div class="mb-3">
+                                                <label class="form-label small fw-semibold">External iCal URL (.ics)</label>
+                                                <input type="url" name="ical_import_url" class="form-control" value="{{ u.ical_import_url or '' }}" placeholder="https://www.airbnb.com/calendar/ical/12345678.ics?s=abcdef123456">
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label small fw-semibold text-muted">Or Paste Raw .ics Content (Optional offline/test import)</label>
+                                                <textarea name="raw_ical_content" class="form-control font-monospace" rows="2" placeholder="BEGIN:VCALENDAR..."></textarea>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="small text-muted"><i class="bi bi-shield-check text-success me-1"></i>Double-booking guard active</span>
+                                            <button type="submit" class="btn btn-warning fw-bold">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Save Feed &amp; Sync Now
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- ========================================== -->
                     <!-- MODAL 1: Rename & Configure Room Modal     -->
