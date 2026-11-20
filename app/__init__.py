@@ -73,7 +73,11 @@ def create_app(config_name=None):
         try:
             if current_user.is_authenticated:
                 from app.models.booking import Booking
-                pending_inquiry_count = Booking.query.filter_by(status='PENDING').count()
+                from app.utils.decorators import multi_tenant_scoped
+                pending_inquiry_count = multi_tenant_scoped(
+                    Booking.query.filter_by(status='PENDING'),
+                    Booking
+                ).count()
         except Exception:
             pass
 
