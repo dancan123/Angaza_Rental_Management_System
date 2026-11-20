@@ -17,7 +17,10 @@ class BookingService:
 
     @staticmethod
     def create_booking(rental_unit_id, prospective_name, prospective_phone, expected_move_in_date, expiry_date=None, prospective_email=None, prospective_id_number=None, booking_deposit=0, notes=None, user_id=None):
-        unit = RentalUnit.query.get_or_404(rental_unit_id)
+        unit = db.session.get(RentalUnit, rental_unit_id)
+        if not unit:
+            from flask import abort
+            abort(404)
 
         # 1. Double-booking check: Unit must not be OCCUPIED or MAINTENANCE
         if unit.occupancy_status in ['OCCUPIED', 'MAINTENANCE', 'INACTIVE']:

@@ -219,7 +219,10 @@ def inquire():
             return redirect(url_for('public.vacancies_by_org', org_code=org_code))
         return redirect(url_for('public.vacancies'))
 
-    unit = RentalUnit.query.get_or_404(unit_id)
+    unit = db.session.get(RentalUnit, unit_id)
+    if not unit:
+        from flask import abort
+        abort(404)
     expected_date = datetime.strptime(move_in_str, '%Y-%m-%d').date() if move_in_str else date.today() + timedelta(days=7)
 
     # Security guard: if org_code provided, unit must belong to that org
@@ -702,7 +705,10 @@ def tenant_inquire(slug):
         flash('Full Name, phone number, and rental unit are required.', 'danger')
         return redirect(url_for('public.tenant_site', slug=slug))
 
-    unit = RentalUnit.query.get_or_404(unit_id)
+    unit = db.session.get(RentalUnit, unit_id)
+    if not unit:
+        from flask import abort
+        abort(404)
     # Security checkpoint: Ensure unit belongs to this organization
     if not unit.property or unit.property.organization_id != org.id:
         flash('Requested unit does not belong to this organization.', 'danger')
@@ -784,7 +790,10 @@ def tenant_airbnb_inquire(slug):
         flash('Name, telephone, check-in, and check-out dates are mandatory.', 'danger')
         return redirect(url_for('public.tenant_site', slug=slug))
 
-    unit = RentalUnit.query.get_or_404(unit_id)
+    unit = db.session.get(RentalUnit, unit_id)
+    if not unit:
+        from flask import abort
+        abort(404)
     if not unit.property or unit.property.organization_id != org.id:
         flash('Requested short-stay suite does not belong to this organization.', 'danger')
         return redirect(url_for('public.tenant_site', slug=slug))
