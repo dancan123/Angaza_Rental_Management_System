@@ -14,6 +14,7 @@ bookings_bp = Blueprint('bookings', __name__, url_prefix='/bookings')
 def index():
     status = request.args.get('status')
     search = request.args.get('search', '').strip()
+    active_tab = request.args.get('tab', 'bookings')
 
     # Scope to organization — superadmin sees all, others see only their org
     query = multi_tenant_scoped(Booking.query, Booking)
@@ -33,6 +34,24 @@ def index():
     pending_count = base_q.filter_by(status='PENDING').count()
     active_count = multi_tenant_scoped(Booking.query, Booking).filter_by(status='ACTIVE').count()
 
+    # Query neighbour & partner external apartment listings for this organization
+    from app.models.lead import ExternalPropertyListing
+    org_id = getattr(current_user, 'organization_id', None) if not current_user.is_superadmin() else None
+    ext_query = ExternalPropertyListing.query
+    if org_id:
+        ext_query = ext_query.filter(ExternalPropertyListing.organization_id == org_id)
+    if search:
+        term = f"%{search}%"
+        ext_query = ext_query.filter(
+            (ExternalPropertyListing.property_title.ilike(term)) |
+            (ExternalPropertyListing.owner_name.ilike(term)) |
+            (ExternalPropertyListing.owner_phone.ilike(term)) |
+            (ExternalPropertyListing.location.ilike(term))
+        )
+    partner_listings = ext_query.order_by(ExternalPropertyListing.created_at.desc()).all()
+    pending_partner_count = sum(1 for l in partner_listings if l.status == 'PENDING')
+    published_partner_count = sum(1 for l in partner_listings if l.status == 'PUBLISHED')
+
     return render_template(
         'bookings/index.html',
         bookings=bookings,
@@ -40,7 +59,11 @@ def index():
         selected_status=status,
         search=search,
         pending_count=pending_count,
-        active_count=active_count
+        active_count=active_count,
+        partner_listings=partner_listings,
+        pending_partner_count=pending_partner_count,
+        published_partner_count=published_partner_count,
+        active_tab=active_tab
     )
 
 @bookings_bp.route('/<int:booking_id>/approve', methods=['POST'])

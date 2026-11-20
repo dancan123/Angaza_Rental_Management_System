@@ -15,6 +15,194 @@
     {% endif %}
 </div>
 
+<!-- Navigation Tabs: Tenant Inquiries vs Partner & Neighbour Enlisted Apartments -->
+<ul class="nav nav-tabs mb-4" id="inquiriesTab" role="tablist">
+    <li class="nav-item">
+        <a class="nav-link fw-semibold {% if active_tab != 'enlistments' %}active text-primary{% else %}text-muted{% endif %}" href="{{ url_for('bookings.index', tab='bookings') }}">
+            <i class="bi bi-people-fill me-1 text-primary"></i> Tenant House Inquiries &amp; Bookings ({{ bookings|length }})
+            {% if pending_count > 0 %}
+            <span class="badge bg-danger rounded-pill ms-1">{{ pending_count }}</span>
+            {% endif %}
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link fw-semibold {% if active_tab == 'enlistments' %}active text-warning{% else %}text-muted{% endif %}" href="{{ url_for('bookings.index', tab='enlistments') }}">
+            <i class="bi bi-building-add me-1 text-warning"></i> Partner &amp; Neighbour Apartment Enlistments ({{ partner_listings|length }})
+            {% if pending_partner_count > 0 %}
+            <span class="badge bg-warning text-dark rounded-pill ms-1 fw-bold">{{ pending_partner_count }} Pending Review</span>
+            {% endif %}
+        </a>
+    </li>
+</ul>
+
+{% if active_tab == 'enlistments' %}
+<!-- Partner & Neighbour Property Submissions Hub -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-md-4">
+        <div class="card card-custom bg-white p-3 text-center border-start border-4 border-warning">
+            <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.75rem;">Pending Review</div>
+            <h4 class="fw-bold mt-1 mb-0 text-warning">{{ pending_partner_count }}</h4>
+            <div class="text-muted small">Submitted by neighbours / landlords</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-md-4">
+        <div class="card card-custom bg-white p-3 text-center border-start border-4 border-success">
+            <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.75rem;">Published on Portal</div>
+            <h4 class="fw-bold mt-1 mb-0 text-success">{{ published_partner_count }}</h4>
+            <div class="text-muted small">Live on your public vacancies window</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-md-4">
+        <div class="card card-custom bg-white p-3 text-center border-start border-4 border-primary">
+            <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.75rem;">Total Enlistments</div>
+            <h4 class="fw-bold mt-1 mb-0 text-primary">{{ partner_listings|length }}</h4>
+            <div class="text-muted small">Partner listings in your portfolio</div>
+        </div>
+    </div>
+</div>
+
+<div class="card card-custom bg-white shadow-sm mb-4">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-building-add text-warning me-2"></i>Apartments Submitted via Your Public Portal</h6>
+            <small class="text-muted">Landlords and neighbours who submitted their property to be marketed or managed under your organization.</small>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('properties.marketplace') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-shop-window me-1"></i> Open Marketplace Hub
+            </a>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light small">
+                    <tr>
+                        <th class="ps-3">Property Title &amp; Type</th>
+                        <th>Owner / Landlord Contact</th>
+                        <th>Location</th>
+                        <th>Units &amp; Expected Rent</th>
+                        <th>Submission Date</th>
+                        <th>Status</th>
+                        <th class="text-end pe-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="small">
+                    {% for l in partner_listings %}
+                    <tr>
+                        <td class="ps-3">
+                            <div class="fw-bold text-dark fs-6">{{ l.property_title }}</div>
+                            <span class="badge bg-light text-muted border">{{ l.property_type or 'Apartment' }} • {{ l.unit_type|replace('_', ' ') if l.unit_type else 'Rental' }}</span>
+                            {% if l.description %}
+                            <div class="text-muted small text-truncate mt-1" style="max-width: 280px;" title="{{ l.description }}">{{ l.description }}</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="fw-bold text-dark">{{ l.owner_name }}</div>
+                            <div class="d-flex align-items-center gap-1 mt-1">
+                                <span class="fw-semibold">{{ l.owner_phone }}</span>
+                                <a href="https://wa.me/{{ l.owner_phone|replace('+','')|replace(' ','')|replace('-','') }}" target="_blank" class="btn btn-sm btn-outline-success p-0 px-1 border-0" title="Chat on WhatsApp">
+                                    <i class="bi bi-whatsapp text-success"></i>
+                                </a>
+                                <a href="tel:{{ l.owner_phone }}" class="btn btn-sm btn-outline-secondary p-0 px-1 border-0" title="Call Owner">
+                                    <i class="bi bi-telephone-fill text-muted"></i>
+                                </a>
+                            </div>
+                            {% if l.owner_email %}
+                            <small class="text-muted d-block">{{ l.owner_email }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ l.location }}
+                        </td>
+                        <td>
+                            {% if l.monthly_rent_cents > 0 %}
+                            <span class="fw-bold text-success fs-6">KES {{ '{:,.2f}'.format(l.monthly_rent_cents / 100) }}</span>
+                            <small class="text-muted d-block">/ month</small>
+                            {% else %}
+                            <span class="text-muted">Negotiable</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div>{{ l.created_at.strftime('%d/%m/%Y') if l.created_at else '—' }}</div>
+                            <small class="text-muted">{{ l.created_at.strftime('%H:%M') if l.created_at else '' }}</small>
+                        </td>
+                        <td>
+                            {% if l.status == 'PENDING' %}
+                            <span class="badge bg-warning-subtle text-warning border border-warning-subtle fw-bold">
+                                <i class="bi bi-clock-history me-1"></i> Pending Review
+                            </span>
+                            {% elif l.status == 'PUBLISHED' %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle fw-bold">
+                                <i class="bi bi-broadcast me-1"></i> Live on Public Portal
+                            </span>
+                            {% elif l.status == 'RENTED' or l.status == 'ALLOCATED' %}
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold">
+                                <i class="bi bi-check-circle-fill me-1"></i> Managed / Allocated
+                            </span>
+                            {% else %}
+                            <span class="badge bg-secondary-subtle text-secondary border">{{ l.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-3">
+                            <div class="d-inline-flex gap-1">
+                                {% if l.status == 'PENDING' %}
+                                <form method="POST" action="{{ url_for('properties.toggle_external_listing_status', listing_id=l.id) }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <input type="hidden" name="status" value="PUBLISHED"/>
+                                    <input type="hidden" name="next" value="{{ url_for('bookings.index', tab='enlistments') }}"/>
+                                    <button type="submit" class="btn btn-success btn-sm py-1 px-2 fw-semibold" title="Publish to your apartment public portal">
+                                        <i class="bi bi-broadcast me-1"></i> Publish
+                                    </button>
+                                </form>
+                                {% elif l.status == 'PUBLISHED' %}
+                                <form method="POST" action="{{ url_for('properties.toggle_external_listing_status', listing_id=l.id) }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <input type="hidden" name="status" value="PENDING"/>
+                                    <input type="hidden" name="next" value="{{ url_for('bookings.index', tab='enlistments') }}"/>
+                                    <button type="submit" class="btn btn-outline-warning btn-sm py-1 px-2" title="Unpublish / Hide from public portal">
+                                        <i class="bi bi-eye-slash me-1"></i> Unpublish
+                                    </button>
+                                </form>
+                                {% endif %}
+
+                                {% if l.status != 'RENTED' and current_user.has_permission('properties.manage') %}
+                                <form method="POST" action="{{ url_for('properties.onboard_external_to_managed', listing_id=l.id) }}" class="d-inline" onsubmit="return confirm('Convert {{ l.property_title }} into a managed property inside your system?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="btn btn-outline-primary btn-sm py-1 px-2" title="Onboard as internal managed property">
+                                        <i class="bi bi-box-arrow-in-down me-1"></i> Onboard
+                                    </button>
+                                </form>
+                                {% endif %}
+
+                                {% if current_user.has_permission('properties.manage') %}
+                                <form method="POST" action="{{ url_for('properties.delete_external_listing', listing_id=l.id) }}" class="d-inline" onsubmit="return confirm('Delete listing for {{ l.property_title }}?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <input type="hidden" name="next" value="{{ url_for('bookings.index', tab='enlistments') }}"/>
+                                    <button type="submit" class="btn btn-outline-danger btn-sm py-1 px-2" title="Delete listing">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-5">
+                            <i class="bi bi-building-add fs-1 text-secondary mb-2 d-block"></i>
+                            <h6>No Partner Apartment Enlistments Yet</h6>
+                            <p class="small mb-0">When neighbours or property owners submit their apartments via your public portal, they will appear here immediately for you to publish or delete.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+
 <!-- Booking Status Filter & Search -->
 <div class="card card-custom bg-white p-3 mb-4 shadow-sm">
     <div class="row g-2 align-items-center">
@@ -300,6 +488,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 <!-- Modal: Create Booking -->
 <div class="modal fade" id="createBookingModal" tabindex="-1" aria-hidden="true">

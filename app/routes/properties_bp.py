@@ -546,14 +546,20 @@ def toggle_external_listing_status(listing_id):
     listing = db.session.get(ExternalPropertyListing, listing_id)
     if not listing:
         flash('Listing not found.', 'danger')
-        return redirect(url_for('properties.marketplace'))
+        return redirect(request.form.get('next') or request.referrer or url_for('properties.marketplace'))
+
+    # Security check: multi-tenant isolation
+    org_id = getattr(current_user, 'organization_id', None) if not current_user.is_superadmin() else None
+    if org_id and listing.organization_id and listing.organization_id != org_id:
+        from flask import abort
+        abort(403)
 
     new_status = request.form.get('status')
     if new_status in ['PUBLISHED', 'PENDING', 'RENTED', 'ARCHIVED']:
         listing.status = new_status
         db.session.commit()
         flash(f"Listing '{listing.property_title}' status updated to {new_status}.", 'info')
-    return redirect(url_for('properties.marketplace'))
+    return redirect(request.form.get('next') or request.referrer or url_for('properties.marketplace'))
 
 @properties_bp.route('/external-listings/<int:listing_id>/delete', methods=['POST'])
 @login_required
@@ -561,11 +567,15 @@ def toggle_external_listing_status(listing_id):
 def delete_external_listing(listing_id):
     listing = db.session.get(ExternalPropertyListing, listing_id)
     if listing:
+        org_id = getattr(current_user, 'organization_id', None) if not current_user.is_superadmin() else None
+        if org_id and listing.organization_id and listing.organization_id != org_id:
+            from flask import abort
+            abort(403)
         title = listing.property_title
         db.session.delete(listing)
         db.session.commit()
         flash(f"Listing '{title}' deleted successfully.", 'success')
-    return redirect(url_for('properties.marketplace'))
+    return redirect(request.form.get('next') or request.referrer or url_for('properties.marketplace'))
 
 @properties_bp.route('/external-listings/<int:listing_id>/allocate', methods=['POST'])
 @login_required
@@ -633,6 +643,7 @@ def onboard_external_to_managed(listing_id):
     # 2. Create Property
     prop_count = Property.query.count() + 1
     ref = f"PROP-EXT-{prop_count:03d}"
+    org_id = listing.organization_id or (getattr(current_user, 'organization_id', None) if not current_user.is_superadmin() else None)
     prop = PropertyService.create_property(
         landlord_id=landlord.id,
         name=listing.property_title,
@@ -640,7 +651,8 @@ def onboard_external_to_managed(listing_id):
         property_type=listing.property_type or 'APARTMENT',
         location=listing.location,
         description=listing.description,
-        total_floors=1
+        total_floors=1,
+        organization_id=org_id
     )
 
     # 3. Create Main Building & Floor

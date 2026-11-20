@@ -73,11 +73,17 @@ def create_app(config_name=None):
         try:
             if current_user.is_authenticated:
                 from app.models.booking import Booking
+                from app.models.lead import ExternalPropertyListing
                 from app.utils.decorators import multi_tenant_scoped
-                pending_inquiry_count = multi_tenant_scoped(
+                pending_bookings = multi_tenant_scoped(
                     Booking.query.filter_by(status='PENDING'),
                     Booking
                 ).count()
+                org_id = getattr(current_user, 'organization_id', None) if not current_user.is_superadmin() else None
+                ext_q = ExternalPropertyListing.query.filter_by(status='PENDING')
+                if org_id:
+                    ext_q = ext_q.filter_by(organization_id=org_id)
+                pending_inquiry_count = pending_bookings + ext_q.count()
         except Exception:
             pass
 

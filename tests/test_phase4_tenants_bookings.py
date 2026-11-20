@@ -243,5 +243,65 @@ def test_tenant_export_csv_and_directory_stats(client, app):
         assert b'id="liveSearchInput"' in idx_resp.data
         assert b'sortable-col' in idx_resp.data
 
+def test_partner_apartment_enlistment_in_bookings_window(client, app):
+    with app.app_context():
+        from app.models.lead import ExternalPropertyListing
+        from app.models.organization import Organization
+        org = Organization.query.first()
+
+        # 1. External neighbour submits an apartment
+        ext = ExternalPropertyListing(
+            organization_id=org.id if org else None,
+            owner_name='Mama Shiro',
+            owner_phone='+254711888999',
+            owner_email='shiro@properties.co.ke',
+            property_title='Sunrise Heights Westlands',
+            location='Westlands, Nairobi',
+            property_type='APARTMENT',
+            unit_type='2_BEDROOM',
+            monthly_rent_cents=4500000,
+            description='2 units vacant on 3rd floor',
+            status='PENDING'
+        )
+        db.session.add(ext)
+        db.session.commit()
+        ext_id = ext.id
+
+        # 2. Login as admin/manager
+        client.post('/auth/login', data={'username': 'admin_bkg', 'password': 'AdminPass123!'})
+
+        # 3. Verify enlistment appears in /bookings/?tab=enlistments
+        resp = client.get('/bookings/?tab=enlistments')
+        assert resp.status_code == 200
+        assert b'Sunrise Heights Westlands' in resp.data
+        assert b'Mama Shiro' in resp.data
+        assert b'Pending Review' in resp.data
+
+        # 4. Manager publishes listing
+        pub_resp = client.post(f'/properties/external-listings/{ext_id}/toggle-status', data={
+            'status': 'PUBLISHED',
+            'next': '/bookings/?tab=enlistments'
+        }, follow_redirects=True)
+        assert pub_resp.status_code == 200
+        db.session.refresh(ext)
+        assert ext.status == 'PUBLISHED'
+
+        # 5. Manager unpublishes listing
+        unpub_resp = client.post(f'/properties/external-listings/{ext_id}/toggle-status', data={
+            'status': 'PENDING',
+            'next': '/bookings/?tab=enlistments'
+        }, follow_redirects=True)
+        assert unpub_resp.status_code == 200
+        db.session.refresh(ext)
+        assert ext.status == 'PENDING'
+
+        # 6. Manager deletes listing
+        del_resp = client.post(f'/properties/external-listings/{ext_id}/delete', data={
+            'next': '/bookings/?tab=enlistments'
+        }, follow_redirects=True)
+        assert del_resp.status_code == 200
+        assert db.session.get(ExternalPropertyListing, ext_id) is None
+
+
 
 
