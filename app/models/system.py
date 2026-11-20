@@ -5,14 +5,17 @@ class SystemSetting(db.Model):
     __tablename__ = 'system_settings'
     
     id = db.Column(db.Integer, primary_key=True)
-    setting_key = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id', ondelete='CASCADE'), nullable=True, index=True)
+    setting_key = db.Column(db.String(100), nullable=False, index=True)
     setting_value = db.Column(db.Text)
     description = db.Column(db.String(255))
     is_public = db.Column(db.Boolean, default=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    organization = db.relationship('Organization')
+
     def __repr__(self):
-        return f"<SystemSetting {self.setting_key}={self.setting_value}>"
+        return f"<SystemSetting org={self.organization_id} {self.setting_key}={self.setting_value}>"
 
 class AuditLog(db.Model):
     __tablename__ = 'audit_logs'

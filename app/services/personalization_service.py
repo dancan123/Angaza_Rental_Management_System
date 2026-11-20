@@ -25,9 +25,29 @@ DEFAULT_SETTINGS = {
 
 class PersonalizationService:
     @staticmethod
-    def get_setting(key: str, default: str = None) -> str:
+    def _resolve_org_id(organization_id=None):
+        if organization_id is not None:
+            return organization_id
         try:
-            setting = SystemSetting.query.filter_by(setting_key=key).first()
+            from flask_login import current_user
+            if current_user and current_user.is_authenticated and not current_user.is_superadmin():
+                return getattr(current_user, 'organization_id', None)
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def get_setting(key: str, default: str = None, organization_id=None) -> str:
+        org_id = PersonalizationService._resolve_org_id(organization_id)
+        try:
+            # 1. Look for organization-specific setting
+            if org_id:
+                org_setting = SystemSetting.query.filter_by(setting_key=key, organization_id=org_id).first()
+                if org_setting and org_setting.setting_value is not None:
+                    return org_setting.setting_value
+
+            # 2. Look for global platform setting (organization_id IS NULL)
+            setting = SystemSetting.query.filter_by(setting_key=key, organization_id=None).first()
             if setting and setting.setting_value is not None:
                 return setting.setting_value
         except Exception:
@@ -35,23 +55,33 @@ class PersonalizationService:
         return default if default is not None else DEFAULT_SETTINGS.get(key, '')
 
     @staticmethod
-    def get_all_settings() -> dict:
+    def get_all_settings(organization_id=None) -> dict:
         settings_dict = dict(DEFAULT_SETTINGS)
+        org_id = PersonalizationService._resolve_org_id(organization_id)
         try:
-            db_settings = SystemSetting.query.all()
+            # 1. Load global settings
+            db_settings = SystemSetting.query.filter_by(organization_id=None).all()
             for s in db_settings:
                 if s.setting_value is not None:
                     settings_dict[s.setting_key] = s.setting_value
+
+            # 2. Overlay with organization-specific overrides
+            if org_id:
+                org_settings = SystemSetting.query.filter_by(organization_id=org_id).all()
+                for s in org_settings:
+                    if s.setting_value is not None:
+                        settings_dict[s.setting_key] = s.setting_value
         except Exception:
             pass
         return settings_dict
 
     @staticmethod
-    def update_settings(updates: dict):
+    def update_settings(updates: dict, organization_id=None):
+        org_id = PersonalizationService._resolve_org_id(organization_id)
         for key, value in updates.items():
-            setting = SystemSetting.query.filter_by(setting_key=key).first()
+            setting = SystemSetting.query.filter_by(setting_key=key, organization_id=org_id).first()
             if not setting:
-                setting = SystemSetting(setting_key=key, setting_value=str(value), is_public=True)
+                setting = SystemSetting(setting_key=key, setting_value=str(value), organization_id=org_id, is_public=True)
                 db.session.add(setting)
             else:
                 setting.setting_value = str(value)
