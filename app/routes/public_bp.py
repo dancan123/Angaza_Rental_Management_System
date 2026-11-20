@@ -400,20 +400,23 @@ def vacancies_airbnb_book():
     num_nights = (check_out - check_in).days
     total_cents = num_nights * unit.daily_rate_cents
 
+    org = unit.property.organization if unit.property else None
     names = guest_name.strip().split(' ', 1)
     first_name = names[0]
     last_name = names[1] if len(names) > 1 else 'Guest'
 
     guest = Guest.query.filter_by(phone=phone).first()
     if not guest:
-        guest = Guest(first_name=first_name, last_name=last_name, phone=phone, email=email or None)
+        guest = Guest(first_name=first_name, last_name=last_name, phone=phone, email=email or None, organization_id=org.id if org else None)
         db.session.add(guest)
         db.session.flush()
+    elif org and not guest.organization_id:
+        guest.organization_id = org.id
 
-    org = unit.property.organization if unit.property else None
     res_code = f"STAY-{org.org_code if org else 'VIS'}-{int(datetime.utcnow().timestamp()) % 100000}"
 
     reservation = HospitalityReservation(
+        organization_id=org.id if org else None,
         reservation_code=res_code,
         guest_id=guest.id,
         rental_unit_id=unit.id,
@@ -429,27 +432,14 @@ def vacancies_airbnb_book():
         special_requests=f"Online Portal Booking. {special_requests}".strip()
     )
     db.session.add(reservation)
+    db.session.flush()
 
-    landlord_id = unit.property.landlord_id if unit.property else None
-    notif = Notification(
-        landlord_id=landlord_id,
-        title=f"New Online Airbnb Booking: {unit.unit_number} ({res_code})",
-        message=(
-            f"NEW SHORT-STAY BOOKING FROM PUBLIC PORTAL!\n"
-            f"Room: {unit.unit_number} ({unit.property.name if unit.property else 'Unknown'})\n"
-            f"Guest: {guest_name} ({phone})\n"
-            f"Check-In: {check_in.strftime('%d/%m/%Y')}\n"
-            f"Check-Out: {check_out.strftime('%d/%m/%Y')} ({num_nights} nights)\n"
-            f"Total: {format_currency(total_cents)}\n"
-            f"Code: {res_code}\n"
-            f"Status: PENDING — confirm and collect payment."
-        ),
-        channel='IN_APP',
-        notification_type='BOOKING_CREATED',
-        sent_status='SENT',
-        sent_at=datetime.utcnow()
-    )
-    db.session.add(notif)
+    # Dispatch multi-channel notifications (SMS, Email, WhatsApp, In-App) to Manager/Staff
+    try:
+        from app.services.notification_service import NotificationService
+        NotificationService.notify_airbnb_booking(reservation)
+    except Exception:
+        pass
 
     # Auto-SMS to guest confirming the pending booking
     try:
@@ -1032,14 +1022,18 @@ def tenant_airbnb_inquire(slug):
         guest = Guest(
             first_name=first_name,
             last_name=last_name,
-            phone=phone
+            phone=phone,
+            organization_id=org.id
         )
         db.session.add(guest)
         db.session.flush()
+    elif not guest.organization_id:
+        guest.organization_id = org.id
 
     res_code = f"RES-{org.business_code}-{int(datetime.utcnow().timestamp()) % 100000}"
 
     reservation = HospitalityReservation(
+        organization_id=org.id,
         reservation_code=res_code,
         guest_id=guest.id,
         rental_unit_id=unit.id,
@@ -1055,26 +1049,15 @@ def tenant_airbnb_inquire(slug):
         special_requests=f"Website Booking via {org.name}: {special_requests}".strip()
     )
     db.session.add(reservation)
+    db.session.flush()
 
-    # In-app notification to Hospitality Desk
-    notif = Notification(
-        landlord_id=unit.property.landlord_id,
-        title=f"New Airbnb Booking: Room {unit.unit_number} ({res_code})",
-        message=(
-            f"NEW SHORT-STAY RESERVATION!\n"
-            f"Business: {org.name} ({org.business_code})\n"
-            f"Room: {unit.unit_number} ({unit.property.name})\n"
-            f"Guest: {guest_name} ({phone})\n"
-            f"Dates: {check_in.strftime('%d/%m/%Y')} to {check_out.strftime('%d/%m/%Y')} ({num_nights} nights)\n"
-            f"Total: {format_currency(total_cents)}\n"
-            f"Booking Code: {res_code}"
-        ),
-        channel='IN_APP',
-        notification_type='BOOKING_CREATED',
-        sent_status='SENT',
-        sent_at=datetime.utcnow()
-    )
-    db.session.add(notif)
+    # Dispatch multi-channel notifications (SMS, Email, WhatsApp, In-App) to Manager/Staff
+    try:
+        from app.services.notification_service import NotificationService
+        NotificationService.notify_airbnb_booking(reservation)
+    except Exception:
+        pass
+
     db.session.commit()
 
     flash(

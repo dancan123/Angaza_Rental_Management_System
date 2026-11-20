@@ -783,6 +783,229 @@
 </div>
 
 {# ═══════════════════════════════════════════════════════════════
+   ONLINE AIRBNB BOOKINGS & GUEST LOGISTICS (PUBLIC VACANCIES PORTAL)
+═══════════════════════════════════════════════════════════════ #}
+<div class="card bg-white shadow-sm p-4 mb-4 border-start border-4 border-warning">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <h5 class="fw-bold mb-0">
+                <i class="bi bi-bell-fill text-warning me-2"></i>Incoming Airbnb Reservations &amp; Guest Logistics
+                {% if pending_online %}
+                <span class="badge bg-warning text-dark ms-2">{{ pending_online|length }} Pending Action</span>
+                {% endif %}
+            </h5>
+            <small class="text-muted">Live bookings received from the external public vacancy portal. Contact guests directly to arrange check-in logistics, arrival time, keys, and payment.</small>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('hospitality.reservations') }}" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-list-check me-1"></i> Full Reservations Hub
+            </a>
+        </div>
+    </div>
+
+    {% if pending_online %}
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light small">
+                <tr>
+                    <th>Ref Code</th>
+                    <th>Guest Information</th>
+                    <th>Room &amp; Property</th>
+                    <th>Dates &amp; Stay</th>
+                    <th>Logistics &amp; Requests</th>
+                    <th>Total &amp; Payment</th>
+                    <th>Status</th>
+                    <th class="text-end pe-2">Logistics Actions</th>
+                </tr>
+            </thead>
+            <tbody class="small">
+                {% for b in pending_online %}
+                <tr>
+                    <td>
+                        <span class="badge bg-light text-dark border fw-bold">{{ b.reservation_code }}</span>
+                        {% if b.booking_source == 'WEBSITE' %}
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle d-block mt-1" style="font-size:0.65rem;">
+                            <i class="bi bi-globe me-1"></i>Web Portal
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="fw-bold text-dark">{{ b.guest.full_name }}</div>
+                        <div class="text-muted"><i class="bi bi-telephone me-1"></i>{{ b.guest.phone }}</div>
+                        {% if b.guest.email %}
+                        <div class="text-muted" style="font-size:0.75rem;"><i class="bi bi-envelope me-1"></i>{{ b.guest.email }}</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold">{{ b.rental_unit.unit_number }}</span>
+                        <small class="text-muted d-block">{{ b.rental_unit.property.name if b.rental_unit.property else '' }}</small>
+                    </td>
+                    <td>
+                        <div><strong>{{ b.check_in_date.strftime('%d %b %Y') }}</strong></div>
+                        <small class="text-muted">&rarr; {{ b.check_out_date.strftime('%d %b %Y') }} ({{ b.num_nights }} nts)</small>
+                        <div class="text-muted" style="font-size:0.72rem;">Guests: {{ b.num_guests or 1 }}</div>
+                    </td>
+                    <td style="max-width: 220px;">
+                        {% if b.special_requests %}
+                        <div class="p-1 px-2 rounded bg-light border text-dark" style="font-size: 0.76rem;">
+                            <i class="bi bi-chat-quote-fill text-warning me-1"></i>{{ b.special_requests }}
+                        </div>
+                        {% else %}
+                        <span class="text-muted small">Standard Check-In</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="fw-bold text-primary">{{ b.total_stay_display }}</div>
+                        {% if b.balance_cents > 0 %}
+                        <span class="badge bg-danger-subtle text-danger" style="font-size:0.68rem;">Bal: {{ b.balance_display }}</span>
+                        {% else %}
+                        <span class="badge bg-success-subtle text-success" style="font-size:0.68rem;">Paid</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge bg-warning text-dark border">
+                            <i class="bi bi-clock-history me-1"></i>Pending
+                        </span>
+                    </td>
+                    <td class="text-end pe-2">
+                        <div class="d-flex justify-content-end gap-1 flex-wrap">
+                            <!-- Direct WhatsApp Guest Link -->
+                            {% set clean_phone = b.guest.phone.replace(' ', '').replace('-', '').replace('+', '').strip() %}
+                            {% if clean_phone.startswith('0') %}
+                                {% set clean_phone = '254' + clean_phone[1:] %}
+                            {% elif not clean_phone.startswith('254') and clean_phone|length == 9 %}
+                                {% set clean_phone = '254' + clean_phone %}
+                            {% endif %}
+                            <a href="https://wa.me/{{ clean_phone }}?text=Hello%20{{ b.guest.first_name|urlencode }}%2C%20this%20is%20the%20property%20manager%20regarding%20your%20Airbnb%20reservation%20for%20{{ b.rental_unit.unit_number|urlencode }}%20(Ref:%20{{ b.reservation_code }}).%20We%20are%20ready%20to%20arrange%20your%20check-in%20logistics."
+                               target="_blank" class="btn btn-outline-success btn-sm py-0 px-2" title="WhatsApp Guest for Logistics">
+                                <i class="bi bi-whatsapp"></i>
+                            </a>
+                            <!-- Direct Call Guest -->
+                            <a href="tel:{{ b.guest.phone }}" class="btn btn-outline-primary btn-sm py-0 px-2" title="Call Guest">
+                                <i class="bi bi-telephone"></i>
+                            </a>
+                            <!-- Confirm Booking Button -->
+                            <form method="POST" action="{{ url_for('hospitality.confirm_reservation', res_id=b.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="btn btn-success btn-sm py-0 px-2 fw-semibold" title="Confirm Reservation & Send Guest SMS">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Confirm
+                                </button>
+                            </form>
+                            <!-- Logistics Details Modal Button -->
+                            <button type="button" class="btn btn-outline-dark btn-sm py-0 px-2" data-bs-toggle="modal" data-bs-target="#dashLogisticsModal{{ b.id }}" title="Full Logistics Details">
+                                <i class="bi bi-eye"></i> Details
+                            </button>
+                        </div>
+
+                        <!-- Logistics Modal in Dashboard -->
+                        <div class="modal fade text-start" id="dashLogisticsModal{{ b.id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header bg-dark text-white">
+                                        <h5 class="modal-title fw-bold">
+                                            <i class="bi bi-box-seam me-2 text-warning"></i>Guest Logistics &amp; Arrival Arrangements #{{ b.reservation_code }}
+                                        </h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body p-4">
+                                        <!-- Guest Contact Bar -->
+                                        <div class="p-3 mb-4 rounded bg-light border">
+                                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                                <div>
+                                                    <span class="text-muted small fw-semibold text-uppercase d-block">Guest Name</span>
+                                                    <h5 class="fw-bold mb-0 text-dark">{{ b.guest.full_name }}</h5>
+                                                    <div class="text-muted small mt-1">
+                                                        <i class="bi bi-telephone me-1"></i>{{ b.guest.phone }}
+                                                        {% if b.guest.email %} &bull; <i class="bi bi-envelope me-1"></i>{{ b.guest.email }}{% endif %}
+                                                    </div>
+                                                </div>
+                                                <div class="d-flex gap-2">
+                                                    <a href="https://wa.me/{{ clean_phone }}?text=Hello%20{{ b.guest.first_name|urlencode }}%2C%20this%20is%20the%20property%20manager%20regarding%20your%20Airbnb%20reservation%20for%20{{ b.rental_unit.unit_number|urlencode }}%20(Ref:%20{{ b.reservation_code }})."
+                                                       target="_blank" class="btn btn-success btn-sm">
+                                                        <i class="bi bi-whatsapp me-1"></i> WhatsApp
+                                                    </a>
+                                                    <a href="tel:{{ b.guest.phone }}" class="btn btn-outline-primary btn-sm">
+                                                        <i class="bi bi-telephone me-1"></i> Call
+                                                    </a>
+                                                    {% if b.guest.email %}
+                                                    <a href="mailto:{{ b.guest.email }}" class="btn btn-outline-secondary btn-sm">
+                                                        <i class="bi bi-envelope me-1"></i> Email
+                                                    </a>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Logistics & Special Requests Alert -->
+                                        <div class="alert alert-warning mb-4">
+                                            <h6 class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>Guest Special Requests &amp; Arrival Notes:</h6>
+                                            <p class="mb-0 fs-6">{{ b.special_requests or 'No special requests submitted. Standard key collection and check-in applies.' }}</p>
+                                        </div>
+
+                                        <!-- Stay Breakdown -->
+                                        <div class="row g-3 mb-4">
+                                            <div class="col-md-6">
+                                                <div class="p-3 rounded border bg-white">
+                                                    <div class="small text-muted fw-semibold">Assigned Room &amp; Property</div>
+                                                    <div class="fw-bold text-dark fs-6">{{ b.rental_unit.unit_number }}</div>
+                                                    <div class="small text-muted">{{ b.rental_unit.property.name if b.rental_unit.property else 'Apartment' }}</div>
+                                                    <div class="small text-muted"><i class="bi bi-geo-alt me-1"></i>{{ b.rental_unit.property.location if b.rental_unit.property else '' }}</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="p-3 rounded border bg-white">
+                                                    <div class="small text-muted fw-semibold">Check-In &rarr; Check-Out</div>
+                                                    <div class="fw-bold text-dark fs-6">{{ b.check_in_date.strftime('%A, %d %B %Y') }}</div>
+                                                    <div class="small text-muted">Until {{ b.check_out_date.strftime('%A, %d %B %Y') }}</div>
+                                                    <div class="small text-primary fw-semibold">{{ b.num_nights }} night(s) &bull; {{ b.num_guests or 1 }} guest(s)</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="p-3 rounded border bg-white">
+                                                    <div class="small text-muted fw-semibold">Daily Rate &amp; Total Due</div>
+                                                    <div class="fw-bold text-primary fs-6">{{ b.total_stay_display }}</div>
+                                                    <div class="small text-muted">@ {{ b.daily_rate_display }}/night &bull; Status: {{ b.status }}</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="p-3 rounded border bg-white">
+                                                    <div class="small text-muted fw-semibold">Booking Source &amp; Code</div>
+                                                    <div class="fw-bold text-dark fs-6">{{ b.reservation_code }}</div>
+                                                    <div class="small text-success fw-semibold"><i class="bi bi-check-circle me-1"></i>Public Vacancy Portal</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer bg-light">
+                                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                                        <form method="POST" action="{{ url_for('hospitality.confirm_reservation', res_id=b.id) }}" class="d-inline">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <button type="submit" class="btn btn-success btn-sm fw-semibold">
+                                                <i class="bi bi-check-circle-fill me-1"></i> Confirm Reservation &amp; Notify Guest
+                                            </button>
+                                        </form>
+                                        <a href="{{ url_for('hospitality.view_receipt', res_id=b.id) }}" class="btn btn-outline-dark btn-sm" target="_blank">
+                                            <i class="bi bi-receipt me-1"></i> View Receipt / Folio
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-3 text-muted">
+        <i class="bi bi-check2-circle text-success fs-3 d-block mb-1"></i>
+        <span class="small">All incoming Airbnb bookings are confirmed and up-to-date. New reservations from the public portal will appear here for logistics coordination.</span>
+    </div>
+    {% endif %}
+</div>
+
+{# ═══════════════════════════════════════════════════════════════
    IN-HOUSE GUESTS + HOUSEKEEPING MATRIX
 ═══════════════════════════════════════════════════════════════ #}
 <div class="row g-4 mb-4">

@@ -46,6 +46,14 @@ def index():
     in_house_q = HospitalityReservation.query.filter_by(status='CHECKED_IN')
     in_house = multi_tenant_scoped(in_house_q, HospitalityReservation).order_by(HospitalityReservation.check_out_date.asc()).all()
 
+    # Pending online reservations needing logistics / confirmation
+    pending_online_q = HospitalityReservation.query.filter(
+        HospitalityReservation.status == 'PENDING'
+    )
+    pending_online = multi_tenant_scoped(pending_online_q, HospitalityReservation).order_by(
+        HospitalityReservation.check_in_date.asc(), HospitalityReservation.id.desc()
+    ).all()
+
     # Room status grid - short-stay rooms
     rooms_q = RentalUnit.query.filter_by(operational_type='SHORT_STAY')
     rooms = multi_tenant_scoped(rooms_q, RentalUnit).order_by(RentalUnit.unit_number.asc()).all()
@@ -148,6 +156,7 @@ def index():
         total_all_time_income_display=total_all_time_income_display,
         properties=properties,
         available_units=available_units,
+        pending_online=pending_online,
         today=today
     )
 
@@ -155,11 +164,16 @@ def index():
 @login_required
 @permission_required('bookings.view')
 def reservations():
+    user = cast(Any, current_user)
+    org_id = user.organization_id if not user.is_superadmin() else None
+
     status = request.args.get('status')
     source = request.args.get('source')
     search = request.args.get('q', '').strip()
 
     query = HospitalityReservation.query.join(Guest).join(RentalUnit)
+    if org_id:
+        query = query.join(Property, RentalUnit.property_id == Property.id).filter(Property.organization_id == org_id)
 
     if status:
         query = query.filter(HospitalityReservation.status == status)
@@ -175,8 +189,15 @@ def reservations():
         )
 
     all_reservations = query.order_by(HospitalityReservation.check_in_date.desc(), HospitalityReservation.id.desc()).all()
-    properties = Property.query.filter_by(management_status='ACTIVE').all()
-    available_units = RentalUnit.query.filter(RentalUnit.current_tenant_id.is_(None)).all()
+    if org_id:
+        properties = Property.query.filter_by(organization_id=org_id, management_status='ACTIVE').all()
+        available_units = RentalUnit.query.join(Property).filter(
+            Property.organization_id == org_id,
+            RentalUnit.current_tenant_id.is_(None)
+        ).all()
+    else:
+        properties = Property.query.filter_by(management_status='ACTIVE').all()
+        available_units = RentalUnit.query.filter(RentalUnit.current_tenant_id.is_(None)).all()
 
     return render_template(
         'hospitality/reservations.html',
@@ -187,6 +208,51 @@ def reservations():
         source_filter=source,
         search=search
     )
+
+@hospitality_bp.route('/reservations/<int:res_id>/confirm', methods=['POST'])
+@login_required
+@permission_required('bookings.manage')
+def confirm_reservation(res_id):
+    reservation = db.session.get(HospitalityReservation, res_id)
+    if not reservation:
+        flash('Reservation not found.', 'danger')
+        return redirect(url_for('hospitality.reservations'))
+
+    # Security check: multi-tenant isolation
+    user = cast(Any, current_user)
+    org_id = user.organization_id if not user.is_superadmin() else None
+    if org_id and reservation.organization_id and reservation.organization_id != org_id:
+        from flask import abort
+        abort(403)
+
+    reservation.status = 'CONFIRMED'
+    db.session.commit()
+
+    # Send confirmation SMS to guest
+    guest = reservation.guest
+    unit = reservation.rental_unit
+    org = unit.property.organization if (unit and unit.property) else None
+    first_name = guest.first_name if guest else 'Guest'
+    check_in_str = reservation.check_in_date.strftime('%d/%m/%Y') if reservation.check_in_date else 'your arrival date'
+
+    try:
+        from app.services.sms_service import SmsService
+        sms_text = (
+            f"Dear {first_name}, your booking for {unit.unit_number if unit else 'Room'} is CONFIRMED! "
+            f"Ref: {reservation.reservation_code}. Check-In: {check_in_str}. "
+            f"We look forward to hosting you at {org.name if org else 'our residence'}!"
+        )
+        SmsService.send_sms(
+            to_phone=guest.phone,
+            message=sms_text,
+            notification_type='HOSPITALITY_RESERVATION',
+            organization_id=org.id if org else None
+        )
+    except Exception:
+        pass
+
+    flash(f"Reservation #{reservation.reservation_code} for {guest.full_name if guest else 'Guest'} has been CONFIRMED. Confirmation SMS sent to {guest.phone if guest else ''}.", 'success')
+    return redirect(request.referrer or url_for('hospitality.reservations'))
 
 @hospitality_bp.route('/reservations/create', methods=['POST'])
 @login_required

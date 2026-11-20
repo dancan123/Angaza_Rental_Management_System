@@ -192,3 +192,152 @@ class NotificationService:
         db.session.add(notif)
         db.session.commit()
         return notif
+
+    @staticmethod
+    def notify_airbnb_booking(reservation):
+        """
+        Dispatches multi-channel booking alerts (SMS, Email, WhatsApp, In-App)
+        to the organization managers, landlord, and caretakers for check-in logistics.
+        """
+        import urllib.parse
+        from app.services.sms_service import SmsService
+
+        unit = reservation.rental_unit
+        prop = unit.property if unit else None
+        org = prop.organization if prop else None
+        guest = reservation.guest
+
+        if not unit or not guest:
+            return None
+
+        res_code = reservation.reservation_code
+        check_in_str = reservation.check_in_date.strftime('%d/%m/%Y') if reservation.check_in_date else 'TBD'
+        check_out_str = reservation.check_out_date.strftime('%d/%m/%Y') if reservation.check_out_date else 'TBD'
+        total_str = format_currency(reservation.total_stay_cents)
+        special_requests = reservation.special_requests or 'No special requests submitted'
+        nights = reservation.num_nights or 1
+        landlord = prop.landlord if prop else None
+
+        # 1. Staff users belonging to the property's organization
+        staff_users = []
+        if org:
+            from app.models.user import User
+            staff_users = User.query.filter(
+                User.organization_id == org.id,
+                User.is_active == True
+            ).all()
+
+        # Manager alert message body
+        manager_alert_msg = (
+            f"[NEW AIRBNB BOOKING ALERT]\n"
+            f"Room: {unit.unit_number} ({prop.name if prop else 'Stay'})\n"
+            f"Guest: {guest.full_name} ({guest.phone})\n"
+            f"Dates: {check_in_str} to {check_out_str} ({nights} nights)\n"
+            f"Total: {total_str} (Ref: {res_code})\n"
+            f"Logistics/Requests: {special_requests}\n"
+            f"Action: Please contact guest to confirm check-in logistics and arrival arrangements."
+        )
+
+        # 2. Dispatch SMS alert to Organization contact phone, Landlord phone, and Staff
+        target_phones = set()
+        if org and org.contact_phone:
+            target_phones.add(org.contact_phone.strip())
+        if landlord and landlord.phone:
+            target_phones.add(landlord.phone.strip())
+        for u in staff_users:
+            if u.phone:
+                target_phones.add(u.phone.strip())
+
+        for phone in target_phones:
+            try:
+                SmsService.send_sms(
+                    to_phone=phone,
+                    message=manager_alert_msg,
+                    notification_type='HOSPITALITY_RESERVATION',
+                    organization_id=org.id if org else None
+                )
+            except Exception:
+                pass
+
+        # 3. In-App Notification for each staff user & landlord
+        for u in staff_users:
+            notif = Notification(
+                recipient_user_id=u.id,
+                landlord_id=landlord.id if landlord else None,
+                title=f"New Airbnb Booking: {unit.unit_number} ({guest.full_name})",
+                message=manager_alert_msg,
+                channel='IN_APP',
+                notification_type='BOOKING_CREATED',
+                sent_status='SENT',
+                sent_at=datetime.utcnow()
+            )
+            db.session.add(notif)
+
+        # 4. Email Notification record for org contact email, staff & landlord
+        target_emails = set()
+        if org and org.contact_email:
+            target_emails.add(org.contact_email.strip())
+        if landlord and landlord.email:
+            target_emails.add(landlord.email.strip())
+        for u in staff_users:
+            if u.email:
+                target_emails.add(u.email.strip())
+
+        email_subject = f"New Online Airbnb Booking Alert: {unit.unit_number} — {guest.full_name} ({res_code})"
+        email_body = (
+            f"NEW ONLINE AIRBNB RESERVATION RECEIVED\n\n"
+            f"Reservation Code: {res_code}\n"
+            f"Guest Name: {guest.full_name}\n"
+            f"Guest Phone: {guest.phone}\n"
+            f"Guest Email: {guest.email or 'Not provided'}\n"
+            f"Property: {prop.name if prop else 'N/A'}\n"
+            f"Room / Unit: {unit.unit_number}\n"
+            f"Check-In Date: {check_in_str}\n"
+            f"Check-Out Date: {check_out_str}\n"
+            f"Duration: {nights} night(s)\n"
+            f"Guests: {reservation.num_guests or 1} guest(s)\n"
+            f"Total Amount: {total_str}\n"
+            f"Payment Status: PENDING\n\n"
+            f"Logistics & Special Requests:\n{special_requests}\n\n"
+            f"Please log in to your management dashboard to coordinate check-in logistics and confirm the reservation."
+        )
+
+        for email in target_emails:
+            notif_email = Notification(
+                landlord_id=landlord.id if landlord else None,
+                title=email_subject,
+                message=f"Recipient: {email}\n\n{email_body}",
+                channel='EMAIL',
+                notification_type='BOOKING_CREATED',
+                sent_status='SENT',
+                sent_at=datetime.utcnow()
+            )
+            db.session.add(notif_email)
+
+        # 5. WhatsApp logistics notification
+        clean_guest_phone = guest.phone.replace(' ', '').replace('-', '').replace('+', '').strip()
+        if clean_guest_phone.startswith('0'):
+            clean_guest_phone = '254' + clean_guest_phone[1:]
+        elif not clean_guest_phone.startswith('254') and len(clean_guest_phone) == 9:
+            clean_guest_phone = '254' + clean_guest_phone
+
+        wa_text = (
+            f"Hello {guest.first_name}, this is {org.name if org else 'Management'} regarding your Airbnb booking "
+            f"for {unit.unit_number} (Ref: {res_code}) from {check_in_str} to {check_out_str}. "
+            f"We are coordinating your check-in logistics and arrival arrangements."
+        )
+        wa_url = f"https://wa.me/{clean_guest_phone}?text={urllib.parse.quote(wa_text)}"
+
+        notif_wa = Notification(
+            landlord_id=landlord.id if landlord else None,
+            title=f"WhatsApp Logistics Link: {guest.full_name}",
+            message=f"Direct WhatsApp logistics link for {guest.full_name} ({guest.phone}):\n{wa_url}",
+            channel='WHATSAPP',
+            notification_type='BOOKING_CREATED',
+            sent_status='SENT',
+            sent_at=datetime.utcnow()
+        )
+        db.session.add(notif_wa)
+
+        db.session.commit()
+        return notif_wa

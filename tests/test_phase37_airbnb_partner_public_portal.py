@@ -130,3 +130,65 @@ def test_api_vacant_units_multitenancy(client, app_instance):
         for u in data['vacant_units']:
             unit_db = db.session.get(RentalUnit, u['id'])
             assert unit_db.property.organization_id == org3.id
+
+def test_airbnb_booking_manager_notifications_and_logistics_confirmation(client, app_instance):
+    with app_instance.app_context():
+        from app.models.communication import Notification
+        org = Organization.query.filter_by(org_code='ANG0003').first()
+        unit = RentalUnit.query.join(RentalUnit.property).filter(
+            Property.organization_id == org.id,
+            RentalUnit.operational_type == 'SHORT_STAY'
+        ).first()
+
+        booking_data = {
+            'unit_id': unit.id,
+            'guest_name': 'Fatuma Hassan',
+            'phone': '+254700998877',
+            'email': 'fatuma.hassan@example.com',
+            'check_in_date': (date.today() + timedelta(days=10)).strftime('%Y-%m-%d'),
+            'check_out_date': (date.today() + timedelta(days=14)).strftime('%Y-%m-%d'),
+            'num_guests': 2,
+            'special_requests': 'Late check-in at 10 PM. Please reserve parking space.',
+            'org_code': 'ANG0003'
+        }
+
+        resp = client.post('/vacancies/airbnb-book', data=booking_data, follow_redirects=True)
+        assert resp.status_code == 200
+
+        # Verify multi-channel notifications generated
+        recent_notifs = Notification.query.filter(
+            Notification.title.ilike('%Fatuma Hassan%')
+        ).all()
+        assert len(recent_notifs) > 0
+        channels = {n.channel for n in recent_notifs}
+        assert 'IN_APP' in channels
+        assert 'EMAIL' in channels or 'WHATSAPP' in channels
+
+        res = HospitalityReservation.query.filter_by(rental_unit_id=unit.id).order_by(HospitalityReservation.id.desc()).first()
+        assert res.guest.full_name == 'Fatuma Hassan'
+        assert res.status == 'PENDING'
+        assert 'Late check-in' in res.special_requests
+
+        # Log in as manager and check logistics card on hospitality dashboard
+        manager = User.query.filter_by(organization_id=org.id).first()
+        assert manager is not None
+        manager.set_password('SarahPass123!')
+        db.session.commit()
+
+        login_resp = client.post('/auth/login', data={'username': manager.username, 'password': 'SarahPass123!'}, follow_redirects=True)
+        assert login_resp.status_code == 200
+
+        dash_resp = client.get('/hospitality/')
+        assert dash_resp.status_code == 200
+        dash_html = dash_resp.data.decode('utf-8')
+        assert 'Fatuma Hassan' in dash_html
+        assert '+254700998877' in dash_html
+        assert 'Late check-in' in dash_html
+        assert 'wa.me' in dash_html  # Direct WhatsApp action present
+
+        # Confirm reservation as manager
+        confirm_resp = client.post(f'/hospitality/reservations/{res.id}/confirm', follow_redirects=True)
+        assert confirm_resp.status_code == 200
+
+        db.session.refresh(res)
+        assert res.status == 'CONFIRMED'
