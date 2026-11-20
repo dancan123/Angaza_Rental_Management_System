@@ -248,3 +248,96 @@ def sms_history():
         search=search
     )
 
+
+@communication_bp.route('/send-direct-sms', methods=['POST'])
+@login_required
+def send_direct_sms():
+    """
+    Direct SMS dispatch to any customer phone number:
+    Supports quick Thank You notes, payment confirmations, and custom notifications.
+    """
+    to_phone = request.form.get('recipient_phone', '').strip()
+    customer_name = request.form.get('recipient_name', '').strip()
+    msg_type = request.form.get('sms_type', 'DIRECT_CUSTOMER_SMS').strip()
+    message_text = request.form.get('message', '').strip()
+
+    if not to_phone or not message_text:
+        flash('Recipient phone number and message content are required.', 'danger')
+        return redirect(request.referrer or url_for('communication.index', tab='notifications'))
+
+    # Personalize name if provided
+    if customer_name and '{name}' in message_text:
+        message_text = message_text.replace('{name}', customer_name)
+
+    from app.services.sms_service import SmsService
+    org_id = getattr(current_user, 'organization_id', None) if not current_user.is_superadmin() else None
+    res = SmsService.send_sms(
+        to_phone=to_phone,
+        message=message_text,
+        notification_type=msg_type,
+        organization_id=org_id
+    )
+
+    if res.get('success'):
+        if res.get('simulated'):
+            flash(f"Direct SMS to {to_phone} simulated & logged successfully.", 'info')
+        else:
+            flash(f"Direct SMS successfully dispatched to {to_phone}!", 'success')
+    else:
+        flash(f"SMS dispatch failed: {res.get('error')}", 'danger')
+
+    return redirect(request.referrer or url_for('communication.index', tab='notifications'))
+
+
+@communication_bp.route('/notifications/<int:notif_id>/delete', methods=['POST'])
+@login_required
+def delete_notification(notif_id):
+    """Deletes an individual system alert notification."""
+    notif = db.session.get(Notification, notif_id)
+    if not notif:
+        from flask import abort; abort(404)
+
+    title = notif.title
+    db.session.delete(notif)
+    db.session.commit()
+    flash(f"Alert '{title}' deleted successfully.", 'success')
+    return redirect(request.referrer or url_for('communication.index', tab='notifications'))
+
+
+@communication_bp.route('/notifications/clear-all', methods=['POST'])
+@login_required
+def clear_notifications():
+    """Clears all system alert notifications for this organization or user."""
+    try:
+        user = cast(Any, current_user)
+        role = getattr(user, 'role', '')
+        if user.is_superadmin() or role in ['LANDLORD', 'MANAGER', 'DIRECTOR', 'ACCOUNTANT', 'ADMIN']:
+            Notification.query.delete()
+        else:
+            Notification.query.filter(
+                (Notification.recipient_user_id == user.id) |
+                (Notification.recipient_user_id.is_(None))
+            ).delete(synchronize_session=False)
+        db.session.commit()
+        flash("All system alert notifications cleared successfully.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error clearing notifications: {str(e)}", 'danger')
+
+    return redirect(request.referrer or url_for('communication.index', tab='notifications'))
+
+
+@communication_bp.route('/messages/<int:msg_id>/delete', methods=['POST'])
+@login_required
+def delete_message(msg_id):
+    """Deletes an internal staff communication message."""
+    msg = db.session.get(InternalMessage, msg_id)
+    if not msg:
+        from flask import abort; abort(404)
+
+    subj = msg.subject
+    db.session.delete(msg)
+    db.session.commit()
+    flash(f"Message '{subj}' deleted successfully.", 'success')
+    return redirect(request.referrer or url_for('communication.index', tab='inbox'))
+

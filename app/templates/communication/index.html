@@ -8,7 +8,10 @@
         <h3 class="fw-bold mb-0">Internal Communication & Staff Requests</h3>
         <p class="text-muted small mb-0">Direct communication channel between Caretakers, Property Managers, and Landlords for work requests, fund approvals, and incident alerts.</p>
     </div>
-    <div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-success fw-semibold" data-bs-toggle="modal" data-bs-target="#directSmsModal">
+            <i class="bi bi-chat-left-dots-fill me-1"></i> Send Customer SMS / Thank You
+        </button>
         <button type="button" class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#newRequestModal">
             <i class="bi bi-send-plus-fill me-1"></i> New Request / Message
         </button>
@@ -93,9 +96,18 @@
                             </td>
                             <td class="text-muted">{{ m.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
                             <td class="text-end pe-3">
-                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#viewMsgModal{{ m.id }}">
-                                    View & Reply
-                                </button>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#viewMsgModal{{ m.id }}">
+                                        View &amp; Reply
+                                    </button>
+                                    <form method="POST" action="{{ url_for('communication.delete_message', msg_id=m.id) }}" class="d-inline"
+                                          onsubmit="return confirm('Delete this internal request message?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete message">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
 
@@ -219,6 +231,24 @@
     <!-- System Notifications Tab -->
     {% if active_tab == 'notifications' %}
     <div class="card card-custom bg-white">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2 border-bottom">
+            <div>
+                <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-bell-fill me-1 text-warning"></i> Automated System &amp; SMS Dispatch Logs</h6>
+                <small class="text-muted">Live audit trail of SMS messages, booking alerts, M-Pesa notifications, and seeker leads.</small>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-success fw-semibold" data-bs-toggle="modal" data-bs-target="#directSmsModal">
+                    <i class="bi bi-plus-circle me-1"></i> Send Customer SMS
+                </button>
+                <form method="POST" action="{{ url_for('communication.clear_notifications') }}"
+                      onsubmit="return confirm('WARNING: Are you sure you want to clear all alert logs from history?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-trash3 me-1"></i> Clear All Alerts
+                    </button>
+                </form>
+            </div>
+        </div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
@@ -228,7 +258,8 @@
                             <th>Channel</th>
                             <th>Message Content</th>
                             <th>Date / Time</th>
-                            <th class="text-end pe-3">Status</th>
+                            <th>Status</th>
+                            <th class="text-end pe-3">Action</th>
                         </tr>
                     </thead>
                     <tbody class="small">
@@ -247,13 +278,24 @@
                                 <div class="text-truncate" style="max-height: 48px; white-space: pre-line;">{{ n.message }}</div>
                             </td>
                             <td class="text-muted">{{ n.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                            <td>
+                                <span class="badge {% if n.sent_status == 'SENT' %}bg-success-subtle text-success border border-success-subtle{% elif n.sent_status == 'FAILED' %}bg-danger-subtle text-danger border border-danger-subtle{% else %}bg-info-subtle text-info border border-info-subtle{% endif %}">
+                                    {{ n.sent_status }}
+                                </span>
+                            </td>
                             <td class="text-end pe-3">
-                                <span class="badge bg-success-subtle text-success border border-success-subtle">{{ n.sent_status }}</span>
+                                <form method="POST" action="{{ url_for('communication.delete_notification', notif_id=n.id) }}" class="d-inline"
+                                      onsubmit="return confirm('Delete this alert log entry?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete Alert">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
                             </td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-4">No system notifications logged yet.</td>
+                            <td colspan="6" class="text-center text-muted py-4">No system notifications logged yet.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -439,5 +481,109 @@
         </div>
     </div>
 </div>
+
+<!-- Modal: Send Direct SMS / Customer Thank You -->
+<div class="modal fade" id="directSmsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-chat-left-dots-fill me-2"></i>Send Direct SMS / Customer Thank You</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('communication.send_direct_sms') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <div class="alert alert-info py-2 small mb-3">
+                        <i class="bi bi-info-circle-fill me-1"></i> Send direct SMS notifications to any customer, guest, or tenant phone number. Message will be dispatched via your active SMS gateway and logged in the audit trail.
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Recipient Phone Number *</label>
+                            <input type="text" name="recipient_phone" id="directPhoneInput" class="form-control" placeholder="e.g. 0712345678 or +254712345678" required>
+                            <div class="form-text">Kenyan 07xx, 01xx, and international +254 formats supported.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Customer / Recipient Name (Optional)</label>
+                            <input type="text" name="recipient_name" id="directNameInput" class="form-control" placeholder="e.g. John Doe" oninput="updateTemplateMessage()">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Message Category / Type</label>
+                            <select name="sms_type" class="form-select">
+                                <option value="PAYMENT_THANK_YOU" selected>Customer Payment Thank You</option>
+                                <option value="MPESA_CONFIRMATION">M-Pesa Receipt Confirmation</option>
+                                <option value="BOOKING_WELCOME">Guest / Booking Welcome Note</option>
+                                <option value="RENT_REMINDER">Friendly Rent Reminder</option>
+                                <option value="DIRECT_CUSTOMER_SMS">General Customer Notice</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Quick Pre-filled Template</label>
+                            <select class="form-select bg-light" id="templateSelector" onchange="applyQuickTemplate(this.value)">
+                                <option value="">-- Choose Quick Template --</option>
+                                <option value="thank_you">1. Payment Thank You Note</option>
+                                <option value="mpesa_received">2. M-Pesa Till / Paybill Received</option>
+                                <option value="guest_welcome">3. Airbnb / Short-Stay Welcome</option>
+                                <option value="rent_due">4. Rent Due Notice</option>
+                                <option value="custom">5. Blank / Custom Message</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label small fw-semibold mb-0">SMS Message Content *</label>
+                                <small class="text-muted" id="charCounter">0 / 160 chars (1 SMS)</small>
+                            </div>
+                            <textarea name="message" id="directSmsTextarea" class="form-control" rows="4" placeholder="Type your SMS message here..." required oninput="updateCharCount()"></textarea>
+                            <div class="form-text">
+                                Tip: Use <code>{name}</code> placeholder in the text and it will be auto-replaced by the customer's name.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success fw-semibold"><i class="bi bi-send-fill me-1"></i> Send SMS Directly</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+const templates = {
+    thank_you: "Dear {name}, thank you for your payment received via M-Pesa. Your account has been credited and receipt generated. We appreciate your continued business. Karibu sana!",
+    mpesa_received: "Dear {name}, your M-Pesa payment has been confirmed and verified on our system. Thank you for choosing us!",
+    guest_welcome: "Dear {name}, welcome to your suite! Your reservation is confirmed. We wish you a peaceful, relaxing and wonderful stay. Please call front desk for any assistance.",
+    rent_due: "Dear {name}, this is a gentle reminder that rent for your unit is due on or before the 5th. Kindly settle via our official M-Pesa Paybill. Thank you!",
+    custom: ""
+};
+
+function applyQuickTemplate(key) {
+    const textarea = document.getElementById('directSmsTextarea');
+    const nameInput = document.getElementById('directNameInput');
+    const name = nameInput.value.trim() || 'Customer';
+    if (templates[key] !== undefined) {
+        let msg = templates[key].replace('{name}', name);
+        textarea.value = msg;
+        updateCharCount();
+    }
+}
+
+function updateTemplateMessage() {
+    const sel = document.getElementById('templateSelector');
+    if (sel && sel.value && templates[sel.value]) {
+        applyQuickTemplate(sel.value);
+    }
+}
+
+function updateCharCount() {
+    const textarea = document.getElementById('directSmsTextarea');
+    const counter = document.getElementById('charCounter');
+    if (textarea && counter) {
+        const len = textarea.value.length;
+        const parts = Math.ceil(len / 160) || 1;
+        counter.textContent = `${len} chars (${parts} SMS part${parts > 1 ? 's' : ''})`;
+    }
+}
+</script>
 {% endblock %}
 

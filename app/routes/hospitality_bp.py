@@ -275,6 +275,26 @@ def check_out(res_id):
             payment_ref=ref,
             user_id=user.id
         )
+
+        # Auto-send thank you / departure settlement SMS
+        if res.guest and res.guest.phone:
+            from app.services.sms_service import SmsService
+            prop_name = res.rental_unit.property.name if res.rental_unit and res.rental_unit.property else "Angaza Stays"
+            paid_text = f" Settlement payment of KES {paid_amount:,.0f} via {method} ({ref or 'Settled'}) received." if (paid_amount and paid_amount > 0) else ""
+            sms_msg = (
+                f"Dear {res.guest.first_name}, thank you for staying with us at {prop_name} (Room {res.rental_unit.unit_number})."
+                f"{paid_text} Your check-out has been completed. We wish you safe travels and hope to host you again soon!"
+            )
+            try:
+                SmsService.send_sms(
+                    to_phone=res.guest.phone,
+                    message=sms_msg,
+                    notification_type='CHECKOUT_THANK_YOU',
+                    organization_id=res.organization_id
+                )
+            except Exception:
+                pass
+
         flash(f"Guest {res.guest.full_name} checked out. Room {res.rental_unit.unit_number} flagged for turnover cleaning.", 'success')
     except Exception as e:
         flash(f"Check-Out Error: {str(e)}", 'danger')
@@ -439,6 +459,26 @@ def record_payment(res_id):
     res.payment_method = method
     res.payment_reference = ref
     db.session.commit()
+
+    # Auto-send thank you & payment receipt SMS to customer/guest
+    if res.guest and res.guest.phone:
+        from app.services.sms_service import SmsService
+        from app.utils.currency import format_currency
+        prop_name = res.rental_unit.property.name if res.rental_unit and res.rental_unit.property else "Angaza Stays"
+        sms_msg = (
+            f"Dear {res.guest.first_name}, thank you! Payment of {format_currency(to_cents(amount))} "
+            f"via {method} ({ref or 'Confirmed'}) for Unit {res.rental_unit.unit_number} ({prop_name}) has been received. "
+            f"Balance: {res.balance_display if res.balance_cents > 0 else 'KES 0.00 (SETTLED)'}. Karibu sana!"
+        )
+        try:
+            SmsService.send_sms(
+                to_phone=res.guest.phone,
+                message=sms_msg,
+                notification_type='PAYMENT_THANK_YOU',
+                organization_id=res.organization_id
+            )
+        except Exception:
+            pass
 
     AuditService.log('RECORD_RESERVATION_PAYMENT', 'HospitalityReservation', res.id,
                      new_values={'amount': amount, 'method': method})
