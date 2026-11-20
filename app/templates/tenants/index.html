@@ -5,77 +5,149 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <div>
-        <h3 class="fw-bold mb-0">Tenant Directory</h3>
-        <p class="text-muted small mb-0">Maintain KYC records, current tenancies, next-of-kin contacts, and tenancy agreements.</p>
+        <h3 class="fw-bold mb-0">Tenant Directory &amp; Master Registry</h3>
+        <p class="text-muted small mb-0">Search, filter, and sort KYC profiles, phone numbers, assigned units, and account arrears.</p>
     </div>
-    {% if current_user.has_permission('tenants.manage') %}
-    <button type="button" class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#createTenantModal">
-        <i class="bi bi-person-plus-fill me-1"></i> Register New Tenant
-    </button>
-    {% endif %}
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('tenants.export_csv', active=status_filter) }}" class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i> Export CSV
+        </a>
+        {% if current_user.has_permission('tenants.manage') %}
+        <button type="button" class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#createTenantModal">
+            <i class="bi bi-person-plus-fill me-1"></i> Register New Tenant
+        </button>
+        {% endif %}
+    </div>
 </div>
 
-<!-- Search & Status Filter -->
-<div class="card card-custom bg-white p-3 mb-4">
-    <form method="GET" action="{{ url_for('tenants.index') }}" class="row g-2 align-items-center">
-        <div class="col-md-8">
-            <div class="input-group">
-                <span class="input-group-text bg-white text-muted"><i class="bi bi-search"></i></span>
-                <input type="text" name="search" class="form-control" placeholder="Search by name, ID/Passport, telephone, or email..." value="{{ search }}">
-            </div>
+<!-- Key Metric Summary Cards -->
+{% if stats %}
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-md-3">
+        <div class="card card-custom bg-white p-3 text-center border-start border-4 border-primary">
+            <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.75rem;">Total Tenants</div>
+            <h4 class="fw-bold mt-1 mb-0 text-dark">{{ stats.total }}</h4>
+            <div class="text-muted small">Registered in system</div>
         </div>
-        <div class="col-md-3">
-            <select name="active" class="form-select">
-                <option value="1" {% if status_filter == '1' or not status_filter %}selected{% endif %}>Active Tenants Only</option>
-                <option value="0" {% if status_filter == '0' %}selected{% endif %}>Past / Offboarded Tenants</option>
-                <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Records</option>
-            </select>
-        </div>
-        <div class="col-md-1">
-            <button type="submit" class="btn btn-outline-secondary w-100">
-                <i class="bi bi-funnel"></i>
-            </button>
-        </div>
-    </form>
-</div>
-
-<!-- Active Search Feedback Banner -->
-{% if search %}
-<div class="alert alert-info py-2 px-3 d-flex justify-content-between align-items-center mb-3 shadow-sm">
-    <div class="small">
-        <i class="bi bi-search me-1 text-primary"></i> 
-        Showing search results for: <strong>"{{ search }}"</strong> 
-        <span class="badge bg-primary rounded-pill ms-2">{{ tenant_data|length if tenant_data is defined else tenants|length }} found</span>
     </div>
-    <a href="{{ url_for('tenants.index') }}" class="btn btn-sm btn-outline-secondary py-1 px-2">
-        <i class="bi bi-x-circle me-1"></i> Clear Search
-    </a>
+    <div class="col-sm-6 col-md-3">
+        <div class="card card-custom bg-white p-3 text-center border-start border-4 border-success">
+            <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.75rem;">Housed in Units</div>
+            <h4 class="fw-bold mt-1 mb-0 text-success">{{ stats.housed }}</h4>
+            <div class="text-muted small">Active room tenancies</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-md-3">
+        <div class="card card-custom bg-white p-3 text-center border-start border-4 border-warning">
+            <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.75rem;">Unallocated Tenants</div>
+            <h4 class="fw-bold mt-1 mb-0 text-warning">{{ stats.unassigned }}</h4>
+            <div class="text-muted small">Pending room allocation</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-md-3">
+        <div class="card card-custom bg-white p-3 text-center border-start border-4 border-danger">
+            <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.75rem;">Total Arrears</div>
+            <h4 class="fw-bold mt-1 mb-0 {% if stats.total_arrears_cents > 0 %}text-danger{% else %}text-success{% endif %}">
+                {{ stats.total_arrears_cents | currency }}
+            </h4>
+            <div class="text-muted small">{{ stats.arrears_count }} tenants owing</div>
+        </div>
+    </div>
 </div>
 {% endif %}
+
+<!-- Instant Search, Quick Filter Pills & Controls -->
+<div class="card card-custom bg-white p-3 mb-4 shadow-sm">
+    <div class="row g-2 align-items-center mb-3">
+        <div class="col-lg-8">
+            <div class="input-group">
+                <span class="input-group-text bg-white text-primary border-end-0"><i class="bi bi-search fs-5"></i></span>
+                <input type="text" id="liveSearchInput" class="form-control form-control-lg border-start-0 border-end-0 ps-0" placeholder="Type letters, name, phone (07...), national ID, unit number, or estate to instantly filter..." value="{{ search }}" autocomplete="off">
+                <button type="button" id="clearLiveSearch" class="btn btn-outline-secondary border-start-0" title="Clear filter">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        </div>
+        <div class="col-lg-4 d-flex justify-content-lg-end align-items-center gap-2">
+            <span id="matchCounter" class="badge bg-primary px-3 py-2 fs-6 rounded-pill">
+                Showing all {{ tenant_data|length }} tenants
+            </span>
+        </div>
+    </div>
+
+    <!-- Quick Filter Pills -->
+    <div class="d-flex gap-2 flex-wrap align-items-center pt-2 border-top">
+        <span class="text-muted small fw-semibold me-1"><i class="bi bi-funnel me-1"></i>Quick Filters:</span>
+        <button type="button" class="btn btn-sm btn-outline-primary active filter-pill" data-filter="all">All ({{ tenant_data|length }})</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary filter-pill" data-filter="active">Active Only</button>
+        <button type="button" class="btn btn-sm btn-outline-success filter-pill" data-filter="housed">Housed in Rooms ({{ stats.housed if stats else 0 }})</button>
+        <button type="button" class="btn btn-sm btn-outline-warning filter-pill" data-filter="unassigned">Unassigned ({{ stats.unassigned if stats else 0 }})</button>
+        <button type="button" class="btn btn-sm btn-outline-danger filter-pill" data-filter="arrears">In Arrears ({{ stats.arrears_count if stats else 0 }})</button>
+        
+        <!-- Server search dropdown for offboarded -->
+        <div class="ms-auto">
+            <form method="GET" action="{{ url_for('tenants.index') }}" class="d-inline-flex gap-1 align-items-center">
+                <select name="active" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="1" {% if status_filter == '1' or not status_filter %}selected{% endif %}>Active Registry</option>
+                    <option value="0" {% if status_filter == '0' %}selected{% endif %}>Archived / Past Tenants</option>
+                    <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Records (History)</option>
+                </select>
+            </form>
+        </div>
+    </div>
+</div>
 
 <!-- Tenants Table with Comprehensive Primaries, Tenancy, Arrears & Next of Kin -->
 <div class="card card-custom bg-white shadow-sm">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0" id="tenantsTable">
                 <thead class="table-light small">
                     <tr>
-                        <th class="ps-3">Tenant &amp; Occupation</th>
-                        <th>National ID / Passport</th>
-                        <th>Telephone &amp; WhatsApp</th>
-                        <th>Current Unit &amp; Estate</th>
-                        <th>Monthly Rent</th>
-                        <th>Rent Arrears / Balance</th>
-                        <th>Deposit Held</th>
+                        <th class="ps-3 sortable-col" data-sort="name" style="cursor: pointer;" title="Click to sort by Name">
+                            Tenant &amp; Occupation <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon" style="font-size: 0.75rem;"></i>
+                        </th>
+                        <th class="sortable-col" data-sort="id" style="cursor: pointer;" title="Click to sort by National ID">
+                            National ID / Passport <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon" style="font-size: 0.75rem;"></i>
+                        </th>
+                        <th class="sortable-col" data-sort="phone" style="cursor: pointer;" title="Click to sort by Phone">
+                            Telephone &amp; WhatsApp <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon" style="font-size: 0.75rem;"></i>
+                        </th>
+                        <th class="sortable-col" data-sort="unit" style="cursor: pointer;" title="Click to sort by Unit / Property">
+                            Current Unit &amp; Estate <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon" style="font-size: 0.75rem;"></i>
+                        </th>
+                        <th class="sortable-col" data-sort="rent" style="cursor: pointer;" title="Click to sort by Monthly Rent">
+                            Monthly Rent <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon" style="font-size: 0.75rem;"></i>
+                        </th>
+                        <th class="sortable-col" data-sort="arrears" style="cursor: pointer;" title="Click to sort by Arrears / Balance">
+                            Rent Arrears / Balance <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon" style="font-size: 0.75rem;"></i>
+                        </th>
+                        <th class="sortable-col" data-sort="deposit" style="cursor: pointer;" title="Click to sort by Deposit Held">
+                            Deposit Held <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon" style="font-size: 0.75rem;"></i>
+                        </th>
                         <th>Next of Kin</th>
-                        <th>Status</th>
+                        <th class="sortable-col" data-sort="status" style="cursor: pointer;" title="Click to sort by Account Status">
+                            Status <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon" style="font-size: 0.75rem;"></i>
+                        </th>
                         <th class="text-end pe-3">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="small">
                     {% for item in (tenant_data if tenant_data is defined else []) %}
                     {% set t = item.tenant %}
-                    <tr>
+                    <tr class="tenant-row" 
+                        data-name="{{ t.full_name|lower }}"
+                        data-id="{{ t.id_passport_number|lower }}"
+                        data-phone="{{ t.phone|lower }}"
+                        data-unit="{{ (t.current_unit.unit_number|lower) if t.current_unit else '' }}"
+                        data-property="{{ (t.current_unit.property.name|lower) if t.current_unit else '' }}"
+                        data-rent="{{ item.rent_cents }}"
+                        data-arrears="{{ item.outstanding_cents }}"
+                        data-deposit="{{ item.deposit_cents }}"
+                        data-status="{{ 'active' if t.is_active else 'offboarded' }}"
+                        data-housed="{{ '1' if t.current_unit else '0' }}"
+                        data-arrears-flag="{{ '1' if item.outstanding_cents > 0 else '0' }}"
+                        data-search="{{ t.full_name|lower }} {{ t.id_passport_number|lower }} {{ t.phone|lower }} {{ t.email|lower if t.email else '' }} {{ (t.current_unit.unit_number|lower) if t.current_unit else '' }} {{ (t.current_unit.property.name|lower) if t.current_unit else '' }} {{ t.occupation|lower if t.occupation else '' }}">
                         <td class="ps-3">
                             <div class="d-flex align-items-center gap-2">
                                 <div class="rounded-circle bg-primary-subtle text-primary fw-bold d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; font-size: 0.9rem;">
@@ -320,6 +392,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // --- Room allocation in modal ---
     var regUnitSelect = document.getElementById('reg_rental_unit_id');
     var regRentInput = document.getElementById('reg_monthly_rent');
     var regDepositInput = document.getElementById('reg_deposit_amount');
@@ -348,6 +421,144 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // --- Interactive Live Search & Instant Filtering ---
+    var searchInput = document.getElementById('liveSearchInput');
+    var clearBtn = document.getElementById('clearLiveSearch');
+    var matchCounter = document.getElementById('matchCounter');
+    var filterPills = document.querySelectorAll('.filter-pill');
+    var table = document.getElementById('tenantsTable');
+    if (!table) return;
+    var tbody = table.querySelector('tbody');
+    var rows = Array.from(tbody.querySelectorAll('tr.tenant-row'));
+    var totalRows = rows.length;
+
+    var currentFilter = 'all';
+
+    function applyFilters() {
+        var term = searchInput ? searchInput.value.toLowerCase().trim() : '';
+        var visibleCount = 0;
+
+        rows.forEach(function(row) {
+            var searchData = row.getAttribute('data-search') || '';
+            var status = row.getAttribute('data-status') || '';
+            var housed = row.getAttribute('data-housed') || '0';
+            var hasArrears = row.getAttribute('data-arrears-flag') || '0';
+
+            // Check Quick Filter pill
+            var matchesPill = true;
+            if (currentFilter === 'active') {
+                matchesPill = (status === 'active');
+            } else if (currentFilter === 'housed') {
+                matchesPill = (housed === '1');
+            } else if (currentFilter === 'unassigned') {
+                matchesPill = (housed === '0');
+            } else if (currentFilter === 'arrears') {
+                matchesPill = (hasArrears === '1');
+            }
+
+            // Check Search Term (searches letters, words, phone, ID, unit)
+            var matchesSearch = true;
+            if (term) {
+                var terms = term.split(/\s+/);
+                matchesSearch = terms.every(function(t) {
+                    return searchData.indexOf(t) !== -1;
+                });
+            }
+
+            if (matchesPill && matchesSearch) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        if (matchCounter) {
+            if (term || currentFilter !== 'all') {
+                matchCounter.textContent = 'Showing ' + visibleCount + ' of ' + totalRows + ' tenants';
+                matchCounter.className = 'badge bg-success px-3 py-2 fs-6 rounded-pill';
+            } else {
+                matchCounter.textContent = 'Showing all ' + totalRows + ' tenants';
+                matchCounter.className = 'badge bg-primary px-3 py-2 fs-6 rounded-pill';
+            }
+        }
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', applyFilters);
+    }
+
+    if (clearBtn && searchInput) {
+        clearBtn.addEventListener('click', function() {
+            searchInput.value = '';
+            applyFilters();
+            searchInput.focus();
+        });
+    }
+
+    filterPills.forEach(function(pill) {
+        pill.addEventListener('click', function() {
+            filterPills.forEach(function(p) {
+                p.classList.remove('active', 'btn-primary', 'btn-outline-primary', 'btn-success', 'btn-warning', 'btn-danger');
+                p.classList.add('btn-outline-secondary');
+            });
+            this.classList.remove('btn-outline-secondary');
+            this.classList.add('active', 'btn-primary');
+            currentFilter = this.getAttribute('data-filter') || 'all';
+            applyFilters();
+        });
+    });
+
+    // --- Interactive Column Sorting ---
+    var sortHeaders = table.querySelectorAll('th.sortable-col');
+    var currentSortKey = null;
+    var currentSortAsc = true;
+
+    sortHeaders.forEach(function(th) {
+        th.addEventListener('click', function() {
+            var sortKey = this.getAttribute('data-sort');
+            if (currentSortKey === sortKey) {
+                currentSortAsc = !currentSortAsc;
+            } else {
+                currentSortKey = sortKey;
+                currentSortAsc = true;
+            }
+
+            // Update header icons
+            sortHeaders.forEach(function(h) {
+                var icon = h.querySelector('.sort-icon');
+                if (icon) {
+                    icon.className = 'bi bi-arrow-down-up text-muted ms-1 sort-icon';
+                }
+            });
+            var activeIcon = this.querySelector('.sort-icon');
+            if (activeIcon) {
+                activeIcon.className = currentSortAsc ? 'bi bi-sort-up text-primary ms-1 sort-icon fw-bold' : 'bi bi-sort-down text-primary ms-1 sort-icon fw-bold';
+            }
+
+            // Sort rows
+            rows.sort(function(a, b) {
+                var valA, valB;
+                if (sortKey === 'rent' || sortKey === 'arrears' || sortKey === 'deposit') {
+                    valA = parseFloat(a.getAttribute('data-' + sortKey) || '0');
+                    valB = parseFloat(b.getAttribute('data-' + sortKey) || '0');
+                    return currentSortAsc ? (valA - valB) : (valB - valA);
+                } else {
+                    valA = (a.getAttribute('data-' + sortKey) || '').toLowerCase();
+                    valB = (b.getAttribute('data-' + sortKey) || '').toLowerCase();
+                    if (valA < valB) return currentSortAsc ? -1 : 1;
+                    if (valA > valB) return currentSortAsc ? 1 : -1;
+                    return 0;
+                }
+            });
+
+            // Re-attach sorted rows
+            rows.forEach(function(row) {
+                tbody.appendChild(row);
+            });
+        });
+    });
 });
 </script>
 {% endblock %}

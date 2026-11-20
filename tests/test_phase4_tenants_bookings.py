@@ -227,4 +227,21 @@ def test_property_detail_occupants_query(client, app):
         assert b'Current Occupants &amp; Tenancies' in resp.data
         assert b'occupantsTable' in resp.data
 
+def test_tenant_export_csv_and_directory_stats(client, app):
+    with app.app_context():
+        client.post('/auth/login', data={'username': 'admin_bkg', 'password': 'AdminPass123!'})
+        resp = client.get('/tenants/export/csv')
+        assert resp.status_code == 200
+        assert resp.mimetype == 'text/csv'
+        assert b'Full Name,National ID / Passport,Telephone' in resp.data
+
+        # Verify index page renders directory statistics and interactive table
+        idx_resp = client.get('/tenants/')
+        assert idx_resp.status_code == 200
+        assert b'Tenant Directory &amp; Master Registry' in idx_resp.data
+        assert b'id="tenantsTable"' in idx_resp.data
+        assert b'id="liveSearchInput"' in idx_resp.data
+        assert b'sortable-col' in idx_resp.data
+
+
 

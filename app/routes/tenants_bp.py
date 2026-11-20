@@ -45,13 +45,75 @@ def index():
 
     vacant_units = multi_tenant_scoped(RentalUnit.query.filter_by(occupancy_status='VACANT'), RentalUnit).all()
 
+    stats = {
+        'total': len(tenant_data),
+        'housed': sum(1 for d in tenant_data if d['tenant'].current_unit is not None),
+        'unassigned': sum(1 for d in tenant_data if d['tenant'].current_unit is None),
+        'arrears_count': sum(1 for d in tenant_data if d['outstanding_cents'] > 0),
+        'total_arrears_cents': sum(d['outstanding_cents'] for d in tenant_data if d['outstanding_cents'] > 0)
+    }
+
     return render_template(
         'tenants/index.html',
         tenants=tenants,
         tenant_data=tenant_data,
         vacant_units=vacant_units,
         search=search,
-        status_filter=status_filter
+        status_filter=status_filter,
+        stats=stats
+    )
+
+@tenants_bp.route('/export/csv')
+@login_required
+@permission_required('tenants.view')
+def export_csv():
+    """Export complete tenant directory with KYC, room, and financial arrears to CSV."""
+    import csv
+    from io import StringIO
+    from flask import Response
+
+    status_filter = request.args.get('active')
+    is_active = True if status_filter is None or status_filter == '1' else (False if status_filter == '0' else None)
+    tenants = TenantService.get_tenants(is_active=is_active)
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        'Full Name', 'National ID / Passport', 'Telephone', 'Email', 
+        'Occupation', 'Current Unit', 'Property / Estate', 
+        'Monthly Rent (KES)', 'Arrears / Balance (KES)', 'Deposit Held (KES)', 
+        'Status', 'Next of Kin Name', 'Next of Kin Phone'
+    ])
+    for t in tenants:
+        summary = TenantService.get_tenant_financial_summary(t.id)
+        unit = t.current_unit
+        active_lease = t.leases.filter_by(status='ACTIVE').first()
+        rent = (active_lease.monthly_rent_cents / 100) if active_lease else ((unit.rent_amount_cents / 100) if unit else 0)
+        deposit = (active_lease.deposit_cents / 100) if active_lease else 0
+        arrears = summary.get('outstanding_cents', 0) / 100
+        nok = t.next_of_kin.first()
+        writer.writerow([
+            t.full_name,
+            t.id_passport_number,
+            t.phone,
+            t.email or '',
+            t.occupation or '',
+            unit.unit_number if unit else 'Unassigned',
+            unit.property.name if unit else '',
+            f"{rent:.2f}",
+            f"{arrears:.2f}",
+            f"{deposit:.2f}",
+            'Active' if t.is_active else 'Offboarded',
+            nok.full_name if nok else (t.emergency_contact or ''),
+            nok.phone if nok else (t.emergency_phone or '')
+        ])
+
+    csv_data = output.getvalue()
+    filename = f"Tenant_Directory_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.csv"
+    return Response(
+        csv_data,
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
     )
 
 @tenants_bp.route('/create', methods=['POST'])
