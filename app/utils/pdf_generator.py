@@ -30,11 +30,23 @@ def generate_receipt_pdf(payment):
         bottomMargin=36
     )
 
-    settings = PersonalizationService.get_all_settings()
-    biz_name = settings.get('business_name', 'Property Management System')
-    biz_addr = settings.get('business_address', 'Nairobi, Kenya')
-    biz_phone = settings.get('business_phone', '+254 700 000 000')
-    biz_email = settings.get('business_email', 'info@primerent.co.ke')
+    # Personalize branding to the organization that owns this payment/property
+    org = None
+    if hasattr(payment, 'organization') and payment.organization:
+        org = payment.organization
+    elif payment.property and getattr(payment.property, 'organization', None):
+        org = payment.property.organization
+    elif payment.rental_unit and payment.rental_unit.property and getattr(payment.rental_unit.property, 'organization', None):
+        org = payment.rental_unit.property.organization
+
+    org_id = org.id if org else None
+    settings = PersonalizationService.get_all_settings(organization_id=org_id)
+
+    biz_name = (org.name if org else None) or settings.get('business_name', 'Property Management System')
+    biz_addr = (f"{org.town}, {org.county}" if org and (org.town or org.county) else None) or settings.get('business_address', 'Nairobi, Kenya')
+    biz_phone = (org.contact_phone if org else None) or settings.get('business_phone', '+254 700 000 000')
+    biz_email = (org.contact_email if org else None) or settings.get('business_email', 'info@primerent.co.ke')
+    biz_code = f"Business Code: {org.org_code} | " if org and org.org_code else ""
     receipt_footer = settings.get('receipt_footer', 'Thank you for your prompt payment.')
 
     styles = getSampleStyleSheet()
@@ -65,7 +77,7 @@ def generate_receipt_pdf(payment):
     # 1. Header: Company Info and Receipt Badge
     header_data = [
         [
-            Paragraph(f"<b>{biz_name}</b><br/>{biz_addr}<br/>Tel: {biz_phone} | Email: {biz_email}", subtitle_style),
+            Paragraph(f"<b>{biz_name}</b><br/>{biz_code}{biz_addr}<br/>Tel: {biz_phone} | Email: {biz_email}", subtitle_style),
             Paragraph(f"<font color='#1a56db'><b>OFFICIAL PAYMENT RECEIPT</b></font><br/><b>Receipt No:</b> {payment.receipt_number}<br/><b>Date:</b> {payment.payment_date.strftime('%d/%m/%Y')}", subtitle_style)
         ]
     ]
@@ -737,3 +749,134 @@ def generate_landlord_remittance_pdf(landlord, report_dict):
     buffer.seek(0)
     return buffer.getvalue()
 
+
+
+def generate_collection_sales_report_pdf(report_data, org=None, start_date=None, end_date=None):
+    """
+    Generates a formal Daily/Periodic Sales & Rent Collection PDF report
+    personalized to the organization.
+    """
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=36,
+        bottomMargin=36
+    )
+
+    org_id = org.id if org else None
+    settings = PersonalizationService.get_all_settings(organization_id=org_id)
+
+    biz_name = (org.name if org else None) or settings.get('business_name', 'Property Management System')
+    biz_addr = (f"{org.town}, {org.county}" if org and (org.town or org.county) else None) or settings.get('business_address', 'Nairobi, Kenya')
+    biz_phone = (org.contact_phone if org else None) or settings.get('business_phone', '+254 700 000 000')
+    biz_code = f"Business Code: {org.org_code} | " if org and org.org_code else ""
+
+    styles = getSampleStyleSheet()
+    header_style = ParagraphStyle('ReportHeader', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=14, textColor=colors.HexColor('#0f172a'))
+    subtitle_style = ParagraphStyle('ReportSub', parent=styles['Normal'], fontName='Helvetica', fontSize=9, textColor=colors.HexColor('#64748b'))
+    bold_style = ParagraphStyle('ReportBold', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=8, textColor=colors.HexColor('#1e293b'))
+    normal_style = ParagraphStyle('ReportNormal', parent=styles['Normal'], fontName='Helvetica', fontSize=8, textColor=colors.HexColor('#334155'))
+
+    story = []
+
+    # 1. Header Banner
+    date_range_str = f"From: {start_date or 'Earliest'} To: {end_date or 'Today'}"
+    header_data = [
+        [
+            Paragraph(f"<b>{biz_name}</b><br/>{biz_code}{biz_addr}<br/>Tel: {biz_phone}", subtitle_style),
+            Paragraph(f"<font color='#1a56db'><b>COLLECTIONS &amp; SALES REPORT</b></font><br/>{date_range_str}<br/><b>Printed:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}", subtitle_style)
+        ]
+    ]
+    header_table = Table(header_data, colWidths=[320, 220])
+    header_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 10))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#1a56db'), spaceAfter=12))
+
+    # 2. Executive KPI Summary Cards
+    from app.utils.currency import format_currency
+    total_col = report_data.get('total_collected_cents', 0)
+    tx_count = report_data.get('transactions_count', 0)
+    by_method = report_data.get('by_method', {})
+    mpesa_total = by_method.get('MPESA_PAYBILL', 0) + by_method.get('MPESA_TILL', 0)
+    bank_total = by_method.get('BANK_TRANSFER', 0)
+    cash_total = by_method.get('CASH', 0)
+
+    kpi_data = [
+        [
+            Paragraph("<b>Total Collections</b>", bold_style),
+            Paragraph("<b>Transactions</b>", bold_style),
+            Paragraph("<b>M-Pesa Collections</b>", bold_style),
+            Paragraph("<b>Bank / Cash</b>", bold_style),
+        ],
+        [
+            Paragraph(f"<font color='#0e9f6e'><b>{format_currency(total_col)}</b></font>", bold_style),
+            Paragraph(f"<b>{tx_count}</b> receipts", normal_style),
+            Paragraph(f"{format_currency(mpesa_total)}", normal_style),
+            Paragraph(f"{format_currency(bank_total + cash_total)}", normal_style),
+        ]
+    ]
+    kpi_table = Table(kpi_data, colWidths=[135, 135, 135, 135])
+    kpi_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f8fafc')),
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.append(kpi_table)
+    story.append(Spacer(1, 15))
+
+    # 3. Itemized Transaction / Sales Log
+    tx_rows = [
+        [
+            Paragraph("<b>Receipt No</b>", bold_style),
+            Paragraph("<b>Date</b>", bold_style),
+            Paragraph("<b>Tenant &amp; Unit</b>", bold_style),
+            Paragraph("<b>Property</b>", bold_style),
+            Paragraph("<b>Method &amp; Ref</b>", bold_style),
+            Paragraph("<b>Amount</b>", bold_style),
+        ]
+    ]
+
+    payments = report_data.get('payments', [])
+    for p in payments[:200]:  # Cap at 200 items per PDF page limit
+        t_name = p.tenant.full_name if p.tenant else 'N/A'
+        u_num = p.rental_unit.unit_number if p.rental_unit else 'N/A'
+        prop_name = p.property.name if p.property else 'N/A'
+        p_date = p.payment_date.strftime('%d/%m/%Y') if p.payment_date else ''
+        p_ref = p.transaction_reference or 'N/A'
+        p_amount = format_currency(p.amount_cents)
+
+        tx_rows.append([
+            Paragraph(f"{p.receipt_number}", normal_style),
+            Paragraph(f"{p_date}", normal_style),
+            Paragraph(f"{t_name} ({u_num})", normal_style),
+            Paragraph(f"{prop_name}", normal_style),
+            Paragraph(f"{p.payment_method}<br/><font color='#64748b'>{p_ref}</font>", normal_style),
+            Paragraph(f"<b>{p_amount}</b>", normal_style),
+        ])
+
+    if len(payments) == 0:
+        tx_rows.append([Paragraph("No transactions recorded for this period.", normal_style), "", "", "", "", ""])
+
+    tx_table = Table(tx_rows, colWidths=[80, 55, 125, 110, 95, 75])
+    tx_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e293b')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (-1, 0), (-1, -1), 'RIGHT'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    story.append(tx_table)
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()

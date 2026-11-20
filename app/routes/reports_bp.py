@@ -147,7 +147,7 @@ def export_collection_excel():
     start_date = datetime.strptime(start_str, '%Y-%m-%d').date() if start_str else None
     end_date = datetime.strptime(end_str, '%Y-%m-%d').date() if end_str else None
 
-    report = ReportService.get_collection_report(start_date, end_date, property_id, method)
+    report = ReportService.get_collection_report(start_date, end_date, property_id, method, organization_id=_org_id())
     excel_bytes = ReportService.export_collection_excel(report)
 
     return send_file(
@@ -155,6 +155,35 @@ def export_collection_excel():
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         as_attachment=True,
         download_name=f"Rent_Collection_Report_{datetime.utcnow().strftime('%Y%m%d')}.xlsx"
+    )
+
+@reports_bp.route('/export/collection.pdf')
+@login_required
+@permission_required('reports.export')
+def export_collection_pdf():
+    """
+    Downloads formal PDF sales / collection report personalized to the user's organization.
+    """
+    start_str = request.args.get('start_date')
+    end_str = request.args.get('end_date')
+    property_id = request.args.get('property_id', type=int)
+    method = request.args.get('payment_method')
+
+    start_date = datetime.strptime(start_str, '%Y-%m-%d').date() if start_str else None
+    end_date = datetime.strptime(end_str, '%Y-%m-%d').date() if end_str else None
+
+    report = ReportService.get_collection_report(start_date, end_date, property_id, method, organization_id=_org_id())
+
+    from app.utils.pdf_generator import generate_collection_sales_report_pdf
+    org = current_user.organization if hasattr(current_user, 'organization') else None
+    pdf_bytes = generate_collection_sales_report_pdf(report, org=org, start_date=start_str, end_date=end_str)
+
+    org_tag = f"_{org.org_code}" if org and org.org_code else ""
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"Collection_Sales_Report{org_tag}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
     )
 
 @reports_bp.route('/export/arrears.xlsx')

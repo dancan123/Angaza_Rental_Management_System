@@ -210,7 +210,17 @@ def record_payment():
             user_id=current_user.id,
             auto_confirm=True
         )
-        flash(f"Payment recorded and confirmed successfully under Receipt {payment.receipt_number}.", 'success')
+
+        # Dispatch automatic Thank You & Receipt SMS notification
+        send_sms_flag = request.form.get('send_sms_receipt')
+        if send_sms_flag != '0':  # Default enabled
+            try:
+                from app.services.sms_service import SmsService
+                SmsService.send_payment_sms(payment)
+            except Exception:
+                pass
+
+        flash(f"Payment recorded and confirmed successfully under Receipt {payment.receipt_number}. Thank you receipt notification dispatched.", 'success')
         return redirect(url_for('billing.view_receipt', payment_id=payment.id))
     except Exception as e:
         flash(f"Failed to record payment: {str(e)}", 'danger')
