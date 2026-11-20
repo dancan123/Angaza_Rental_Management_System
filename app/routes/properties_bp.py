@@ -5,7 +5,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.property import Property, RentalUnit
-from app.models.user import Landlord
+from app.models.user import Landlord, User, LandlordUser
+from app.models.organization import Organization
 from app.models.lead import ExternalPropertyListing, HouseSeekerLead
 from app.services.property_service import PropertyService
 from app.utils.decorators import permission_required
@@ -57,8 +58,6 @@ def index():
 
     properties = PropertyService.get_properties(search, property_type, landlord_id, organization_id=org_id)
     if org_id:
-        from app.models.user import LandlordUser
-        from app.models.organization import Organization
         prop_landlord_ids = [row[0] for row in db.session.query(Property.landlord_id).filter(Property.organization_id == org_id).distinct().all()]
         user_landlord_ids = [row[0] for row in db.session.query(LandlordUser.landlord_id).join(User, User.id == LandlordUser.user_id).filter(User.organization_id == org_id).distinct().all()]
         direct_ids = [l.id for l in current_user.landlords] if (hasattr(current_user, 'landlords') and current_user.landlords) else []
