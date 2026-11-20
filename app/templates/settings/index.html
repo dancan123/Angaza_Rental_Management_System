@@ -24,7 +24,7 @@
                     <i class="bi bi-building-gear me-2"></i> Business & Profile
                 </button>
                 <button class="nav-link text-start py-3" id="branding-tab" data-bs-toggle="pill" data-bs-target="#tab-branding" type="button">
-                    <i class="bi bi-palette-fill me-2"></i> Branding & Colors
+                    <i class="bi bi-palette-fill me-2"></i> Organization Logo &amp; Branding
                 </button>
                 {% if not active_org or active_org.can_access_rental_module() %}
                 <button class="nav-link text-start py-3" id="financial-tab" data-bs-toggle="pill" data-bs-target="#tab-financial" type="button">
@@ -111,44 +111,77 @@
                 </div>
             </div>
 
-            <!-- 2. Branding & Colors -->
+            <!-- 2. Organization Logo & Branding -->
             <div class="tab-pane fade" id="tab-branding" role="tabpanel">
                 <div class="card card-custom bg-white p-4">
-                    <h5 class="fw-bold mb-3"><i class="bi bi-palette me-2 text-primary"></i> System Theme & Visual Branding</h5>
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <h5 class="fw-bold mb-0">
+                            <i class="bi bi-palette me-2 text-primary"></i> Organization Logo &amp; Visual Identity
+                        </h5>
+                        {% if active_org %}
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2">
+                            <i class="bi bi-building me-1"></i> Organization: <strong>{{ active_org.name }}</strong>
+                        </span>
+                        {% else %}
+                        <span class="badge bg-secondary-subtle text-secondary border px-3 py-2">
+                            <i class="bi bi-globe me-1"></i> Global Platform Default
+                        </span>
+                        {% endif %}
+                    </div>
+                    <p class="text-muted small">
+                        Upload your business brand logo and choose your system theme colors. Your custom logo will automatically appear on your <strong>Sidebar, Header, 80mm POS Receipts, 1-Page A4 Guest Folios, Tenant Portal, and Public Invoicing</strong>.
+                    </p>
+
                     <form method="POST" action="{{ url_for('settings.update_branding') }}" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         
-                        <div class="row g-4 mb-4 align-items-center">
-                            <div class="col-md-4 text-center">
-                                <label class="form-label small fw-semibold d-block">Current Logo Preview</label>
-                                <div class="border rounded p-3 bg-light d-inline-block">
-                                    <img src="{{ settings.get('logo_url', '/static/img/logo.png') }}" alt="Logo Preview" style="max-height: 80px; max-width: 180px; object-fit: contain;" onerror="this.src='https://via.placeholder.com/150x60?text=No+Logo';">
+                        <div class="card bg-light border p-3 mb-4 rounded-3">
+                            <div class="row g-4 align-items-center">
+                                <div class="col-md-4 text-center">
+                                    <label class="form-label small fw-semibold d-block text-secondary">Active Logo Preview</label>
+                                    <div class="border rounded-3 p-3 bg-white d-inline-block shadow-sm" style="min-width: 180px; min-height: 90px;">
+                                        {% set current_logo = (active_org.logo_url if (active_org and active_org.logo_url) else settings.get('logo_url', '/static/img/logo.png')) %}
+                                        <img id="logoPreviewImg" src="{{ current_logo }}" alt="Organization Logo" style="max-height: 80px; max-width: 180px; object-fit: contain;" onerror="this.src='/static/img/logo.png';">
+                                    </div>
+                                    <div class="small text-muted mt-1" id="logoPreviewText">
+                                        {% if active_org and active_org.logo_url %}
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-check-circle me-1"></i> Custom Org Logo</span>
+                                        {% else %}
+                                            <span class="badge bg-light text-secondary border">Default System Logo</span>
+                                        {% endif %}
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="col-md-8">
-                                <label class="form-label small fw-semibold">Upload New Company Logo</label>
-                                <input type="file" name="logo_file" class="form-control" accept="image/*">
-                                <div class="form-text">Recommended format: PNG or SVG with transparent background (max 2MB).</div>
+                                <div class="col-md-8">
+                                    <label class="form-label small fw-bold text-dark">
+                                        <i class="bi bi-cloud-arrow-up text-primary me-1"></i> Upload New Logo for {{ active_org.name if active_org else 'Platform' }}
+                                    </label>
+                                    <input type="file" name="logo_file" id="logoFileInput" class="form-control" accept="image/png, image/jpeg, image/jpg, image/svg+xml, image/webp" onchange="previewUploadedLogo(this)">
+                                    <div class="form-text mt-2 small">
+                                        <i class="bi bi-info-circle me-1 text-primary"></i> <strong>Supported Formats:</strong> PNG, SVG, JPG, WEBP (Max 2MB).
+                                        <br/>Transparent background (PNG/SVG) is highly recommended for best appearance on light and dark sidebars.
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
+                        <h6 class="fw-bold text-secondary text-uppercase small border-bottom pb-2 mb-3">Theme Colors &amp; Accents</h6>
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold">Primary Brand Color</label>
                                 <div class="input-group">
-                                    <input type="color" class="form-control form-control-color" name="theme_primary_color" value="{{ settings.get('theme_primary_color', '#1a56db') }}">
-                                    <input type="text" class="form-control" value="{{ settings.get('theme_primary_color', '#1a56db') }}" readonly>
+                                    <input type="color" class="form-control form-control-color" id="primaryColorPicker" name="theme_primary_color" value="{{ settings.get('theme_primary_color', '#1a56db') }}" onchange="document.getElementById('primaryColorText').value = this.value;">
+                                    <input type="text" class="form-control font-monospace" id="primaryColorText" value="{{ settings.get('theme_primary_color', '#1a56db') }}" readonly>
                                 </div>
-                                <div class="form-text">Applied to buttons, active navigation links, and primary badges.</div>
+                                <div class="form-text">Used on action buttons, active navigation items, and primary badges.</div>
                             </div>
 
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold">Secondary / Accent Color</label>
                                 <div class="input-group">
-                                    <input type="color" class="form-control form-control-color" name="theme_secondary_color" value="{{ settings.get('theme_secondary_color', '#0e9f6e') }}">
-                                    <input type="text" class="form-control" value="{{ settings.get('theme_secondary_color', '#0e9f6e') }}" readonly>
+                                    <input type="color" class="form-control form-control-color" id="secondaryColorPicker" name="theme_secondary_color" value="{{ settings.get('theme_secondary_color', '#0e9f6e') }}" onchange="document.getElementById('secondaryColorText').value = this.value;">
+                                    <input type="text" class="form-control font-monospace" id="secondaryColorText" value="{{ settings.get('theme_secondary_color', '#0e9f6e') }}" readonly>
                                 </div>
-                                <div class="form-text">Applied to secondary highlights and operational accents.</div>
+                                <div class="form-text">Used on success states, financial highlights, and paid badges.</div>
                             </div>
 
                             <div class="col-12 mt-3">
@@ -160,8 +193,8 @@
                         </div>
 
                         <div class="mt-4 pt-3 border-top text-end">
-                            <button type="submit" class="btn btn-primary-custom px-4">
-                                <i class="bi bi-brush me-1"></i> Update Theme Branding
+                            <button type="submit" class="btn btn-primary-custom px-4 fw-semibold">
+                                <i class="bi bi-save me-1"></i> Save Logo &amp; Visual Identity
                             </button>
                         </div>
                     </form>
@@ -837,6 +870,25 @@
 
 {% block extra_js %}
 <script>
+// Real-time Organization Logo preview before form submission
+function previewUploadedLogo(input) {
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const previewImg = document.getElementById('logoPreviewImg');
+            if (previewImg) {
+                previewImg.src = e.target.result;
+            }
+            const textEl = document.getElementById('logoPreviewText');
+            if (textEl) {
+                textEl.innerHTML = '<span class="badge bg-warning text-dark"><i class="bi bi-eye me-1"></i> Previewing New File: ' + file.name + '</span>';
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
 // Auto-switch tab based on URL query parameter ?tab=xxx
 const urlParams = new URLSearchParams(window.location.search);
 const activeTabParam = urlParams.get('tab');

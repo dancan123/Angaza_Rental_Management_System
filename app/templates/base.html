@@ -282,7 +282,7 @@
             {% else %}
             <i class="bi bi-buildings-fill fs-2 text-primary"></i>
             {% endif %}
-            <div class="sidebar-brand-title">{{ app_name }}</div>
+            <div class="sidebar-brand-title">{{ business_name if (active_org and not current_user.is_superadmin()) else app_name }}</div>
         </a>
 
         {# ── Mode Switcher at top of sidebar (hidden for SuperAdmin) ── #}

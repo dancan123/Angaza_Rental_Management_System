@@ -63,6 +63,10 @@ def index():
 @login_required
 @permission_required('settings.manage')
 def update_general():
+    is_sa = current_user.is_superadmin()
+    org = getattr(current_user, 'active_organization', None)
+    org_id = org.id if (org and not is_sa) else None
+
     updates = {
         'app_name': request.form.get('app_name', '').strip(),
         'business_name': request.form.get('business_name', '').strip(),
@@ -73,7 +77,22 @@ def update_general():
         'business_reg_no': request.form.get('business_reg_no', '').strip(),
         'tax_pin': request.form.get('tax_pin', '').strip(),
     }
-    PersonalizationService.update_settings(updates)
+    PersonalizationService.update_settings(updates, organization_id=org_id)
+
+    # Sync organization record if user belongs to an organization
+    if org:
+        if updates['business_name']:
+            org.name = updates['business_name']
+        if updates['tax_pin']:
+            org.tax_pin = updates['tax_pin']
+        if updates['business_reg_no']:
+            org.business_registration = updates['business_reg_no']
+        if updates['business_phone']:
+            org.contact_phone = updates['business_phone']
+        if updates['business_email']:
+            org.contact_email = updates['business_email']
+        db.session.commit()
+
     AuditService.log('UPDATE_SETTINGS', 'SystemSetting', new_values=updates)
     flash('General business settings updated successfully.', 'success')
     return redirect(url_for('settings.index', tab='general'))
@@ -82,34 +101,55 @@ def update_general():
 @login_required
 @permission_required('settings.manage')
 def update_branding():
+    is_sa = current_user.is_superadmin()
+    org = getattr(current_user, 'active_organization', None)
+    org_id = org.id if (org and not is_sa) else None
+
     updates = {
         'theme_primary_color': request.form.get('theme_primary_color', '#1a56db').strip(),
         'theme_secondary_color': request.form.get('theme_secondary_color', '#0e9f6e').strip(),
         'theme_dark_mode': 'true' if request.form.get('theme_dark_mode') else 'false',
     }
 
-    # Handle logo upload
+    # Handle per-organization logo upload
     logo_file = request.files.get('logo_file')
     if logo_file and logo_file.filename:
         filename = secure_filename(logo_file.filename)
         ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
         if ext in {'png', 'jpg', 'jpeg', 'svg', 'webp'}:
-            logo_name = f"company_logo.{ext}"
-            dest_path = os.path.join(current_app.config['UPLOAD_FOLDER'], logo_name)
-            logo_file.save(dest_path)
-            updates['logo_url'] = f"/static/uploads/{logo_name}"
-        else:
-            flash('Invalid logo file format. Please upload PNG, JPG, SVG, or WEBP.', 'danger')
+            if org_id:
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'orgs')
+                os.makedirs(upload_dir, exist_ok=True)
+                logo_name = f"org_{org_id}_logo.{ext}"
+                dest_path = os.path.join(upload_dir, logo_name)
+                logo_file.save(dest_path)
+                logo_url = f"/static/uploads/orgs/{logo_name}"
+            else:
+                logo_name = f"company_logo.{ext}"
+                dest_path = os.path.join(current_app.config['UPLOAD_FOLDER'], logo_name)
+                logo_file.save(dest_path)
+                logo_url = f"/static/uploads/{logo_name}"
 
-    PersonalizationService.update_settings(updates)
+            updates['logo_url'] = logo_url
+            if org:
+                org.logo_url = logo_url
+                db.session.commit()
+        else:
+            flash('Invalid logo file format. Please upload PNG, JPG, JPEG, SVG, or WEBP.', 'danger')
+
+    PersonalizationService.update_settings(updates, organization_id=org_id)
     AuditService.log('UPDATE_BRANDING', 'SystemSetting', new_values=updates)
-    flash('Branding and theme colors updated successfully.', 'success')
+    flash(f"Branding and logo updated successfully for {org.name if org else 'platform'}.", 'success')
     return redirect(url_for('settings.index', tab='branding'))
 
 @settings_bp.route('/financial', methods=['POST'])
 @login_required
 @permission_required('settings.manage')
 def update_financial():
+    is_sa = current_user.is_superadmin()
+    org = getattr(current_user, 'active_organization', None)
+    org_id = org.id if (org and not is_sa) else None
+
     updates = {
         'currency': request.form.get('currency', 'KES').strip().upper(),
         'default_due_day': request.form.get('default_due_day', '5').strip(),
@@ -119,7 +159,7 @@ def update_financial():
         'receipt_footer': request.form.get('receipt_footer', '').strip(),
         'default_payment_instructions': request.form.get('default_payment_instructions', '').strip(),
     }
-    PersonalizationService.update_settings(updates)
+    PersonalizationService.update_settings(updates, organization_id=org_id)
     AuditService.log('UPDATE_FINANCIAL_SETTINGS', 'SystemSetting', new_values=updates)
     flash('Financial policies and currency settings updated successfully.', 'success')
     return redirect(url_for('settings.index', tab='financial'))
@@ -238,7 +278,11 @@ def update_integrations():
 @login_required
 @permission_required('settings.manage')
 def update_hospitality():
-    """Save Airbnb & Short-Stay configuration and policies."""
+    """Save Airbnb & Short-Stay configuration and policies per organization."""
+    is_sa = current_user.is_superadmin()
+    org = getattr(current_user, 'active_organization', None)
+    org_id = org.id if (org and not is_sa) else None
+
     updates = {
         'airbnb_business_name': request.form.get('airbnb_business_name', '').strip(),
         'airbnb_checkin_time': request.form.get('airbnb_checkin_time', '14:00').strip(),
@@ -253,7 +297,7 @@ def update_hospitality():
         'airbnb_require_guest_id': 'true' if request.form.get('airbnb_require_guest_id') else 'false',
         'airbnb_mpesa_instructions': request.form.get('airbnb_mpesa_instructions', '').strip(),
     }
-    PersonalizationService.update_settings(updates)
+    PersonalizationService.update_settings(updates, organization_id=org_id)
     AuditService.log('UPDATE_HOSPITALITY_SETTINGS', 'SystemSetting', new_values=updates)
     flash('Airbnb & Short-Stay configuration and house policies updated successfully.', 'success')
     return redirect(url_for('settings.index', tab='hospitality'))

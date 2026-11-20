@@ -50,18 +50,27 @@ def create_app(config_name=None):
     
     @app.context_processor
     def inject_personalization():
+        from flask_login import current_user
+        is_sa = current_user.is_superadmin() if (current_user and current_user.is_authenticated) else False
+        org = getattr(current_user, 'active_organization', None) if (current_user and current_user.is_authenticated) else None
+        org_id = org.id if (org and not is_sa) else None
         try:
-            settings = PersonalizationService.get_all_settings()
+            settings = PersonalizationService.get_all_settings(organization_id=org_id)
         except Exception:
             settings = {}
-        from flask_login import current_user
-        org_name = current_user.organization.name if (current_user and current_user.is_authenticated and getattr(current_user, 'organization', None)) else None
+
+        # Prioritize Organization-specific logo and name
+        org_logo = org.logo_url if (org and org.logo_url) else None
+        resolved_logo = org_logo or settings.get('logo_url') or '/static/img/logo.png'
+        resolved_biz = (org.name if org else None) or settings.get('business_name') or 'Property Management System'
+
         return dict(
             sys_settings=settings,
             app_name=settings.get('app_name', 'Rental Property Manager'),
-            business_name=settings.get('business_name') or org_name or 'Property Management System',
-            logo_url=settings.get('logo_url', '/static/img/logo.png'),
-            currency=settings.get('currency', 'KES')
+            business_name=resolved_biz,
+            logo_url=resolved_logo,
+            currency=settings.get('currency', 'KES'),
+            active_org=org
         )
         
     @app.context_processor
