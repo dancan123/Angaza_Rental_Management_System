@@ -22,12 +22,25 @@ public_bp = Blueprint('public', __name__)
 def vacancies_directory():
     """
     Public Platform Directory:
-    Allows prospective tenants to search for and discover registered
-    property management organizations. Clicking an org goes to that org's
-    fully isolated, branded vacancy portal (/vacancies/<org_code>).
-
-    NO property data is shown here — zero cross-contamination possible.
+    - If a registered apartment / business user is logged in (non-superadmin),
+      redirects them directly to their own dedicated vacancy window (/vacancies/<org_code>).
+    - If a specific org_code query parameter is passed (?org_code=...), redirects to that org.
+    - Superadmins and external platform visitors see the platform directory to browse
+      registered organizations across all regions.
     """
+    from flask_login import current_user
+
+    # 1. Direct query param routing
+    org_param = request.args.get('org_code') or request.args.get('org') or request.args.get('code')
+    if org_param:
+        return redirect(url_for('public.vacancies_by_org', org_code=org_param.strip()))
+
+    # 2. Logged-in apartment / business user -> redirect to their own exclusive portal
+    if current_user.is_authenticated and not current_user.is_superadmin():
+        org = getattr(current_user, 'organization', None)
+        if org and org.org_code and not request.args.get('directory') and not request.args.get('all'):
+            return redirect(url_for('public.vacancies_by_org', org_code=org.org_code))
+
     search = request.args.get('search', '').strip()
     region_filter = request.args.get('region', '').strip()
 

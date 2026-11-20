@@ -509,9 +509,15 @@
             </div>
             {% endif %}
 
-            <a href="{{ url_for('public.vacancies') }}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill d-none d-md-inline-flex align-items-center gap-1 shadow-sm" title="Preview what external website visitors see">
+            {% if current_user.is_authenticated and current_user.organization and current_user.organization.org_code and not current_user.is_superadmin() %}
+            <a href="{{ url_for('public.vacancies_by_org', org_code=current_user.organization.org_code) }}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill d-none d-md-inline-flex align-items-center gap-1 shadow-sm" title="Preview your apartment's exclusive public vacancies window">
+                <i class="bi bi-broadcast text-primary"></i> {{ current_user.organization.name }} Public Portal ({{ current_user.organization.org_code }})
+            </a>
+            {% else %}
+            <a href="{{ url_for('public.vacancies') }}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill d-none d-md-inline-flex align-items-center gap-1 shadow-sm" title="Preview platform directory">
                 <i class="bi bi-box-arrow-up-right text-primary"></i> Public Vacancies Portal
             </a>
+            {% endif %}
 
             <!-- User / Organization Dropdown Menu -->
             <div class="dropdown">

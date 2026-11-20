@@ -328,3 +328,46 @@ def test_regional_isolation_meru_vs_nairobi(client):
     assert ExternalPropertyListing.query.filter_by(
         organization_id=nbi_org.id, property_title=f'Meru Luxury Bedsitter {r}'
     ).count() == 0
+
+def test_vacancies_redirects_authenticated_org_user_to_dedicated_portal(client):
+    """
+    Ensure visiting /vacancies automatically redirects an authenticated organization user
+    to their own dedicated /vacancies/<org_code> window, preventing cross-tenant leakage.
+    """
+    import random
+    from app.models.user import User, Role
+    org = Organization.query.filter(Organization.org_code != None, Organization.org_code != 'ANG0001').first()
+    assert org is not None
+
+    role = Role.query.filter_by(name='MANAGER').first()
+    if not role:
+        role = Role(name='MANAGER', display_name='Property Manager')
+        db.session.add(role)
+        db.session.commit()
+
+    uname = f"mgr_vac_{random.randint(1000, 9999)}"
+    user = User(
+        username=uname,
+        email=f"{uname}@test.com",
+        full_name='Test Org Manager',
+        role=role,
+        organization_id=org.id,
+        is_active=True
+    )
+    user.set_password('Pass1234!')
+    db.session.add(user)
+    db.session.commit()
+
+    # Login
+    client.post('/auth/login', data={'username': uname, 'password': 'Pass1234!'})
+
+    # Visiting /vacancies should redirect to their dedicated portal
+    res = client.get('/vacancies', follow_redirects=False)
+    assert res.status_code == 302
+    assert f'/vacancies/{org.org_code}' in res.location
+
+    # Visiting with ?org_code= parameter also redirects to that portal
+    res_param = client.get(f'/vacancies?org_code={org.org_code}', follow_redirects=False)
+    assert res_param.status_code == 302
+    assert f'/vacancies/{org.org_code}' in res_param.location
+
