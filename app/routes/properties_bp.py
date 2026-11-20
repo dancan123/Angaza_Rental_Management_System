@@ -56,8 +56,14 @@ def index():
             landlord_id = assigned_ids[0]
 
     properties = PropertyService.get_properties(search, property_type, landlord_id, organization_id=org_id)
-    landlords = Landlord.query.filter_by(is_active=True).all()
-    stats = PropertyService.get_property_occupancy_stats()
+    if org_id:
+        landlords = (Landlord.query
+                     .join(Property, Property.landlord_id == Landlord.id)
+                     .filter(Property.organization_id == org_id)
+                     .distinct().all())
+    else:
+        landlords = Landlord.query.filter_by(is_active=True).all()
+    stats = PropertyService.get_property_occupancy_stats(organization_id=org_id)
 
     return render_template(
         'properties/index.html',

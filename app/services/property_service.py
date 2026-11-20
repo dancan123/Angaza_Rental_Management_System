@@ -99,10 +99,12 @@ class PropertyService:
         return None
 
     @staticmethod
-    def get_property_occupancy_stats(property_id=None):
+    def get_property_occupancy_stats(property_id=None, organization_id=None):
         query = RentalUnit.query
         if property_id:
             query = query.filter_by(property_id=property_id)
+        elif organization_id:
+            query = query.join(Property).filter(Property.organization_id == organization_id)
         
         all_units = query.all()
         total = len(all_units)

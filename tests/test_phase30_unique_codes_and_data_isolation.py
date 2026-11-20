@@ -94,7 +94,7 @@ def test_self_registration_assigns_unique_ang_code(client):
     }, follow_redirects=True)
 
     assert res.status_code == 200
-    assert b"Welcome to Angaza" in res.data
+    assert b"Account Ready" in res.data
     assert b"Business Code" in res.data
 
     # Check DB
@@ -166,7 +166,7 @@ def test_register_with_admin_email_resolves_username_collision(client):
     }, follow_redirects=True)
 
     assert res.status_code == 200
-    assert b"Welcome to Angaza" in res.data
+    assert b"Account Ready" in res.data
 
     # Log out first user before testing second registration
     client.get('/auth/logout', follow_redirects=True)
@@ -185,9 +185,87 @@ def test_register_with_admin_email_resolves_username_collision(client):
     }, follow_redirects=True)
 
     assert res2.status_code == 200
-    assert b"Welcome to Angaza" in res2.data
+    assert b"Account Ready" in res2.data
     # Verify user was created with a collision-free prefixed username
     user = User.query.filter_by(email=email_2).first()
     assert user is not None
     assert user.username != "admin"
     assert "admin" in user.username
+
+
+def test_newly_registered_account_starts_with_zero_data(client):
+    """
+    Ensure newly created organization starts with pristine ZERO DATA:
+    - Dedicated success screen displays unique ANGxxxx code
+    - Logging into the new account shows 0 properties, 0 units, 0 tenants, KES 0.00 financials
+    - No cross-tenant data leaks from other businesses in the system
+    """
+    import random
+    rand_id = random.randint(100000, 999999)
+    email = f"purity_{rand_id}@brandnewestate.co.ke"
+    org_name = f"Purity Haven {rand_id}"
+    password = "SecurePassword123!"
+
+    # 1. Register new organization
+    res_reg = client.post('/auth/register', data={
+        'organization_name': org_name,
+        'full_name': 'Purity Wanjiku',
+        'email': email,
+        'phone': f'+254711{rand_id}',
+        'password': password,
+        'subscription_tier': 'COMBINED_SUITE'
+    }, follow_redirects=True)
+
+    assert res_reg.status_code == 200
+    assert b"Account Ready!" in res_reg.data
+    assert b"Your Unique Business Code" in res_reg.data
+    assert b"Data Integrity Guaranteed" in res_reg.data
+    assert b"zero data" in res_reg.data
+    assert b"Proceed to Sign In" in res_reg.data
+
+    # Query created organization from DB
+    new_org = Organization.query.filter_by(name=org_name).first()
+    assert new_org is not None
+    org_code = new_org.org_code
+    assert org_code.startswith("ANG")
+
+    # Ensure registration did NOT auto-login (client session should be unauthenticated)
+    res_dash_unauth = client.get('/dashboard')
+    assert res_dash_unauth.status_code == 302  # redirected to login
+
+    # 2. Login using newly generated business code & email
+    res_login = client.post('/auth/login', data={
+        'org_code': org_code,
+        'username': email,
+        'password': password
+    }, follow_redirects=True)
+
+    assert res_login.status_code == 200
+    assert b"Welcome back" in res_login.data
+
+    # 3. Check Dashboard metrics: absolute zero data
+    res_dash = client.get('/dashboard')
+    assert res_dash.status_code == 200
+    # Dashboard confirms isolated metrics
+    assert b"Expected Income" in res_dash.data
+    assert b"Collected Rent" in res_dash.data
+    assert b"KES 0.00" in res_dash.data
+    # No other org's properties leak through
+    assert b"Angaza Premier" not in res_dash.data
+    assert b"Mama Sarah" not in res_dash.data
+    assert b"Capital Heights" not in res_dash.data
+
+    # 4. Check Properties listing: empty
+    res_props = client.get('/properties/')
+    assert res_props.status_code == 200
+    assert b"No Properties Found" in res_props.data or b"Register New Property" in res_props.data
+
+    # 5. Check Tenants listing: empty
+    res_tenants = client.get('/tenants/')
+    assert res_tenants.status_code == 200
+    assert b"No Tenants Found" in res_tenants.data
+
+    # 6. Check Reports: empty
+    res_reports = client.get('/reports/collection')
+    assert res_reports.status_code == 200
+    assert b"0.00" in res_reports.data

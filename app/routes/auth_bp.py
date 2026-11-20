@@ -226,16 +226,10 @@ def register():
             db.session.add(landlord)
             db.session.commit()
 
-            # Auto-login to system
-            login_user(user)
             AuditService.log('SELF_ONBOARDING_TRIAL', 'Organization', org.id, new_values={'name': org_name, 'tier': suite_tier, 'org_code': unique_org_code, 'expires_at': str(trial_expiry)})
 
-            flash(
-                f"🎉 Welcome to Angaza, {full_name}! Your organization '{org_name}' is active with unique Business Code: "
-                f"'{unique_org_code}'. Please save this code for signing in to your isolated workspace. (14-day trial & 50 free SMS active)",
-                'success'
-            )
-            return redirect(url_for('dashboard.index'))
+            # Do NOT auto-login — show success page with business code first
+            return render_template('auth/register_success.html', org=org, user=user)
         except Exception as e:
             db.session.rollback()
             flash(f"Registration failed: {str(e)}", 'danger')

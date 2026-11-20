@@ -11,8 +11,10 @@ from app.utils.currency import from_cents
 
 class ReportService:
     @staticmethod
-    def get_collection_report(start_date=None, end_date=None, property_id=None, payment_method=None):
+    def get_collection_report(start_date=None, end_date=None, property_id=None, payment_method=None, organization_id=None):
         query = Payment.query.filter_by(payment_status='CONFIRMED')
+        if organization_id:
+            query = query.filter(Payment.organization_id == organization_id)
         if start_date:
             query = query.filter(Payment.payment_date >= start_date)
         if end_date:
@@ -37,8 +39,10 @@ class ReportService:
         }
 
     @staticmethod
-    def get_arrears_report(property_id=None):
+    def get_arrears_report(property_id=None, organization_id=None):
         query = RentCharge.query.filter(RentCharge.status.in_(['UNPAID', 'PARTIALLY_PAID']))
+        if organization_id:
+            query = query.filter(RentCharge.organization_id == organization_id)
         if property_id:
             query = query.join(RentalUnit).filter(RentalUnit.property_id == property_id)
 
@@ -67,10 +71,16 @@ class ReportService:
         }
 
     @staticmethod
-    def get_income_statement(start_date=None, end_date=None, property_id=None):
+    def get_income_statement(start_date=None, end_date=None, property_id=None, organization_id=None):
         # 1. Total rent collected
         pay_query = Payment.query.filter_by(payment_status='CONFIRMED')
         exp_query = Expense.query
+
+        if organization_id:
+            pay_query = pay_query.filter(Payment.organization_id == organization_id)
+            from app.models.property import Property as _Prop
+            org_prop_ids = [p.id for p in _Prop.query.filter_by(organization_id=organization_id).all()]
+            exp_query = exp_query.filter(Expense.property_id.in_(org_prop_ids)) if org_prop_ids else exp_query.filter(Expense.id == -1)
 
         if start_date:
             pay_query = pay_query.filter(Payment.payment_date >= start_date)

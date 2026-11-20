@@ -11,7 +11,11 @@ users_bp = Blueprint('users', __name__, url_prefix='/users')
 @login_required
 @permission_required('users.manage')
 def index():
-    users = User.query.order_by(User.created_at.desc()).all()
+    org_id = getattr(current_user, 'organization_id', None) if not current_user.is_superadmin() else None
+    if org_id:
+        users = User.query.filter_by(organization_id=org_id).order_by(User.created_at.desc()).all()
+    else:
+        users = User.query.order_by(User.created_at.desc()).all()
     roles = Role.query.all()
     landlords = Landlord.query.filter_by(is_active=True).all()
     return render_template('users/index.html', users=users, roles=roles, landlords=landlords)
@@ -41,12 +45,16 @@ def create_user():
         flash('Invalid role selected.', 'danger')
         return redirect(url_for('users.index'))
 
+    # Inherit organization from the creating user (non-superadmins only create users in their own org)
+    org_id = current_user.organization_id if not current_user.is_superadmin() else None
+
     new_user = User(
         username=username,
         email=email,
         full_name=full_name,
         phone=phone,
         role=role,
+        organization_id=org_id,
         is_active=True
     )
     new_user.set_password(password)

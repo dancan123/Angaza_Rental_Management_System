@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Created Successfully - {{ app_name }}</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #1a56db;
+        }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+        }
+        .success-card {
+            max-width: 520px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 1.25rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+            overflow: hidden;
+        }
+        .success-header {
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            color: white;
+            padding: 2.25rem 2rem 2rem;
+            text-align: center;
+        }
+        .code-box {
+            background: #f8fafc;
+            border: 2px dashed #059669;
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            text-align: center;
+        }
+        .code-display {
+            font-family: monospace;
+            font-size: 2.25rem;
+            font-weight: 800;
+            color: #065f46;
+            letter-spacing: 2px;
+        }
+        .btn-proceed {
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: 700;
+            padding: 0.85rem;
+            border-radius: 0.5rem;
+            border: none;
+            transition: all 0.2s ease;
+        }
+        .btn-proceed:hover {
+            background-color: #1e429f;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="success-card">
+        <div class="success-header">
+            <div class="d-inline-flex align-items-center justify-content-center bg-white text-success rounded-circle shadow-sm mb-3" style="width: 64px; height: 64px;">
+                <i class="bi bi-check-lg fs-1"></i>
+            </div>
+            <h3 class="fw-bold mb-1">Account Ready!</h3>
+            <p class="mb-0 opacity-75 small">Your dedicated business workspace has been successfully provisioned</p>
+        </div>
+
+        <div class="p-4 p-md-4">
+            <!-- Organization Name -->
+            <div class="text-center mb-3">
+                <span class="text-muted small text-uppercase fw-semibold">Company / Business Account</span>
+                <h5 class="fw-bold text-dark mb-0">{{ org.name }}</h5>
+            </div>
+
+            <!-- Big Business Code Highlight -->
+            <div class="code-box mb-4">
+                <div class="small fw-bold text-success text-uppercase mb-1">
+                    <i class="bi bi-key-fill me-1"></i> Your Unique Business Code
+                </div>
+                <div class="code-display" id="businessCode">{{ org.org_code }}</div>
+                <div class="small text-muted mt-1">
+                    Keep this code safe. You and your staff will enter this code to access your workspace.
+                </div>
+            </div>
+
+            <!-- Credentials Breakdown -->
+            <div class="card bg-light border-0 p-3 mb-4 rounded-3">
+                <div class="fw-bold small text-dark mb-2 d-flex align-items-center">
+                    <i class="bi bi-shield-check text-primary me-2"></i> Your Sign-In Credentials
+                </div>
+                <div class="row g-2 small">
+                    <div class="col-5 text-muted">Business Code:</div>
+                    <div class="col-7 fw-bold font-monospace text-dark">{{ org.org_code }}</div>
+
+                    <div class="col-5 text-muted">Username / Email:</div>
+                    <div class="col-7 fw-bold text-dark">{{ user.email }}</div>
+
+                    <div class="col-5 text-muted">Password:</div>
+                    <div class="col-7 text-muted fst-italic">•••••••• (Your chosen password)</div>
+
+                    <div class="col-5 text-muted">Subscription:</div>
+                    <div class="col-7 text-success fw-semibold">14-Day Free Trial (50 SMS Credits)</div>
+                </div>
+            </div>
+
+            <!-- Zero Data Notice -->
+            <div class="alert alert-info py-2 px-3 small border-0 mb-4 d-flex align-items-center">
+                <i class="bi bi-shield-lock-fill fs-5 text-primary me-2"></i>
+                <div>
+                    <strong>Data Integrity Guaranteed:</strong> Your new account begins with <strong>zero data</strong>. No other landlord or company can access your records, and your workspace is strictly isolated.
+                </div>
+            </div>
+
+            <!-- Action Button -->
+            <a href="{{ url_for('auth.login', org_code=org.org_code, username=user.email) }}" class="btn btn-proceed w-100 shadow-sm d-flex align-items-center justify-content-center">
+                <span>Proceed to Sign In</span>
+                <i class="bi bi-arrow-right ms-2"></i>
+            </a>
+
+            <div class="text-center mt-3">
+                <small class="text-muted">
+                    Need help? Contact system support at <a href="mailto:support@angaza.co.ke" class="text-decoration-none">support@angaza.co.ke</a>
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

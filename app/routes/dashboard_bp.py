@@ -46,9 +46,12 @@ def index():
     current_month = now.month
     current_year = now.year
     
-    # Query high-level stats
-    # Filter by landlord if user is scoped
+    org_id = getattr(current_user, 'organization_id', None) if not current_user.is_superadmin() else None
+
+    # Query high-level stats strictly scoped by organization and landlord
     properties_query = Property.query
+    if org_id:
+        properties_query = properties_query.filter(Property.organization_id == org_id)
     if not current_user.is_superadmin() and current_user.landlords:
         landlord_ids = [l.id for l in current_user.landlords]
         properties_query = properties_query.filter(Property.landlord_id.in_(landlord_ids))
@@ -65,13 +68,21 @@ def index():
     maintenance_units = units_query.filter_by(occupancy_status='MAINTENANCE').count()
     
     total_buildings = Building.query.filter(Building.property_id.in_(property_ids)).count() if property_ids else 0
-    total_tenants = Tenant.query.filter_by(is_active=True).count()
     
-    # Financial metrics for current month
-    charges = RentCharge.query.filter(
+    # Total tenants strictly scoped to organization
+    if org_id:
+        total_tenants = Tenant.query.filter(Tenant.organization_id == org_id, Tenant.is_active == True).count()
+    else:
+        total_tenants = Tenant.query.filter_by(is_active=True).count()
+    
+    # Financial metrics for current month strictly scoped to organization
+    charges_query = RentCharge.query.filter(
         RentCharge.period_month == current_month,
         RentCharge.period_year == current_year
-    ).all()
+    )
+    if org_id:
+        charges_query = charges_query.filter(RentCharge.organization_id == org_id)
+    charges = charges_query.all()
     
     expected_rent_cents = sum(c.amount_cents for c in charges)
     rent_collected_cents = sum(c.amount_paid_cents for c in charges)
@@ -79,16 +90,25 @@ def index():
     
     collection_rate = (rent_collected_cents / expected_rent_cents * 100) if expected_rent_cents > 0 else 0
     
-    # Total expenses this month
+    # Total expenses this month strictly scoped
     expenses = Expense.query.filter(
         Expense.property_id.in_(property_ids) if property_ids else Expense.id == -1
     ).all()
     total_expenses_cents = sum(e.amount_cents for e in expenses)
     net_income_cents = rent_collected_cents - total_expenses_cents
     
-    # Recent activities (Payments, Maintenance, Notifications)
-    recent_payments = Payment.query.order_by(Payment.created_at.desc()).limit(5).all()
-    recent_notifications = Notification.query.order_by(Notification.created_at.desc()).limit(5).all()
+    # Recent activities strictly scoped
+    payments_query = Payment.query
+    if org_id:
+        payments_query = payments_query.filter(Payment.organization_id == org_id)
+    recent_payments = payments_query.order_by(Payment.created_at.desc()).limit(5).all()
+
+    notifications_query = Notification.query
+    if not current_user.is_superadmin():
+        notifications_query = notifications_query.filter(
+            Notification.recipient_user_id == current_user.id
+        )
+    recent_notifications = notifications_query.order_by(Notification.created_at.desc()).limit(5).all()
     
     stats = {
         'total_properties': total_properties,

@@ -9,12 +9,30 @@ from app.utils.decorators import permission_required
 
 reports_bp = Blueprint('reports', __name__, url_prefix='/reports')
 
+def _org_id():
+    """Return organization_id for the current user, or None for superadmin."""
+    return getattr(current_user, 'organization_id', None) if not current_user.is_superadmin() else None
+
+def _scoped_properties():
+    """Properties visible to the current user."""
+    org_id = _org_id()
+    if org_id:
+        return Property.query.filter_by(organization_id=org_id).all()
+    return Property.query.all()
+
 @reports_bp.route('/')
 @login_required
 @permission_required('reports.view')
 def index():
-    properties = Property.query.all()
-    landlords = Landlord.query.filter_by(is_active=True).all()
+    properties = _scoped_properties()
+    org_id = _org_id()
+    if org_id:
+        landlords = (Landlord.query
+                     .join(Property, Property.landlord_id == Landlord.id)
+                     .filter(Property.organization_id == org_id)
+                     .distinct().all())
+    else:
+        landlords = Landlord.query.filter_by(is_active=True).all()
     return render_template('reports/index.html', properties=properties, landlords=landlords)
 
 @reports_bp.route('/collection')
@@ -29,8 +47,8 @@ def collection():
     start_date = datetime.strptime(start_str, '%Y-%m-%d').date() if start_str else None
     end_date = datetime.strptime(end_str, '%Y-%m-%d').date() if end_str else None
 
-    report = ReportService.get_collection_report(start_date, end_date, property_id, method)
-    properties = Property.query.all()
+    report = ReportService.get_collection_report(start_date, end_date, property_id, method, organization_id=_org_id())
+    properties = _scoped_properties()
 
     return render_template(
         'reports/collection.html',
@@ -47,8 +65,8 @@ def collection():
 @permission_required('reports.view')
 def arrears():
     property_id = request.args.get('property_id', type=int)
-    report = ReportService.get_arrears_report(property_id)
-    properties = Property.query.all()
+    report = ReportService.get_arrears_report(property_id, organization_id=_org_id())
+    properties = _scoped_properties()
 
     return render_template(
         'reports/arrears.html',
@@ -68,8 +86,8 @@ def income_statement():
     start_date = datetime.strptime(start_str, '%Y-%m-%d').date() if start_str else None
     end_date = datetime.strptime(end_str, '%Y-%m-%d').date() if end_str else None
 
-    report = ReportService.get_income_statement(start_date, end_date, property_id)
-    properties = Property.query.all()
+    report = ReportService.get_income_statement(start_date, end_date, property_id, organization_id=_org_id())
+    properties = _scoped_properties()
 
     return render_template(
         'reports/income_statement.html',
