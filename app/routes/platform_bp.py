@@ -531,3 +531,175 @@ def assign_user_to_org(org_id):
     db.session.commit()
     flash(f"User '{user.full_name}' assigned to organization '{org.name}'.", 'success')
     return redirect(url_for('platform.organization_users', org_id=org_id))
+
+
+@platform_bp.route('/users/<int:user_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_user(user_id):
+    """Superadmin edits details of any registered organization user."""
+    if not superadmin_only():
+        return redirect(url_for('dashboard.index'))
+
+    from app.models.user import User, Role
+    from app.services.audit_service import AuditService
+
+    user = db.session.get(User, user_id)
+    if not user:
+        from flask import abort; abort(404)
+
+    all_roles = Role.query.order_by(Role.name).all()
+    all_orgs = Organization.query.order_by(Organization.name).all()
+
+    if request.method == 'POST':
+        old_values = {
+            'full_name': user.full_name,
+            'email': user.email,
+            'phone': user.phone,
+            'username': user.username,
+            'role_id': user.role_id,
+            'organization_id': user.organization_id,
+            'is_active': user.is_active,
+        }
+
+        full_name = request.form.get('full_name', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        phone = request.form.get('phone', '').strip()
+        username = request.form.get('username', '').strip()
+        role_id = request.form.get('role_id', type=int)
+        org_id = request.form.get('organization_id', type=int)
+        is_active = request.form.get('is_active') == '1'
+
+        if not full_name or not email or not username or not role_id:
+            flash('Full name, email, username and role are required.', 'danger')
+            return redirect(url_for('platform.edit_user', user_id=user_id))
+
+        # Check uniqueness (email/username) excluding this user
+        conflict = User.query.filter(
+            (User.id != user_id) & ((User.username == username) | (User.email == email))
+        ).first()
+        if conflict:
+            flash(f"Another user already has that username or email.", 'danger')
+            return redirect(url_for('platform.edit_user', user_id=user_id))
+
+        # Prevent superadmin from demoting their own role via this panel
+        if user.is_superadmin() and role_id:
+            role_obj = db.session.get(Role, role_id)
+            if role_obj and role_obj.name != 'SUPERADMIN':
+                flash('Cannot demote a Super Admin account via this panel.', 'danger')
+                return redirect(url_for('platform.edit_user', user_id=user_id))
+
+        user.full_name = full_name
+        user.email = email
+        user.phone = phone
+        user.username = username
+        user.role_id = role_id
+        user.organization_id = org_id if org_id else None
+        user.is_active = is_active
+
+        db.session.commit()
+
+        AuditService.log(
+            'SUPERADMIN_EDIT_USER', 'User', user.id,
+            old_values=old_values,
+            new_values={
+                'full_name': user.full_name,
+                'email': user.email,
+                'phone': user.phone,
+                'username': user.username,
+                'role_id': user.role_id,
+                'organization_id': user.organization_id,
+                'is_active': user.is_active,
+            },
+            description=f"SuperAdmin updated user account: {user.username}"
+        )
+
+        flash(f"User account '{user.username}' updated successfully.", 'success')
+        return _redirect_to_user_context(user)
+
+    return render_template(
+        'platform/edit_user.html',
+        user=user,
+        all_roles=all_roles,
+        all_orgs=all_orgs
+    )
+
+
+@platform_bp.route('/users/<int:user_id>/reset-password', methods=['POST'])
+@login_required
+def reset_user_password(user_id):
+    """Superadmin resets password for any organization user account."""
+    if not superadmin_only():
+        return redirect(url_for('dashboard.index'))
+
+    from app.models.user import User
+    from app.services.audit_service import AuditService
+
+    user = db.session.get(User, user_id)
+    if not user:
+        from flask import abort; abort(404)
+
+    new_password = request.form.get('new_password', '').strip()
+    confirm_password = request.form.get('confirm_password', '').strip()
+
+    if not new_password or len(new_password) < 6:
+        flash('Password must be at least 6 characters long.', 'danger')
+        return _redirect_to_user_context(user)
+
+    if new_password != confirm_password:
+        flash('Passwords do not match. Please re-enter.', 'danger')
+        return _redirect_to_user_context(user)
+
+    user.set_password(new_password)
+    db.session.commit()
+
+    AuditService.log(
+        'SUPERADMIN_RESET_PASSWORD', 'User', user.id,
+        description=f"SuperAdmin reset password for user: {user.username} ({user.full_name})"
+    )
+
+    flash(f"Password for '{user.full_name}' ({user.username}) has been reset successfully.", 'success')
+    return _redirect_to_user_context(user)
+
+
+@platform_bp.route('/users/<int:user_id>/toggle-active', methods=['POST'])
+@login_required
+def toggle_user_active(user_id):
+    """Superadmin enables or disables any organization user account."""
+    if not superadmin_only():
+        return redirect(url_for('dashboard.index'))
+
+    from app.models.user import User
+    from app.services.audit_service import AuditService
+    from flask_login import current_user
+    from typing import Any, cast as _cast
+    cu = _cast(Any, current_user)
+
+    user = db.session.get(User, user_id)
+    if not user:
+        from flask import abort; abort(404)
+
+    if user.id == cu.id:
+        flash('You cannot deactivate your own account.', 'warning')
+        return _redirect_to_user_context(user)
+
+    old_state = user.is_active
+    user.is_active = not user.is_active
+    db.session.commit()
+
+    AuditService.log(
+        'SUPERADMIN_TOGGLE_USER', 'User', user.id,
+        old_values={'is_active': old_state},
+        new_values={'is_active': user.is_active},
+        description=f"SuperAdmin {'activated' if user.is_active else 'deactivated'} user: {user.username}"
+    )
+
+    action = 'ACTIVATED' if user.is_active else 'DEACTIVATED'
+    flash(f"User '{user.full_name}' has been {action}.", 'success' if user.is_active else 'warning')
+    return _redirect_to_user_context(user)
+
+
+def _redirect_to_user_context(user):
+    """Helper: redirect back to org users list or platform orgs page."""
+    if user.organization_id:
+        return redirect(url_for('platform.organization_users', org_id=user.organization_id))
+    return redirect(url_for('platform.organizations'))

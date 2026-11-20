@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}Edit User · {{ user.full_name }} – SuperAdmin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('platform.organizations') }}">Organizations</a></li>
+                {% if user.organization %}
+                <li class="breadcrumb-item"><a href="{{ url_for('platform.organization_users', org_id=user.organization_id) }}">{{ user.organization.name }}</a></li>
+                {% endif %}
+                <li class="breadcrumb-item active">Edit User</li>
+            </ol>
+        </nav>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-dark px-3 py-1 text-uppercase fw-bold"><i class="bi bi-shield-lock-fill me-1"></i> Control Plane</span>
+            <h3 class="fw-bold mb-0">Edit User Account &bull; {{ user.full_name }}</h3>
+        </div>
+        <p class="text-muted small mb-0">Update personal details, role, organization assignment, and account status for this system user.</p>
+    </div>
+    <div class="d-flex gap-2">
+        {% if user.organization %}
+        <a href="{{ url_for('platform.organization_users', org_id=user.organization_id) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Back to {{ user.organization.name }}
+        </a>
+        {% else %}
+        <a href="{{ url_for('platform.organizations') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Back to Organizations
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- User Details Form -->
+    <div class="col-lg-8">
+        <div class="card card-custom shadow-sm border-0">
+            <div class="card-header bg-white border-0 py-3">
+                <h5 class="fw-bold mb-0"><i class="bi bi-person-gear me-2 text-primary"></i>Account Details</h5>
+                <small class="text-muted">All changes are logged in the system audit trail.</small>
+            </div>
+            <div class="card-body p-4">
+                <form action="{{ url_for('platform.edit_user', user_id=user.id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Full Name <span class="text-danger">*</span></label>
+                            <input type="text" name="full_name" class="form-control" value="{{ user.full_name }}" required placeholder="e.g. John Kamau Mwangi">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Username / Login Code <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-at"></i></span>
+                                <input type="text" name="username" class="form-control" value="{{ user.username }}" required placeholder="e.g. admin or john.kamau">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Email Address <span class="text-danger">*</span></label>
+                            <input type="email" name="email" class="form-control" value="{{ user.email }}" required placeholder="email@company.co.ke">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Phone Number</label>
+                            <input type="text" name="phone" class="form-control" value="{{ user.phone or '' }}" placeholder="+254 7XX XXX XXX">
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">System Role <span class="text-danger">*</span></label>
+                            <select name="role_id" class="form-select" required {% if user.is_superadmin() %}disabled{% endif %}>
+                                {% for role in all_roles %}
+                                <option value="{{ role.id }}" {% if role.id == user.role_id %}selected{% endif %}>
+                                    {{ role.display_name }} ({{ role.name }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                            {% if user.is_superadmin() %}
+                            <div class="form-text text-warning"><i class="bi bi-shield-exclamation me-1"></i>Super Admin role cannot be changed via this panel.</div>
+                            <input type="hidden" name="role_id" value="{{ user.role_id }}">
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Assigned Organization</label>
+                            <select name="organization_id" class="form-select">
+                                <option value="">— Unassigned (Platform Level) —</option>
+                                {% for org in all_orgs %}
+                                <option value="{{ org.id }}" {% if org.id == user.organization_id %}selected{% endif %}>
+                                    {{ org.name }} ({{ org.org_code or org.slug }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Account Status</label>
+                        <div class="d-flex gap-4 mt-1">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="is_active" id="statusActive" value="1" {% if user.is_active %}checked{% endif %}>
+                                <label class="form-check-label text-success fw-semibold" for="statusActive">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Active (can log in)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="is_active" id="statusDisabled" value="0" {% if not user.is_active %}checked{% endif %}>
+                                <label class="form-check-label text-danger fw-semibold" for="statusDisabled">
+                                    <i class="bi bi-x-circle-fill me-1"></i> Disabled (blocked from login)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="bi bi-save me-1"></i> Save Changes
+                        </button>
+                        {% if user.organization %}
+                        <a href="{{ url_for('platform.organization_users', org_id=user.organization_id) }}" class="btn btn-light">Cancel</a>
+                        {% else %}
+                        <a href="{{ url_for('platform.organizations') }}" class="btn btn-light">Cancel</a>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel: Quick Actions + Info -->
+    <div class="col-lg-4">
+        <!-- Reset Password Card -->
+        <div class="card card-custom shadow-sm border-0 mb-4">
+            <div class="card-header bg-white border-0 py-3">
+                <h6 class="fw-bold mb-0 text-danger"><i class="bi bi-key-fill me-2"></i>Reset Login Password</h6>
+            </div>
+            <div class="card-body p-4">
+                <p class="small text-muted mb-3">Set a new password for <strong>{{ user.full_name }}</strong>. The user must change it after next login.</p>
+                <form action="{{ url_for('platform.reset_user_password', user_id=user.id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">New Password <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="password" id="newPwd" name="new_password" class="form-control" minlength="6" required placeholder="Min. 6 characters">
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePwd('newPwd', 'eyeNew')">
+                                <i class="bi bi-eye" id="eyeNew"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Confirm Password <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="password" id="confirmPwd" name="confirm_password" class="form-control" minlength="6" required placeholder="Repeat new password">
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePwd('confirmPwd', 'eyeConfirm')">
+                                <i class="bi bi-eye" id="eyeConfirm"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-danger w-100" onclick="return confirm('Reset password for {{ user.full_name }}?')">
+                        <i class="bi bi-key-fill me-1"></i> Reset Password
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Account Info Summary -->
+        <div class="card card-custom shadow-sm border-0 mb-4">
+            <div class="card-header bg-white border-0 py-3">
+                <h6 class="fw-bold mb-0"><i class="bi bi-info-circle me-2 text-muted"></i>Account Summary</h6>
+            </div>
+            <div class="card-body p-3">
+                <table class="table table-sm table-borderless mb-0 small">
+                    <tr>
+                        <td class="fw-semibold text-muted pe-2">User ID</td>
+                        <td><code>#{{ user.id }}</code></td>
+                    </tr>
+                    <tr>
+                        <td class="fw-semibold text-muted pe-2">Role</td>
+                        <td><span class="badge bg-secondary">{{ user.role.display_name if user.role else 'None' }}</span></td>
+                    </tr>
+                    <tr>
+                        <td class="fw-semibold text-muted pe-2">Organization</td>
+                        <td>{{ user.organization.name if user.organization else '— Platform Level —' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="fw-semibold text-muted pe-2">Status</td>
+                        <td>
+                            {% if user.is_active %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-danger">Disabled</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="fw-semibold text-muted pe-2">Last Login</td>
+                        <td class="text-muted">{{ user.last_login_at.strftime('%d %b %Y, %H:%M') if user.last_login_at else 'Never' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="fw-semibold text-muted pe-2">Registered</td>
+                        <td class="text-muted">{{ user.created_at.strftime('%d %b %Y') }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Quick Toggle Active / Deactivate -->
+        <div class="card card-custom shadow-sm border-0">
+            <div class="card-body p-4 text-center">
+                {% if user.is_active %}
+                <form action="{{ url_for('platform.toggle_user_active', user_id=user.id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-outline-danger w-100"
+                        onclick="return confirm('Deactivate {{ user.full_name }}? They will lose all system access immediately.')">
+                        <i class="bi bi-person-slash me-1"></i> Deactivate Account
+                    </button>
+                </form>
+                {% else %}
+                <form action="{{ url_for('platform.toggle_user_active', user_id=user.id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-outline-success w-100">
+                        <i class="bi bi-person-check me-1"></i> Re-Activate Account
+                    </button>
+                </form>
+                {% endif %}
+                <small class="text-muted d-block mt-2">Status change is logged in the audit trail.</small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function togglePwd(inputId, iconId) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'bi bi-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'bi bi-eye';
+    }
+}
+</script>
+{% endblock %}
