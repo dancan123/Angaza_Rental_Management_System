@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Trail — {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h3 class="fw-bold mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Activity Audit Trail</h3>
+        <p class="text-muted small mb-0">
+            {% if current_user.is_superadmin() %}
+                All organisations — complete system activity log.
+            {% else %}
+                Activity log for <strong>{{ current_user.organization.name if current_user.organization else 'your organisation' }}</strong> only.
+            {% endif %}
+        </p>
+    </div>
+    <a href="{{ url_for('audit.index') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-x-circle me-1"></i>Clear Filters
+    </a>
+</div>
+
+{# ── Filter Bar ─────────────────────────────────────────────── #}
+<div class="card card-custom mb-4 border-0 shadow-sm">
+    <div class="card-body py-3">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold mb-1">Search (description / entity)</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" name="search" class="form-control" placeholder="e.g. John, Unit RNG-G023…"
+                           value="{{ filters.search }}">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-1">Action Type</label>
+                <select name="action" class="form-select form-select-sm">
+                    <option value="">All Actions</option>
+                    {% for a in distinct_actions %}
+                    <option value="{{ a }}" {% if filters.action == a %}selected{% endif %}>
+                        {{ action_labels.get(a, (None,None,a))[2] }} ({{ a }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-1">Entity Type</label>
+                <input type="text" name="entity" class="form-control form-control-sm"
+                       placeholder="e.g. Tenant, User…" value="{{ filters.entity }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-1">Team Member</label>
+                <select name="user_id" class="form-select form-select-sm">
+                    <option value="">All Users</option>
+                    {% for u in team_users %}
+                    <option value="{{ u.id }}" {% if filters.user_id == u.id %}selected{% endif %}>
+                        {{ u.full_name }} ({{ u.role.display_name if u.role else '—' }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary-custom btn-sm w-100">
+                    <i class="bi bi-funnel-fill me-1"></i>Apply Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# ── Log Table ───────────────────────────────────────────────── #}
+<div class="card card-custom border-0 shadow-sm">
+    <div class="card-body p-0">
+        {% if logs.items %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle small mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3" style="width:155px;">Timestamp</th>
+                        <th style="width:170px;">Team Member</th>
+                        <th style="width:130px;">Action</th>
+                        <th>Entity / Description</th>
+                        <th style="width:120px;" class="text-muted">IP Address</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs.items %}
+                    {% set label = action_labels.get(log.action, ('secondary','bi-activity', log.action)) %}
+                    <tr>
+                        <td class="ps-3 text-muted font-monospace" style="font-size:0.78rem;">
+                            {{ log.created_at.strftime('%Y-%m-%d') }}<br>
+                            <span class="text-dark fw-semibold">{{ log.created_at.strftime('%H:%M:%S') }}</span>
+                        </td>
+                        <td>
+                            {% if log.user %}
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="rounded-circle bg-light border text-primary fw-bold d-flex align-items-center justify-content-center flex-shrink-0"
+                                     style="width:30px;height:30px;font-size:0.75rem;">
+                                    {{ log.user.full_name[0] if log.user.full_name else '?' }}
+                                </div>
+                                <div>
+                                    <div class="fw-semibold lh-1">{{ log.user.full_name }}</div>
+                                    <small class="text-muted">{{ log.user.role.display_name if log.user.role else 'User' }}</small>
+                                </div>
+                            </div>
+                            {% else %}
+                            <span class="text-muted fst-italic">System / Anonymous</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-{{ label[0] }}-subtle text-{{ label[0] }} border border-{{ label[0] }}-subtle">
+                                <i class="bi {{ label[1] }} me-1"></i>{{ label[2] }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="fw-semibold">
+                                {{ log.entity_type }}
+                                {% if log.entity_id %}
+                                <span class="text-muted fw-normal">#{{ log.entity_id }}</span>
+                                {% endif %}
+                            </div>
+                            {% if log.description %}
+                            <div class="text-muted" style="font-size:0.82rem;">{{ log.description }}</div>
+                            {% endif %}
+                            {% if log.new_values %}
+                            <details class="mt-1">
+                                <summary class="text-muted" style="font-size:0.75rem;cursor:pointer;">View details</summary>
+                                <pre class="bg-light rounded p-2 mt-1 font-monospace" style="font-size:0.72rem;max-height:100px;overflow:auto;">{{ log.new_values }}</pre>
+                            </details>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted font-monospace" style="font-size:0.78rem;">
+                            {{ log.ip_address or '—' }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# ── Pagination ── #}
+        {% if logs.pages > 1 %}
+        <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+            <small class="text-muted">
+                Showing {{ ((logs.page-1)*logs.per_page)+1 }}–{{ [logs.page*logs.per_page, logs.total]|min }} of {{ logs.total }} entries
+            </small>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item {% if not logs.has_prev %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('audit.index', page=logs.prev_num, **filters) }}">‹ Prev</a>
+                    </li>
+                    {% for p in logs.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if p %}
+                        <li class="page-item {% if p == logs.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('audit.index', page=p, **filters) }}">{{ p }}</a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                        {% endif %}
+                    {% endfor %}
+                    <li class="page-item {% if not logs.has_next %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('audit.index', page=logs.next_num, **filters) }}">Next ›</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-clock-history fs-1 opacity-25 d-block mb-3"></i>
+            <h6>No activity logs found</h6>
+            <p class="small">Logs will appear here as your team performs operations.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

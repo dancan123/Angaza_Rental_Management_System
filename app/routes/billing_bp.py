@@ -10,6 +10,7 @@ from app.services.rent_service import RentService
 from app.services.payment_service import PaymentService
 from app.utils.pdf_generator import generate_receipt_pdf, generate_invoice_pdf
 from app.utils.decorators import permission_required, multi_tenant_scoped
+from app.services.audit_service import AuditService
 
 billing_bp = Blueprint('billing', __name__, url_prefix='/billing')
 
@@ -221,6 +222,9 @@ def record_payment():
                 pass
 
         flash(f"Payment recorded and confirmed successfully under Receipt {payment.receipt_number}. Thank you receipt notification dispatched.", 'success')
+        AuditService.log('RECEIVE_PAYMENT', 'Payment', payment.id,
+                         description=f"Payment KES {amount:.2f} received from Tenant #{tenant_id} via {payment_method} — Receipt {payment.receipt_number}",
+                         new_values={'amount': amount, 'method': payment_method, 'ref': ref, 'receipt': payment.receipt_number})
         return redirect(url_for('billing.view_receipt', payment_id=payment.id))
     except Exception as e:
         flash(f"Failed to record payment: {str(e)}", 'danger')
@@ -237,6 +241,9 @@ def reverse_payment(payment_id):
 
     try:
         PaymentService.reverse_payment(payment_id, reversal_reason=reason, user_id=current_user.id)
+        AuditService.log('REVERSAL', 'Payment', payment_id,
+                         description=f"Payment #{payment_id} reversed — Reason: {reason}",
+                         new_values={'reason': reason})
         flash('Payment has been reversed. Allocated charges have been restored to unpaid status.', 'warning')
     except Exception as e:
         flash(f"Reversal failed: {str(e)}", 'danger')

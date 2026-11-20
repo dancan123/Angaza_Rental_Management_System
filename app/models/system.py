@@ -21,10 +21,12 @@ class AuditLog(db.Model):
     __tablename__ = 'audit_logs'
     
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id', ondelete='CASCADE'), nullable=True, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
     action = db.Column(db.String(50), nullable=False, index=True)  # CREATE, UPDATE, DELETE, LOGIN, LOGOUT, REVERSAL, ALLOCATION
     entity_type = db.Column(db.String(50), nullable=False, index=True)  # Payment, Lease, Tenant, Unit, User, Setting
     entity_id = db.Column(db.String(50), index=True)
+    description = db.Column(db.String(500), nullable=True)  # Human-readable summary
     old_values = db.Column(db.Text)  # JSON representation
     new_values = db.Column(db.Text)  # JSON representation
     ip_address = db.Column(db.String(45))
@@ -32,6 +34,7 @@ class AuditLog(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     
     user = db.relationship('User', back_populates='audit_logs')
+    organization = db.relationship('Organization')
 
     def __repr__(self):
         return f"<AuditLog {self.action} on {self.entity_type}:{self.entity_id}>"

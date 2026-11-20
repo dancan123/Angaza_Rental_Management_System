@@ -432,6 +432,13 @@
                 <span>User & Roles</span>
             </a>
             {% endif %}
+
+            {% if current_user.has_permission("settings.view") %}
+            <a href="{{ url_for('audit.index') }}" class="sidebar-nav-link {% if 'audit' in request.endpoint %}active{% endif %}">
+                <i class="bi bi-clock-history"></i>
+                <span>Activity Audit Trail</span>
+            </a>
+            {% endif %}
             {% if current_user.has_permission('settings.manage') %}
             <a href="{{ url_for('settings.index') }}" class="sidebar-nav-link {% if 'settings' in request.endpoint %}active{% endif %}">
                 <i class="bi bi-sliders"></i>

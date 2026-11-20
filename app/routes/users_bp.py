@@ -16,9 +16,20 @@ def index():
         users = User.query.filter_by(organization_id=org_id).order_by(User.created_at.desc()).all()
     else:
         users = User.query.order_by(User.created_at.desc()).all()
-    roles = Role.query.all()
+
+    all_roles = Role.query.all()
+    # Non-superadmins must NOT be able to create SUPERADMIN or PROPERTY_MANAGER-level accounts
+    # above their own authority level.
+    if current_user.is_superadmin():
+        assignable_roles = all_roles
+    else:
+        my_level = getattr(current_user, 'role_level', 0)
+        # Can only create roles strictly below own level, and never SUPERADMIN
+        assignable_roles = [r for r in all_roles if r.name != 'SUPERADMIN' and r.hierarchy_level < my_level]
+
     landlords = Landlord.query.filter_by(is_active=True).all()
-    return render_template('users/index.html', users=users, roles=roles, landlords=landlords)
+    return render_template('users/index.html', users=users, roles=assignable_roles, landlords=landlords,
+                           is_superadmin=current_user.is_superadmin())
 
 @users_bp.route('/create', methods=['POST'])
 @login_required
@@ -44,6 +55,14 @@ def create_user():
     if not role:
         flash('Invalid role selected.', 'danger')
         return redirect(url_for('users.index'))
+
+    # Security: prevent privilege escalation — non-superadmins cannot create SUPERADMIN
+    # or any role at/above their own hierarchy level
+    if not current_user.is_superadmin():
+        my_level = getattr(current_user, 'role_level', 0)
+        if role.name == 'SUPERADMIN' or role.hierarchy_level >= my_level:
+            flash('Access Denied: You cannot create a user with equal or higher authority than your own account.', 'danger')
+            return redirect(url_for('users.index'))
 
     # Inherit organization from the creating user (non-superadmins only create users in their own org)
     org_id = current_user.organization_id if not current_user.is_superadmin() else None

@@ -122,6 +122,14 @@ class User(UserMixin, db.Model):
         if permission_code in ('units.view',):
             if any(p.code in ('properties.view', 'properties.manage') for p in self.role.permissions):
                 return True
+        # Settings view compatibility with settings.manage
+        if permission_code in ('settings.view', 'audit.view'):
+            if any(p.code == 'settings.manage' for p in self.role.permissions):
+                return True
+        # Property managers can manage team users in their organization
+        if permission_code in ('users.manage', 'users.view'):
+            if self.role.name == 'PROPERTY_MANAGER':
+                return True
         return any(p.code == permission_code for p in self.role.permissions)
 
     def is_superadmin(self):

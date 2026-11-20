@@ -7,6 +7,7 @@ from app.models.property import RentalUnit
 from app.models.lease import TenancyRecord
 from app.services.tenant_service import TenantService
 from app.utils.decorators import permission_required, multi_tenant_scoped
+from app.services.audit_service import AuditService
 
 tenants_bp = Blueprint('tenants', __name__, url_prefix='/tenants')
 
@@ -176,9 +177,15 @@ def create_tenant():
                     deposit_amount=deposit,
                     prorate_first_month=prorate
                 )
+                AuditService.log('ALLOCATION', 'Tenant', tenant.id,
+                                 description=f"Tenant {tenant.full_name} allocated to Unit {unit.unit_number} ({unit.property.name})",
+                                 new_values={'unit': unit.unit_number, 'property': unit.property.name, 'rent': rent})
                 flash(f"Tenant '{tenant.full_name}' registered and allocated to Unit {unit.unit_number} ({unit.property.name}).", 'success')
                 return redirect(url_for('tenants.detail', tenant_id=tenant.id))
 
+        AuditService.log('CREATE', 'Tenant', tenant.id,
+                         description=f"Registered tenant {tenant.full_name} (ID: {tenant.id_passport_number})",
+                         new_values={'name': tenant.full_name, 'phone': tenant.phone, 'id_no': tenant.id_passport_number})
         flash(f"Tenant '{tenant.full_name}' registered successfully.", 'success')
         return redirect(url_for('tenants.detail', tenant_id=tenant.id))
     except ValueError as e:
@@ -257,6 +264,9 @@ def allocate_unit(tenant_id):
             deposit_amount=deposit,
             prorate_first_month=prorate
         )
+        AuditService.log('ALLOCATION', 'Tenant', tenant.id,
+                         description=f"Unit {unit.unit_number} ({unit.property.name}) allocated to {tenant.full_name}",
+                         new_values={'unit': unit.unit_number, 'lease': lease.lease_number if lease else None, 'rent': rent})
         flash(f"Unit '{unit.unit_number}' ({unit.property.name}) successfully allocated to {tenant.full_name}! Tenancy Agreement {lease.lease_number} activated.", 'success')
     except Exception as e:
         flash(f"Allocation failed: {str(e)}", 'danger')
@@ -345,6 +355,7 @@ def delete_tenant(tenant_id):
     name = tenant.full_name
     tenant.is_active = False
     db.session.commit()
+    AuditService.log("DELETE", "Tenant", tenant_id, description=f"Tenant {name} deactivated/archived")
     flash(f"Tenant record for '{name}' has been deactivated and archived.", 'info')
     return redirect(url_for('tenants.index'))
 
@@ -366,6 +377,7 @@ def transfer_unit(tenant_id):
 
     try:
         lease = TenantService.transfer_unit(tenant_id, new_unit_id, transfer_reason=transfer_reason)
+        AuditService.log("TRANSFER", "Tenant", tenant_id, description=f"Tenant transferred to Unit {lease.rental_unit.unit_number}", new_values={"new_unit": lease.rental_unit.unit_number, "reason": transfer_reason})
         flash(f"Tenant transferred successfully to Unit {lease.rental_unit.unit_number}.", 'success')
     except Exception as e:
         flash(f"Transfer failed: {str(e)}", 'danger')
@@ -394,6 +406,7 @@ def move_out(tenant_id):
             deposit_deductions=deposit_deductions,
             deduction_reason=deduction_reason
         )
+        AuditService.log("MOVE_OUT", "Tenant", tenant_id, description=f"Move-out processed for tenant {tenant.full_name}", new_values={"deposit_refunded": deposit_refunded, "deductions": deposit_deductions})
         flash('Tenant move-out completed. Unit has been restored to Vacant status.', 'info')
     except Exception as e:
         flash(f"Move-out failed: {str(e)}", 'danger')

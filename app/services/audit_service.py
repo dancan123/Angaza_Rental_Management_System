@@ -6,20 +6,28 @@ from app.models.system import AuditLog
 
 class AuditService:
     @staticmethod
-    def log(action: str, entity_type: str, entity_id=None, old_values=None, new_values=None, user_id=None):
+    def log(action: str, entity_type: str, entity_id=None, old_values=None, new_values=None,
+            user_id=None, organization_id=None, description=None):
         try:
             effective_user_id = user_id
-            if effective_user_id is None and current_user and current_user.is_authenticated:
-                effective_user_id = current_user.id
-                
+            effective_org_id = organization_id
+
+            if current_user and current_user.is_authenticated:
+                if effective_user_id is None:
+                    effective_user_id = current_user.id
+                if effective_org_id is None:
+                    effective_org_id = getattr(current_user, 'organization_id', None)
+
             ip_addr = request.remote_addr if request else None
             user_agent = request.headers.get('User-Agent', '')[:255] if request else None
-            
+
             log_entry = AuditLog(
+                organization_id=effective_org_id,
                 user_id=effective_user_id,
                 action=action,
                 entity_type=entity_type,
                 entity_id=str(entity_id) if entity_id is not None else None,
+                description=description,
                 old_values=json.dumps(old_values, default=str) if old_values else None,
                 new_values=json.dumps(new_values, default=str) if new_values else None,
                 ip_address=ip_addr,
