@@ -13,44 +13,128 @@ from app.services.personalization_service import PersonalizationService
 
 public_bp = Blueprint('public', __name__)
 
+# ---------------------------------------------------------------------------
+# PLATFORM DIRECTORY — /vacancies (no org code)
+# Shows a searchable directory of all active organizations.
+# Never shows any property data — tenants must pick an org first.
+# ---------------------------------------------------------------------------
 @public_bp.route('/vacancies', endpoint='vacancies')
+def vacancies_directory():
+    """
+    Public Platform Directory:
+    Allows prospective tenants to search for and discover registered
+    property management organizations. Clicking an org goes to that org's
+    fully isolated, branded vacancy portal (/vacancies/<org_code>).
+
+    NO property data is shown here — zero cross-contamination possible.
+    """
+    search = request.args.get('search', '').strip()
+    region_filter = request.args.get('region', '').strip()
+
+    org_query = Organization.query.filter(
+        Organization.is_active == True,
+        Organization.subscription_status.in_(['ACTIVE', 'TRIAL']),
+        Organization.org_code != None,
+        Organization.org_code != 'ANG0001'   # exclude superadmin platform account
+    )
+
+    if search:
+        term = f"%{search}%"
+        org_query = org_query.filter(
+            or_(
+                Organization.name.ilike(term),
+                Organization.region.ilike(term),
+                Organization.county.ilike(term),
+                Organization.town.ilike(term),
+                Organization.org_code.ilike(term),
+            )
+        )
+    if region_filter:
+        org_query = org_query.filter(Organization.region.ilike(f"%{region_filter}%"))
+
+    orgs = org_query.order_by(Organization.name.asc()).all()
+
+    # Annotate each org with its live vacant unit count (for display on cards)
+    org_data = []
+    for org in orgs:
+        prop_ids = [p.id for p in Property.query.filter_by(organization_id=org.id, management_status='ACTIVE').all()]
+        vacant_count = RentalUnit.query.filter(
+            RentalUnit.property_id.in_(prop_ids),
+            RentalUnit.occupancy_status == 'VACANT'
+        ).count() if prop_ids else 0
+        partner_count = ExternalPropertyListing.query.filter_by(
+            organization_id=org.id, status='PUBLISHED'
+        ).count()
+        org_data.append({
+            'org': org,
+            'vacant_count': vacant_count,
+            'partner_count': partner_count,
+            'total_listings': vacant_count + partner_count,
+        })
+
+    # Distinct regions for filter chips
+    all_regions = sorted(list(set(
+        o.region for o in Organization.query.filter(
+            Organization.is_active == True,
+            Organization.region != None,
+            Organization.org_code != 'ANG0001'
+        ).all() if o.region
+    )))
+
+    app_name = PersonalizationService.get_setting('business_name', 'Angaza Rental Management System')
+
+    return render_template(
+        'public/vacancies_directory.html',
+        org_data=org_data,
+        search=search,
+        region_filter=region_filter,
+        all_regions=all_regions,
+        app_name=app_name,
+    )
+
+
+# ---------------------------------------------------------------------------
+# PER-ORG ISOLATED VACANCY PORTAL — /vacancies/<org_code>  &  /v/<org_code>
+# ---------------------------------------------------------------------------
 @public_bp.route('/vacancies/<org_code>', endpoint='vacancies_by_org')
 @public_bp.route('/v/<org_code>', endpoint='vacancies_short')
 def vacancies(org_code=None):
     """
-    Public Vacant Houses & Rooms Portal:
-    Accessible by external website visitors and prospective tenants without login.
-    Supports organization-specific vanity URL (/vacancies/ANG0002 or /v/ANG0002)
-    ensuring each landlord/organization has their own isolated marketing page.
+    Per-Organization Isolated Public Vacancy Portal.
+    Each landlord/organization has their own branded page — ZERO cross-org data.
+    URL: /vacancies/ANG0002  or  /v/ANG0002
     """
+    # Support legacy ?org_code= query param for backward compat
     if not org_code:
         org_code = request.args.get('org_code') or request.args.get('org') or request.args.get('code')
 
-    target_org = None
-    if org_code:
-        code_str = org_code.strip()
-        target_org = Organization.query.filter(
-            or_(
-                func.upper(Organization.org_code) == code_str.upper(),
-                Organization.slug == code_str.lower()
-            )
-        ).first()
+    # No org_code at all → redirect to directory
+    if not org_code:
+        return redirect(url_for('public.vacancies'))
+
+    code_str = org_code.strip()
+    target_org = Organization.query.filter(
+        or_(
+            func.upper(Organization.org_code) == code_str.upper(),
+            Organization.slug == code_str.lower()
+        )
+    ).first()
+
+    if not target_org:
+        flash(f"Organization '{org_code}' was not found. Please check the link or search for your landlord below.", 'warning')
+        return redirect(url_for('public.vacancies'))
 
     property_id = request.args.get('property_id', type=int)
     unit_type = request.args.get('type')
     max_rent = request.args.get('max_rent', type=float)
     location_filter = request.args.get('location', '').strip()
 
-    query = RentalUnit.query.filter_by(occupancy_status='VACANT')
-
-    if target_org:
-        # Strictly isolate vacant houses to this organization's properties
-        query = query.join(Property, RentalUnit.property_id == Property.id).filter(Property.organization_id == target_org.id)
-        properties = Property.query.filter_by(organization_id=target_org.id, management_status='ACTIVE').all()
-        ext_query = ExternalPropertyListing.query.filter_by(organization_id=target_org.id, status='PUBLISHED')
-    else:
-        properties = Property.query.filter_by(management_status='ACTIVE').all()
-        ext_query = ExternalPropertyListing.query.filter_by(status='PUBLISHED')
+    # Always scoped to this org — no global fallback
+    query = RentalUnit.query.filter_by(occupancy_status='VACANT').join(
+        Property, RentalUnit.property_id == Property.id
+    ).filter(Property.organization_id == target_org.id)
+    properties = Property.query.filter_by(organization_id=target_org.id, management_status='ACTIVE').all()
+    ext_query = ExternalPropertyListing.query.filter_by(organization_id=target_org.id, status='PUBLISHED')
 
     if property_id:
         query = query.filter(RentalUnit.property_id == property_id)
@@ -62,8 +146,6 @@ def vacancies(org_code=None):
         ext_query = ext_query.filter(ExternalPropertyListing.monthly_rent_cents <= to_cents(max_rent))
     if location_filter:
         loc_term = f"%{location_filter}%"
-        if not target_org:
-            query = query.join(Property, RentalUnit.property_id == Property.id)
         query = query.filter(Property.location.ilike(loc_term))
         ext_query = ext_query.filter(ExternalPropertyListing.location.ilike(loc_term))
 
@@ -72,20 +154,12 @@ def vacancies(org_code=None):
 
     currency = PersonalizationService.get_setting('currency', 'KES')
 
-    if target_org:
-        business_name = target_org.name
-        business_phone = target_org.contact_phone or PersonalizationService.get_setting('business_phone', '+254700000000')
-        business_email = target_org.contact_email or PersonalizationService.get_setting('business_email', 'info@rentalsystem.co.ke')
-        region_name = target_org.region or 'Kenya'
-        county_name = target_org.county or ''
-        town_name = target_org.town or ''
-    else:
-        business_name = PersonalizationService.get_setting('business_name', 'Angaza Rental Management System')
-        business_phone = PersonalizationService.get_setting('business_phone', '+254700000000')
-        business_email = PersonalizationService.get_setting('business_email', 'info@rentalsystem.co.ke')
-        region_name = 'Kenya'
-        county_name = ''
-        town_name = ''
+    business_name = target_org.name
+    business_phone = target_org.contact_phone or PersonalizationService.get_setting('business_phone', '+254700000000')
+    business_email = target_org.contact_email or PersonalizationService.get_setting('business_email', 'info@rentalsystem.co.ke')
+    region_name = target_org.region or 'Kenya'
+    county_name = target_org.county or ''
+    town_name = target_org.town or ''
 
     clean_phone = ''.join(c for c in business_phone if c.isdigit())
     if clean_phone.startswith('0'):
@@ -148,8 +222,19 @@ def inquire():
     unit = RentalUnit.query.get_or_404(unit_id)
     expected_date = datetime.strptime(move_in_str, '%Y-%m-%d').date() if move_in_str else date.today() + timedelta(days=7)
 
+    # Security guard: if org_code provided, unit must belong to that org
+    if org_code and unit.property:
+        claimed_org = Organization.query.filter(
+            or_(func.upper(Organization.org_code) == org_code.upper(),
+                Organization.slug == org_code.lower())
+        ).first()
+        if claimed_org and unit.property.organization_id != claimed_org.id:
+            flash('This unit does not belong to the selected organization.', 'danger')
+            return redirect(url_for('public.vacancies_by_org', org_code=org_code))
+
     ref = f"INQ-{date.today().strftime('%Y%m')}-{unit.id}-{int(datetime.utcnow().timestamp()) % 10000}"
 
+    # Always derive org_id from the unit's actual property — cannot be spoofed
     org_id = unit.property.organization_id if unit.property else None
 
     booking = Booking(

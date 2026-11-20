@@ -522,7 +522,7 @@
                     <h4>All Units Are Currently Fully Occupied!</h4>
                     <p class="small mb-3">There are no vacant units matching your current filter. Please contact our management office to join our waiting list.</p>
                     <div>
-                        <a href="{{ url_for('public.vacancies') }}" class="btn btn-outline-primary btn-sm">Clear Filter</a>
+                        <a href="{{ url_for('public.vacancies_by_org', org_code=target_org.org_code) if target_org else url_for('public.vacancies') }}" class="btn btn-outline-primary btn-sm">Clear Filter</a>
                     </div>
                 </div>
             </div>

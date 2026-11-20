@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find Your Property Manager — {{ app_name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f1f5f9; }
+        .hero { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); color: #fff; padding: 3.5rem 1.5rem 2.5rem; }
+        .hero h1 { font-size: clamp(1.6rem, 3vw, 2.4rem); font-weight: 800; }
+        .search-bar { max-width: 640px; margin: 0 auto; }
+        .search-bar .form-control, .search-bar .btn { border-radius: 0.6rem; padding: 0.75rem 1.1rem; font-size: 1rem; }
+        .region-chip { display: inline-block; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); color: #e2e8f0; border-radius: 9999px; padding: 0.25rem 0.9rem; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; text-decoration: none; }
+        .region-chip:hover, .region-chip.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+        .org-card { background: #fff; border-radius: 1rem; border: 1px solid #e2e8f0; transition: all 0.2s; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+        .org-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.12); transform: translateY(-2px); border-color: #3b82f6; }
+        .org-code-badge { background: #eff6ff; color: #1d4ed8; font-weight: 700; border-radius: 0.4rem; padding: 0.25rem 0.65rem; font-size: 0.78rem; font-family: monospace; letter-spacing: 0.05em; }
+        .listing-pill { font-size: 0.75rem; background: #f0fdf4; color: #166534; border-radius: 9999px; padding: 0.2rem 0.6rem; font-weight: 600; }
+        .listing-pill.zero { background: #fef9c3; color: #854d0e; }
+        .visit-btn { border-radius: 0.6rem; font-weight: 600; font-size: 0.9rem; }
+        .empty-state { text-align: center; padding: 4rem 1rem; color: #64748b; }
+        .platform-note { background: #fff7ed; border-left: 4px solid #f97316; border-radius: 0.5rem; padding: 1rem 1.25rem; }
+        .location-meta { font-size: 0.82rem; color: #64748b; }
+    </style>
+</head>
+<body>
+
+<!-- ══════════════ HERO ══════════════ -->
+<div class="hero">
+    <div class="container">
+        <div class="text-center mb-3">
+            <span class="badge bg-primary bg-opacity-25 border border-primary text-primary-emphasis px-3 py-2 rounded-pill mb-2 small fw-semibold">
+                <i class="bi bi-buildings me-1"></i> Multi-Tenant Property Platform
+            </span>
+            <h1>Find Your Property Manager</h1>
+            <p class="text-blue-200 mb-4" style="color:#94a3b8; max-width:580px; margin:0 auto;">
+                Each registered organization has its own dedicated vacancy portal with their own apartments and partner listings.
+                Search for your landlord or estate manager below to browse available units.
+            </p>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="search-bar">
+            <form method="GET" action="{{ url_for('public.vacancies') }}" class="d-flex gap-2">
+                <input type="text" name="search" class="form-control"
+                    placeholder="Search by org name, region, town, or ANG code..."
+                    value="{{ search }}" autofocus>
+                {% if region_filter %}
+                    <input type="hidden" name="region" value="{{ region_filter }}">
+                {% endif %}
+                <button type="submit" class="btn btn-primary px-4">
+                    <i class="bi bi-search"></i>
+                </button>
+            </form>
+        </div>
+
+        <!-- Region Filter Chips -->
+        {% if all_regions %}
+        <div class="text-center mt-3">
+            <a href="{{ url_for('public.vacancies', search=search) }}"
+               class="region-chip me-1 mb-1 {{ 'active' if not region_filter }}">All Regions</a>
+            {% for region in all_regions %}
+            <a href="{{ url_for('public.vacancies', search=search, region=region) }}"
+               class="region-chip me-1 mb-1 {{ 'active' if region_filter == region }}">{{ region }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ══════════════ RESULTS ══════════════ -->
+<div class="container py-4">
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    <i class="bi bi-info-circle me-2"></i>{{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Results header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h5 class="fw-bold mb-0 text-dark">
+                {% if search or region_filter %}
+                    {{ org_data|length }} organization{{ 's' if org_data|length != 1 }} found
+                    {% if search %} for "<strong>{{ search }}</strong>"{% endif %}
+                    {% if region_filter %} in <strong>{{ region_filter }}</strong>{% endif %}
+                {% else %}
+                    {{ org_data|length }} Registered Property Manager{{ 's' if org_data|length != 1 }}
+                {% endif %}
+            </h5>
+            <small class="text-muted">Each has its own independent vacancy portal and operations</small>
+        </div>
+        {% if search or region_filter %}
+        <a href="{{ url_for('public.vacancies') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-x-circle me-1"></i>Clear
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Data-isolation notice -->
+    <div class="platform-note mb-4 small">
+        <i class="bi bi-shield-lock-fill text-warning me-2"></i>
+        <strong>Strict Data Isolation:</strong> Every organization's properties, tenants, inquiries, and partner listings are
+        completely independent. Click on a manager to see only <em>their</em> available houses.
+    </div>
+
+    {% if org_data %}
+    <div class="row g-3">
+        {% for item in org_data %}
+        {% set org = item.org %}
+        <div class="col-md-6 col-lg-4">
+            <div class="org-card p-4 h-100 d-flex flex-direction-column">
+                <!-- Header row -->
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="org-code-badge">{{ org.org_code }}</span>
+                    <span class="listing-pill {{ 'zero' if item.total_listings == 0 }}">
+                        <i class="bi bi-house me-1"></i>{{ item.total_listings }} listing{{ 's' if item.total_listings != 1 }}
+                    </span>
+                </div>
+
+                <!-- Org name -->
+                <h6 class="fw-bold text-dark mb-1 mt-1">{{ org.name }}</h6>
+
+                <!-- Location -->
+                <div class="location-meta mb-2">
+                    <i class="bi bi-geo-alt me-1 text-primary"></i>
+                    {% if org.town %}{{ org.town }},{% endif %}
+                    {% if org.region %}{{ org.region }}{% endif %}
+                    {% if org.county %}<br><small>{{ org.county }}</small>{% endif %}
+                </div>
+
+                <!-- Stats row -->
+                <div class="d-flex gap-3 mb-3 small text-muted">
+                    <span><i class="bi bi-house-door me-1 text-success"></i>{{ item.vacant_count }} own units</span>
+                    <span><i class="bi bi-people me-1 text-info"></i>{{ item.partner_count }} partner</span>
+                </div>
+
+                <!-- Subscription status pill -->
+                <div class="mb-3">
+                    {% if org.subscription_status == 'TRIAL' %}
+                        <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>Trial</span>
+                    {% elif org.subscription_status == 'ACTIVE' %}
+                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Active</span>
+                    {% endif %}
+                    {% if org.subscription_tier == 'COMBINED_SUITE' %}
+                        <span class="badge bg-primary ms-1"><i class="bi bi-layers me-1"></i>Rentals + Hospitality</span>
+                    {% elif org.subscription_tier == 'RENTAL_STANDARD' %}
+                        <span class="badge bg-secondary ms-1"><i class="bi bi-house me-1"></i>Rentals</span>
+                    {% elif org.subscription_tier == 'HOSPITALITY_STANDARD' %}
+                        <span class="badge bg-info ms-1"><i class="bi bi-moon-stars me-1"></i>Hospitality</span>
+                    {% endif %}
+                </div>
+
+                <!-- Visit button -->
+                <a href="{{ url_for('public.vacancies_by_org', org_code=org.org_code) }}"
+                   class="btn btn-primary visit-btn mt-auto w-100">
+                    <i class="bi bi-arrow-right-circle me-2"></i>
+                    View Available Houses
+                </a>
+
+                <!-- WhatsApp quick link if phone available -->
+                {% if org.contact_phone %}
+                {% set clean = org.contact_phone | replace('+','') | replace(' ','') | replace('-','') %}
+                <a href="https://wa.me/{{ clean }}?text=Hello+{{ org.name | urlencode }},+I+found+your+listing+on+{{ app_name | urlencode }}.+Please+share+available+rentals."
+                   class="btn btn-outline-success btn-sm mt-2 w-100" target="_blank">
+                    <i class="bi bi-whatsapp me-1"></i>WhatsApp Manager
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% else %}
+    <div class="empty-state">
+        <i class="bi bi-search display-4 text-muted mb-3 d-block"></i>
+        <h5 class="fw-bold">No organizations found</h5>
+        <p class="text-muted">Try a different name, region, or ANG code.</p>
+        <a href="{{ url_for('public.vacancies') }}" class="btn btn-outline-primary mt-2">View All</a>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- ══════════════ FOOTER ══════════════ -->
+<div class="bg-dark text-white py-4 mt-5 text-center small">
+    <div class="container">
+        <p class="mb-1"><strong>{{ app_name }}</strong> — Multi-Tenant Property Management Platform</p>
+        <p class="text-muted mb-0">Each registered organization operates independently with its own tenants, properties, and isolated data.</p>
+        <p class="text-muted mb-0 mt-1">Are you a property manager?
+            <a href="{{ url_for('auth.register') }}" class="text-primary">Register your organization</a>
+            to get your own dedicated portal.
+        </p>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
