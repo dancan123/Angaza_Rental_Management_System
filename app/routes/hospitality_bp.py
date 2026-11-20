@@ -142,6 +142,7 @@ def index():
         vacant_count=vacant_count,
         today_collections_cents=today_collections_cents,
         today_collections_display=today_collections_display,
+        overview_stats=overview.get('stats', {}),
         sort_by=sort_by,
         total_all_time_income_cents=total_all_time_income_cents,
         total_all_time_income_display=total_all_time_income_display,
@@ -312,7 +313,8 @@ def record_payment(res_id):
     return redirect(url_for('hospitality.index'))
 
 
-@hospitality_bp.route('/reservations/<int:res_id>/receipt')
+@hospitality_bp.route('/reservations/<int:res_id>/receipt', endpoint='receipt')
+@hospitality_bp.route('/reservations/<int:res_id>/receipt', endpoint='view_receipt')
 @login_required
 @permission_required('bookings.view')
 def view_receipt(res_id):
@@ -338,6 +340,25 @@ def download_guest_folio_pdf(res_id):
         mimetype='application/pdf',
         as_attachment=True,
         download_name=f"Guest_Folio_{res.reservation_code}.pdf"
+    )
+
+
+@hospitality_bp.route('/reservations/<int:res_id>/thermal-pdf')
+@login_required
+@permission_required('bookings.view')
+def download_thermal_receipt_pdf(res_id):
+    from io import BytesIO
+    from flask import send_file
+    from app.utils.pdf_generator import generate_thermal_receipt_pdf
+    res = db.session.get(HospitalityReservation, res_id)
+    if not res:
+        from flask import abort; abort(404)
+    pdf_bytes = generate_thermal_receipt_pdf(res)
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"Receipt_80mm_{res.reservation_code}.pdf"
     )
 
 

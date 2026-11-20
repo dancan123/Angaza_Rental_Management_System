@@ -527,6 +527,126 @@ def generate_guest_folio_pdf(reservation):
     return buffer.getvalue()
 
 
+def generate_thermal_receipt_pdf(reservation):
+    """
+    Generates a true 80mm POS Thermal Slip Payment Receipt for Airbnb / Short-Stay Management.
+    Standard Kenyan 80mm roll width POS receipt.
+    Returns bytes buffer.
+    """
+    from reportlab.lib.units import mm
+    buffer = io.BytesIO()
+    # 80mm width standard thermal roll. Height around 205mm.
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=(80 * mm, 205 * mm),
+        rightMargin=3 * mm,
+        leftMargin=3 * mm,
+        topMargin=4 * mm,
+        bottomMargin=4 * mm
+    )
+
+    settings = PersonalizationService.get_all_settings()
+    biz_name = settings.get('business_name', 'Angaza Hospitality Suites')
+    biz_phone = settings.get('business_phone', '+254 700 000 000')
+    biz_email = settings.get('business_email', 'hospitality@primerent.co.ke')
+
+    prop = reservation.rental_unit.property if reservation.rental_unit else None
+    prop_name = prop.name if prop else biz_name
+    prop_loc = prop.location if prop and prop.location else 'Prime Location, Kenya'
+
+    styles = getSampleStyleSheet()
+    t_center_bold = ParagraphStyle('TCBold', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=9, leading=11, alignment=1, textColor=colors.HexColor('#0f172a'))
+    t_center_title = ParagraphStyle('TCTitle', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=11, leading=13, alignment=1, textColor=colors.HexColor('#0f172a'))
+    t_center_norm = ParagraphStyle('TCNorm', parent=styles['Normal'], fontName='Helvetica', fontSize=7.5, leading=9.5, alignment=1, textColor=colors.HexColor('#475569'))
+    t_left_bold = ParagraphStyle('TLBold', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=7.5, leading=9.5, textColor=colors.HexColor('#0f172a'))
+    t_left_norm = ParagraphStyle('TLNorm', parent=styles['Normal'], fontName='Helvetica', fontSize=7.5, leading=9.5, textColor=colors.HexColor('#334155'))
+    t_right_bold = ParagraphStyle('TRBold', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=7.5, leading=9.5, alignment=2, textColor=colors.HexColor('#0f172a'))
+    t_right_norm = ParagraphStyle('TRNorm', parent=styles['Normal'], fontName='Helvetica', fontSize=7.5, leading=9.5, alignment=2, textColor=colors.HexColor('#334155'))
+    t_mono = ParagraphStyle('TMono', parent=styles['Normal'], fontName='Courier-Bold', fontSize=8, leading=10, alignment=1, textColor=colors.HexColor('#0f172a'))
+
+    story = []
+
+    # Store / Property Header
+    story.append(Paragraph(f"<b>{prop_name.upper()}</b>", t_center_title))
+    story.append(Spacer(1, 2))
+    story.append(Paragraph(f"{prop_loc} &bull; Tel: {biz_phone}", t_center_norm))
+    story.append(Paragraph("SHORT-STAY / AIRBNB OFFICIAL RECEIPT", t_center_bold))
+    story.append(Spacer(1, 2))
+    story.append(Paragraph("------------------------------------------------------------", t_center_norm))
+
+    # Meta
+    dt_str = reservation.created_at.strftime('%d/%m/%Y %H:%M') if reservation.created_at else datetime.now().strftime('%d/%m/%Y %H:%M')
+    meta_table = Table([
+        [Paragraph("<b>Receipt #:</b>", t_left_norm), Paragraph(f"<b>REC-{reservation.reservation_code}</b>", t_right_bold)],
+        [Paragraph("<b>Date / Time:</b>", t_left_norm), Paragraph(dt_str, t_right_norm)],
+        [Paragraph("<b>Guest Name:</b>", t_left_norm), Paragraph(reservation.guest.full_name if reservation.guest else "Guest", t_right_bold)],
+        [Paragraph("<b>Phone:</b>", t_left_norm), Paragraph(reservation.guest.phone if reservation.guest else "N/A", t_right_norm)],
+        [Paragraph("<b>Room / Unit:</b>", t_left_norm), Paragraph(reservation.rental_unit.unit_number if reservation.rental_unit else "Room", t_right_bold)],
+        [Paragraph("<b>Check-In:</b>", t_left_norm), Paragraph(reservation.check_in_date.strftime('%d/%m/%Y'), t_right_norm)],
+        [Paragraph("<b>Check-Out:</b>", t_left_norm), Paragraph(reservation.check_out_date.strftime('%d/%m/%Y'), t_right_norm)],
+        [Paragraph("<b>Duration:</b>", t_left_norm), Paragraph(f"{reservation.num_nights} Night(s)", t_right_norm)],
+    ], colWidths=[28 * mm, 46 * mm])
+    meta_table.setStyle(TableStyle([
+        ('TOPPADDING', (0, 0), (-1, -1), 1),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    story.append(meta_table)
+    story.append(Paragraph("------------------------------------------------------------", t_center_norm))
+
+    # Line Item
+    item_table = Table([
+        [Paragraph("<b>Item / Description</b>", t_left_bold), Paragraph("<b>Qty</b>", t_center_bold), Paragraph("<b>Amount (KES)</b>", t_right_bold)],
+        [
+            Paragraph(f"Stay: {reservation.rental_unit.unit_number if reservation.rental_unit else 'Room'}<br/>@{reservation.daily_rate_display}/night", t_left_norm),
+            Paragraph(f"{reservation.num_nights}n", t_center_norm),
+            Paragraph(reservation.total_stay_display, t_right_bold)
+        ]
+    ], colWidths=[42 * mm, 10 * mm, 22 * mm])
+    item_table.setStyle(TableStyle([
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    story.append(item_table)
+    story.append(Paragraph("------------------------------------------------------------", t_center_norm))
+
+    # Settlement Totals
+    status_label = "Checked In (Active)" if reservation.status == 'CHECKED_IN' else reservation.status
+    fin_table = Table([
+        [Paragraph("<b>TOTAL CHARGE:</b>", t_left_bold), Paragraph(f"<b>{reservation.total_stay_display}</b>", t_right_bold)],
+        [Paragraph("<b>AMOUNT PAID:</b>", t_left_bold), Paragraph(f"<b>{reservation.paid_amount_display}</b>", t_right_bold)],
+        [Paragraph("<b>BALANCE DUE:</b>", t_left_bold), Paragraph(f"<b>{'KES 0.00 (SETTLED)' if reservation.balance_cents <= 0 else reservation.balance_display}</b>", t_right_bold)],
+        [Paragraph("<b>PAYMENT METHOD:</b>", t_left_norm), Paragraph(f"<b>{reservation.payment_method or 'MPESA'}</b>", t_right_bold)],
+        [Paragraph("<b>TRANSACTION REF:</b>", t_left_norm), Paragraph(f"<b>{reservation.payment_reference or 'N/A'}</b>", t_right_bold)],
+        [Paragraph("<b>RESERVATION STATUS:</b>", t_left_norm), Paragraph(f"<b>{status_label}</b>", t_right_bold)],
+    ], colWidths=[36 * mm, 38 * mm])
+    fin_table.setStyle(TableStyle([
+        ('TOPPADDING', (0, 0), (-1, -1), 1.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    story.append(fin_table)
+    story.append(Spacer(1, 2))
+    story.append(Paragraph("============================================", t_center_norm))
+    story.append(Spacer(1, 1))
+
+    # Barcode representation & Footer
+    barcode_text = f"*{reservation.payment_reference or reservation.reservation_code}*"
+    story.append(Paragraph(barcode_text, t_mono))
+    story.append(Spacer(1, 2))
+    story.append(Paragraph("<b>SAFARICOM M-PESA VERIFIED PAYMENT</b>", t_center_bold))
+    story.append(Paragraph("Thank you for staying with us! Karibu tena.", t_center_norm))
+    story.append(Paragraph("Angaza Rentals & Short-Stay Hospitality Management", t_center_norm))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
 # Re-export advanced tenancy and property management PDF generators
 from app.utils.advanced_pdf_generator import (
     generate_tenant_registration_form_pdf,

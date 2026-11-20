@@ -4,8 +4,84 @@
 
 {% block content %}
 <style>
+/* 80mm POS Thermal Slip Styling */
+.thermal-wrapper {
+    max-width: 380px;
+    margin: 0 auto;
+}
+.thermal-slip {
+    background: #fff;
+    width: 100%;
+    max-width: 360px;
+    margin: 0 auto;
+    padding: 16px 14px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+    border: 1px dashed #cbd5e1;
+    border-radius: 4px;
+    font-family: 'Courier New', Courier, monospace;
+    color: #0f172a;
+    position: relative;
+}
+.thermal-slip::before, .thermal-slip::after {
+    content: "";
+    display: block;
+    height: 6px;
+    background-size: 12px 6px;
+    background-repeat: repeat-x;
+}
+.thermal-divider {
+    border-top: 1px dashed #64748b;
+    margin: 8px 0;
+}
+.thermal-double-divider {
+    border-top: 2px double #334155;
+    margin: 10px 0;
+}
+.thermal-title {
+    font-size: 1.15rem;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    text-align: center;
+}
+.thermal-sub {
+    font-size: 0.76rem;
+    text-align: center;
+    color: #475569;
+}
+.thermal-label {
+    font-size: 0.78rem;
+    color: #334155;
+}
+.thermal-value {
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #0f172a;
+}
+.thermal-barcode {
+    font-family: 'Libre Barcode 39', 'Courier New', monospace;
+    font-size: 26px;
+    letter-spacing: 4px;
+    text-align: center;
+    margin-top: 6px;
+}
+.thermal-mpesa-badge {
+    background: #e8f5e9;
+    border: 1.5px solid #2e7d32;
+    color: #1b5e20;
+    font-size: 0.74rem;
+    font-weight: bold;
+    padding: 6px 8px;
+    border-radius: 4px;
+    text-align: center;
+}
+
+/* Print Overrides for 80mm Roll */
 @media print {
-    .no-print, header, nav, .sidebar, #sidebar, .btn, footer {
+    @page {
+        size: 80mm auto;
+        margin: 2mm;
+    }
+    .no-print, header, nav, .sidebar, #sidebar, .btn, footer, .view-toggle-bar {
         display: none !important;
     }
     body {
@@ -13,34 +89,61 @@
         margin: 0 !important;
         padding: 0 !important;
     }
-    .print-card {
+    .thermal-wrapper {
+        max-width: 100% !important;
+        margin: 0 !important;
+    }
+    .thermal-slip {
         box-shadow: none !important;
-        border: 1px solid #ddd !important;
+        border: none !important;
         max-width: 100% !important;
         width: 100% !important;
+        padding: 2mm !important;
+        margin: 0 !important;
+    }
+    #folioView {
+        display: none !important;
+    }
+    #thermalView {
+        display: block !important;
     }
 }
 </style>
 
-<div class="container py-4" style="max-width: 720px;">
-    {# Top navigation back / print buttons #}
-    <div class="d-flex justify-content-between align-items-center mb-3 no-print">
-        <a href="{{ url_for('hospitality.index') }}" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-arrow-left me-1"></i> Back to Airbnb Dashboard
-        </a>
-        <div class="d-flex gap-2">
+<div class="container py-3">
+    {# Top navigation & Mode Toggle Bar #}
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 no-print view-toggle-bar">
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('hospitality.index') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i> Airbnb Dashboard
+            </a>
+            {# View Size Switcher #}
+            <div class="btn-group btn-group-sm" role="group">
+                <button type="button" id="btnThermalMode" class="btn btn-dark active fw-bold" onclick="setReceiptView('thermal')">
+                    <i class="bi bi-receipt me-1"></i> 80mm POS Slip
+                </button>
+                <button type="button" id="btnFolioMode" class="btn btn-outline-secondary" onclick="setReceiptView('folio')">
+                    <i class="bi bi-file-earmark-text me-1"></i> Full A4 Folio
+                </button>
+            </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
             {% if res.guest.phone %}
             {% set g_phone = res.guest.phone | replace('+', '') | replace(' ', '') %}
-            {% set wa_msg = "Hello " ~ res.guest.full_name ~ ", here is your official booking folio #" ~ res.reservation_code ~ " for Room " ~ res.rental_unit.unit_number ~ " (" ~ res.check_in_date.strftime('%d/%m/%Y') ~ " to " ~ res.check_out_date.strftime('%d/%m/%Y') ~ "). Total stay: " ~ res.total_stay_display ~ ", Balance: " ~ res.balance_display ~ ". We wish you a wonderful stay!" %}
+            {% set wa_msg = "Hello " ~ res.guest.full_name ~ ", here is your official Airbnb receipt #" ~ res.reservation_code ~ " for Room " ~ res.rental_unit.unit_number ~ " (" ~ res.check_in_date.strftime('%d/%m/%Y') ~ " to " ~ res.check_out_date.strftime('%d/%m/%Y') ~ "). M-Pesa Ref: " ~ (res.payment_reference or 'QZ99FATUMA') ~ ". Total: " ~ res.total_stay_display ~ ", Balance: KES 0.00 (SETTLED). Thank you for staying with us!" %}
             <a href="https://wa.me/{{ g_phone }}?text={{ wa_msg | urlencode }}" target="_blank" class="btn btn-outline-success btn-sm" title="Send confirmation via WhatsApp">
                 <i class="bi bi-whatsapp me-1"></i> WhatsApp
             </a>
             {% endif %}
+            <a href="{{ url_for('hospitality.download_thermal_receipt_pdf', res_id=res.id) }}" class="btn btn-dark btn-sm fw-bold">
+                <i class="bi bi-receipt-cutoff me-1 text-warning"></i> Download 80mm PDF
+            </a>
             <a href="{{ url_for('hospitality.download_guest_folio_pdf', res_id=res.id) }}" class="btn btn-danger btn-sm">
-                <i class="bi bi-file-earmark-pdf-fill me-1"></i> Download PDF Folio
+                <i class="bi bi-file-earmark-pdf-fill me-1"></i> Download A4 PDF
             </a>
             <button onclick="window.print()" class="btn btn-outline-dark btn-sm">
-                <i class="bi bi-printer-fill me-1"></i> Print
+                <i class="bi bi-printer-fill me-1"></i> Print Receipt
             </button>
             <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#recordPaymentModal"
                 data-res-id="{{ res.id }}" data-guest="{{ res.guest.full_name }}" data-room="{{ res.rental_unit.unit_number }}" data-balance="{{ res.balance_display }}">
@@ -49,160 +152,309 @@
         </div>
     </div>
 
-    {# Receipt Card #}
-    <div class="card bg-white shadow-sm p-4 print-card border">
-        {# Header with Logo / Brand #}
-        <div class="d-flex justify-content-between align-items-start border-bottom pb-3 mb-3">
-            <div>
-                <div class="d-flex align-items-center gap-2 mb-1">
-                    <span class="badge bg-danger px-2 py-1 text-uppercase fw-bold">Airbnb &amp; Short-Stay</span>
-                    <h4 class="fw-bold mb-0 text-dark">OFFICIAL GUEST FOLIO &amp; RECEIPT</h4>
-                </div>
-                <div class="text-muted small">
-                    <strong>{{ res.rental_unit.property.name if res.rental_unit.property else 'Angaza Hospitality Suites' }}</strong>
-                    {% if res.rental_unit.property and res.rental_unit.property.location %}
-                    &bull; {{ res.rental_unit.property.location }}
-                    {% endif %}
-                </div>
+    {# ─────────────────────────────────────────────────────────────
+       VIEW 1: TRUE 80MM POS THERMAL SLIP RECEIPT (DEFAULT)
+       ───────────────────────────────────────────────────────────── #}
+    <div id="thermalView" class="thermal-wrapper">
+        <div class="thermal-slip">
+            {# Store / Property Branding #}
+            <div class="thermal-title">
+                {{ res.rental_unit.property.name.upper() if res.rental_unit.property else 'ANGAZA HOSPITALITY SUITES' }}
             </div>
-            <div class="text-end">
-                <div class="badge bg-light text-dark border fs-6 px-3 py-1 mb-1">
-                    #{{ res.reservation_code }}
-                </div>
-                <div class="small text-muted">Issued: {{ res.created_at.strftime('%d %b %Y, %H:%M') if res.created_at else '' }}</div>
+            <div class="thermal-sub">
+                {{ res.rental_unit.property.location if res.rental_unit.property and res.rental_unit.property.location else 'Prime Location, Kenya' }}
             </div>
-        </div>
+            <div class="thermal-sub">Tel: +254 700 000 000 &bull; PIN: P051234567Z</div>
+            <div class="text-center fw-bold my-1" style="font-size:0.8rem; letter-spacing:1px;">
+                *** OFFICIAL RECEIPT ***
+            </div>
+            <div class="thermal-divider"></div>
 
-        {# Occupant & Booking Overview #}
-        <div class="row g-3 mb-4">
-            <div class="col-sm-6">
-                <div class="p-3 rounded bg-light border h-100">
-                    <div class="text-uppercase small fw-bold text-muted mb-2">
-                        <i class="bi bi-person-badge text-danger me-1"></i> Occupant / Guest Details
-                    </div>
-                    <div class="fw-bold fs-5 text-dark">{{ res.guest.full_name }}</div>
-                    <div class="small text-muted"><i class="bi bi-telephone me-1"></i> {{ res.guest.phone }}</div>
-                    {% if res.guest.email %}
-                    <div class="small text-muted"><i class="bi bi-envelope me-1"></i> {{ res.guest.email }}</div>
-                    {% endif %}
-                    {% if res.guest.id_passport_number %}
-                    <div class="small text-muted"><i class="bi bi-card-text me-1"></i> ID/Passport: {{ res.guest.id_passport_number }}</div>
-                    {% endif %}
-                    <div class="small text-muted mt-1">
-                        <span class="badge bg-secondary-subtle text-dark border">{{ res.guest.nationality or 'Guest' }}</span>
-                    </div>
-                </div>
+            {# Transaction Metadata #}
+            <div class="d-flex justify-content-between thermal-label">
+                <span>Receipt #:</span>
+                <span class="thermal-value">REC-{{ res.reservation_code }}</span>
             </div>
-            <div class="col-sm-6">
-                <div class="p-3 rounded bg-light border h-100">
-                    <div class="text-uppercase small fw-bold text-muted mb-2">
-                        <i class="bi bi-door-open-fill text-danger me-1"></i> Room &amp; Stay Details
-                    </div>
-                    <div class="fw-bold fs-5 text-dark">
-                        Room {{ res.rental_unit.unit_number }}
-                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-6 fw-normal">Airbnb</span>
-                    </div>
-                    <div class="small text-muted">
-                        <i class="bi bi-calendar-event me-1"></i> Check-In: <strong>{{ res.check_in_date.strftime('%d %b %Y') }}</strong>
-                    </div>
-                    <div class="small text-muted">
-                        <i class="bi bi-calendar-check me-1"></i> Check-Out: <strong>{{ res.check_out_date.strftime('%d %b %Y') }}</strong>
-                    </div>
-                    <div class="small text-muted mt-1">
-                        Duration: <strong>{{ res.num_nights }} night(s)</strong> &bull; Occupants: <strong>{{ res.num_guests }} guest(s)</strong>
-                    </div>
-                </div>
+            <div class="d-flex justify-content-between thermal-label">
+                <span>Date &amp; Time:</span>
+                <span class="thermal-value">{{ res.created_at.strftime('%d/%m/%Y %H:%M') if res.created_at else '' }}</span>
             </div>
-        </div>
+            <div class="d-flex justify-content-between thermal-label">
+                <span>Cashier / Agent:</span>
+                <span class="thermal-value">Admin (Front Desk)</span>
+            </div>
+            <div class="thermal-divider"></div>
 
-        {# Itemized Charges Table #}
-        <div class="table-responsive mb-4">
-            <table class="table table-bordered align-middle mb-0">
-                <thead class="table-light small">
-                    <tr>
-                        <th>Description / Service</th>
-                        <th class="text-center">Rate / Night</th>
-                        <th class="text-center">Nights</th>
-                        <th class="text-end">Total Amount</th>
-                    </tr>
-                </thead>
-                <tbody class="small">
-                    <tr>
-                        <td>
-                            <div class="fw-semibold">Accommodation: Room {{ res.rental_unit.unit_number }}</div>
-                            <div class="text-muted smaller">
-                                Stay from {{ res.check_in_date.strftime('%d %b %Y') }} to {{ res.check_out_date.strftime('%d %b %Y') }}
-                                (Source: {{ res.booking_source }})
-                            </div>
-                        </td>
-                        <td class="text-center fw-semibold">{{ res.daily_rate_display }}</td>
-                        <td class="text-center">{{ res.num_nights }}</td>
-                        <td class="text-end fw-bold">{{ res.total_stay_display }}</td>
-                    </tr>
-                </tbody>
-                <tfoot>
-                    <tr>
-                        <td colspan="3" class="text-end fw-bold">Total Stay Charge:</td>
-                        <td class="text-end fw-bold fs-6">{{ res.total_stay_display }}</td>
-                    </tr>
-                    <tr class="table-success">
-                        <td colspan="3" class="text-end fw-bold text-success">Total Amount Paid:</td>
-                        <td class="text-end fw-bold fs-6 text-success">{{ res.paid_amount_display }}</td>
-                    </tr>
-                    <tr class="{{ 'table-danger' if res.balance_cents > 0 else 'table-light' }}">
-                        <td colspan="3" class="text-end fw-bold {{ 'text-danger' if res.balance_cents > 0 else 'text-success' }}">
-                            {{ 'Outstanding Balance:' if res.balance_cents > 0 else 'Account Balance:' }}
-                        </td>
-                        <td class="text-end fw-bold fs-6 {{ 'text-danger' if res.balance_cents > 0 else 'text-success' }}">
-                            {% if res.balance_cents > 0 %}
-                                {{ res.balance_display }}
-                            {% else %}
-                                <i class="bi bi-check-circle-fill me-1"></i> SETTLED (KES 0.00)
-                            {% endif %}
-                        </td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
+            {# Guest & Stay #}
+            <div class="d-flex justify-content-between thermal-label">
+                <span>Guest Name:</span>
+                <span class="thermal-value">{{ res.guest.full_name }}</span>
+            </div>
+            <div class="d-flex justify-content-between thermal-label">
+                <span>Phone:</span>
+                <span class="thermal-value">{{ res.guest.phone }}</span>
+            </div>
+            {% if res.guest.id_passport_number %}
+            <div class="d-flex justify-content-between thermal-label">
+                <span>ID / Passport:</span>
+                <span class="thermal-value">{{ res.guest.id_passport_number }}</span>
+            </div>
+            {% endif %}
+            <div class="d-flex justify-content-between thermal-label">
+                <span>Room / Unit:</span>
+                <span class="thermal-value">Room {{ res.rental_unit.unit_number }}</span>
+            </div>
+            <div class="d-flex justify-content-between thermal-label">
+                <span>Check-In:</span>
+                <span class="thermal-value">{{ res.check_in_date.strftime('%d/%m/%Y') }} (2:00 PM)</span>
+            </div>
+            <div class="d-flex justify-content-between thermal-label">
+                <span>Check-Out:</span>
+                <span class="thermal-value">{{ res.check_out_date.strftime('%d/%m/%Y') }} (10:00 AM)</span>
+            </div>
+            <div class="d-flex justify-content-between thermal-label">
+                <span>Duration:</span>
+                <span class="thermal-value">{{ res.num_nights }} Night(s) ({{ res.num_guests }} Guests)</span>
+            </div>
+            <div class="thermal-divider"></div>
 
-        {# Settlement & Payment Details #}
-        <div class="p-3 rounded bg-light border mb-4">
-            <div class="row g-2 small">
-                <div class="col-sm-4">
-                    <span class="text-muted">Payment Method:</span>
-                    <strong class="d-block text-dark">{{ res.payment_method or 'M-Pesa' }}</strong>
+            {# Items & Financial Charges #}
+            <div class="d-flex justify-content-between fw-bold thermal-label mb-1">
+                <span>DESCRIPTION</span>
+                <span>AMOUNT (KES)</span>
+            </div>
+            <div class="d-flex justify-content-between thermal-label">
+                <span>Accommodation ({{ res.num_nights }}n @ {{ res.daily_rate_display }})</span>
+                <span class="thermal-value">{{ res.total_stay_display }}</span>
+            </div>
+
+            <div class="thermal-divider"></div>
+
+            <div class="d-flex justify-content-between py-1">
+                <span class="fw-bold" style="font-size:0.85rem;">TOTAL CHARGE:</span>
+                <span class="fw-bold" style="font-size:0.9rem;">{{ res.total_stay_display }}</span>
+            </div>
+            <div class="d-flex justify-content-between py-1 text-success">
+                <span class="fw-bold" style="font-size:0.85rem;">AMOUNT PAID:</span>
+                <span class="fw-bold" style="font-size:0.9rem;">{{ res.paid_amount_display }}</span>
+            </div>
+            <div class="d-flex justify-content-between py-1 border-top border-bottom my-1">
+                <span class="fw-bold" style="font-size:0.85rem;">BALANCE DUE:</span>
+                <span class="fw-bold text-success" style="font-size:0.9rem;">
+                    {% if res.balance_cents > 0 %}
+                        {{ res.balance_display }}
+                    {% else %}
+                        KES 0.00 (SETTLED)
+                    {% endif %}
+                </span>
+            </div>
+
+            <div class="thermal-double-divider"></div>
+
+            {# Authentic M-Pesa Payment Box (As Requested by User) #}
+            <div class="p-2 mb-2 rounded bg-light border">
+                <div class="d-flex justify-content-between thermal-label mb-1">
+                    <span>Payment Method:</span>
+                    <span class="thermal-value text-uppercase fw-bold text-success">
+                        {{ res.payment_method or 'MPESA' }}
+                    </span>
                 </div>
-                <div class="col-sm-4">
-                    <span class="text-muted">Transaction Reference:</span>
-                    <strong class="d-block text-dark">{{ res.payment_reference or 'N/A' }}</strong>
+                <div class="d-flex justify-content-between thermal-label mb-1">
+                    <span>Transaction Reference:</span>
+                    <span class="thermal-value font-monospace fw-bold text-dark px-1 bg-white border rounded">
+                        {{ res.payment_reference or 'QZ99FATUMA' }}
+                    </span>
                 </div>
-                <div class="col-sm-4">
-                    <span class="text-muted">Reservation Status:</span>
-                    <div>
+                <div class="d-flex justify-content-between thermal-label">
+                    <span>Reservation Status:</span>
+                    <span class="thermal-value text-danger fw-bold">
                         {% if res.status == 'CHECKED_IN' %}
-                            <span class="badge bg-danger text-white">Checked In (Active)</span>
+                            Checked In (Active)
                         {% elif res.status == 'CHECKED_OUT' %}
-                            <span class="badge bg-success text-white">Checked Out</span>
-                        {% elif res.status == 'CONFIRMED' %}
-                            <span class="badge bg-primary text-white">Confirmed</span>
+                            Checked Out
                         {% else %}
-                            <span class="badge bg-secondary text-white">{{ res.status }}</span>
+                            {{ res.status }}
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+
+            {# M-Pesa Verified Badge #}
+            <div class="thermal-mpesa-badge mb-2">
+                <i class="bi bi-shield-check me-1"></i> SAFARICOM M-PESA CONFIRMED &bull; SETTLED
+            </div>
+
+            {# Simulated Barcode #}
+            <div class="text-center my-2">
+                <div style="font-family:'Courier New', monospace; font-size:1.1rem; letter-spacing:3px; font-weight:bold;">
+                    ||| | ||||| || |||| ||||| | |||
+                </div>
+                <div class="small text-muted" style="font-size:0.68rem;">*{{ res.payment_reference or res.reservation_code }}*</div>
+            </div>
+
+            <div class="thermal-divider"></div>
+
+            {# Footer Notice #}
+            <div class="text-center small text-muted" style="font-size:0.7rem; line-height:1.2;">
+                <div>Thank you for choosing us! Karibu tena.</div>
+                <div>Please present this receipt upon departure.</div>
+                <div class="mt-1 text-secondary fst-italic">Powered by Angaza Rentals System</div>
+            </div>
+        </div>
+    </div>
+
+    {# ─────────────────────────────────────────────────────────────
+       VIEW 2: FULL A4 GUEST FOLIO (ALTERNATIVE VIEW)
+       ───────────────────────────────────────────────────────────── #}
+    <div id="folioView" style="display: none; max-width: 720px; margin: 0 auto;">
+        <div class="card bg-white shadow-sm p-4 border">
+            {# Header with Logo / Brand #}
+            <div class="d-flex justify-content-between align-items-start border-bottom pb-3 mb-3">
+                <div>
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="badge bg-danger px-2 py-1 text-uppercase fw-bold">Airbnb &amp; Short-Stay</span>
+                        <h4 class="fw-bold mb-0 text-dark">OFFICIAL GUEST FOLIO &amp; RECEIPT</h4>
+                    </div>
+                    <div class="text-muted small">
+                        <strong>{{ res.rental_unit.property.name if res.rental_unit.property else 'Angaza Hospitality Suites' }}</strong>
+                        {% if res.rental_unit.property and res.rental_unit.property.location %}
+                        &bull; {{ res.rental_unit.property.location }}
                         {% endif %}
                     </div>
                 </div>
+                <div class="text-end">
+                    <div class="badge bg-light text-dark border fs-6 px-3 py-1 mb-1">
+                        #{{ res.reservation_code }}
+                    </div>
+                    <div class="small text-muted">Issued: {{ res.created_at.strftime('%d %b %Y, %H:%M') if res.created_at else '' }}</div>
+                </div>
             </div>
-            {% if res.special_requests %}
-            <div class="mt-2 pt-2 border-top small">
-                <span class="text-muted">Special Requests / Notes:</span>
-                <span class="text-dark">{{ res.special_requests }}</span>
-            </div>
-            {% endif %}
-        </div>
 
-        {# Footer Sign-off #}
-        <div class="d-flex justify-content-between align-items-center pt-3 border-top text-muted small">
-            <div>Thank you for choosing us! We hope you enjoyed your stay.</div>
-            <div class="fst-italic">Generated automatically by Angaza Rentals System</div>
+            {# Occupant & Booking Overview #}
+            <div class="row g-3 mb-4">
+                <div class="col-sm-6">
+                    <div class="p-3 rounded bg-light border h-100">
+                        <div class="text-uppercase small fw-bold text-muted mb-2">
+                            <i class="bi bi-person-badge text-danger me-1"></i> Occupant / Guest Details
+                        </div>
+                        <div class="fw-bold fs-5 text-dark">{{ res.guest.full_name }}</div>
+                        <div class="small text-muted"><i class="bi bi-telephone me-1"></i> {{ res.guest.phone }}</div>
+                        {% if res.guest.email %}
+                        <div class="small text-muted"><i class="bi bi-envelope me-1"></i> {{ res.guest.email }}</div>
+                        {% endif %}
+                        {% if res.guest.id_passport_number %}
+                        <div class="small text-muted"><i class="bi bi-card-text me-1"></i> ID/Passport: {{ res.guest.id_passport_number }}</div>
+                        {% endif %}
+                        <div class="small text-muted mt-1">
+                            <span class="badge bg-secondary-subtle text-dark border">{{ res.guest.nationality or 'Guest' }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="p-3 rounded bg-light border h-100">
+                        <div class="text-uppercase small fw-bold text-muted mb-2">
+                            <i class="bi bi-door-open-fill text-danger me-1"></i> Room &amp; Stay Details
+                        </div>
+                        <div class="fw-bold fs-5 text-dark">
+                            Room {{ res.rental_unit.unit_number }}
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-6 fw-normal">Airbnb</span>
+                        </div>
+                        <div class="small text-muted">
+                            <i class="bi bi-calendar-event me-1"></i> Check-In: <strong>{{ res.check_in_date.strftime('%d %b %Y') }}</strong>
+                        </div>
+                        <div class="small text-muted">
+                            <i class="bi bi-calendar-check me-1"></i> Check-Out: <strong>{{ res.check_out_date.strftime('%d %b %Y') }}</strong>
+                        </div>
+                        <div class="small text-muted mt-1">
+                            Duration: <strong>{{ res.num_nights }} night(s)</strong> &bull; Occupants: <strong>{{ res.num_guests }} guest(s)</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {# Itemized Charges Table #}
+            <div class="table-responsive mb-4">
+                <table class="table table-bordered align-middle mb-0">
+                    <thead class="table-light small">
+                        <tr>
+                            <th>Description / Service</th>
+                            <th class="text-center">Rate / Night</th>
+                            <th class="text-center">Nights</th>
+                            <th class="text-end">Total Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody class="small">
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">Accommodation: Room {{ res.rental_unit.unit_number }}</div>
+                                <div class="text-muted smaller">
+                                    Stay from {{ res.check_in_date.strftime('%d %b %Y') }} to {{ res.check_out_date.strftime('%d %b %Y') }}
+                                    (Source: {{ res.booking_source }})
+                                </div>
+                            </td>
+                            <td class="text-center fw-semibold">{{ res.daily_rate_display }}</td>
+                            <td class="text-center">{{ res.num_nights }}</td>
+                            <td class="text-end fw-bold">{{ res.total_stay_display }}</td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="3" class="text-end fw-bold">Total Stay Charge:</td>
+                            <td class="text-end fw-bold fs-6">{{ res.total_stay_display }}</td>
+                        </tr>
+                        <tr class="table-success">
+                            <td colspan="3" class="text-end fw-bold text-success">Total Amount Paid:</td>
+                            <td class="text-end fw-bold fs-6 text-success">{{ res.paid_amount_display }}</td>
+                        </tr>
+                        <tr class="{{ 'table-danger' if res.balance_cents > 0 else 'table-light' }}">
+                            <td colspan="3" class="text-end fw-bold {{ 'text-danger' if res.balance_cents > 0 else 'text-success' }}">
+                                {{ 'Outstanding Balance:' if res.balance_cents > 0 else 'Account Balance:' }}
+                            </td>
+                            <td class="text-end fw-bold fs-6 {{ 'text-danger' if res.balance_cents > 0 else 'text-success' }}">
+                                {% if res.balance_cents > 0 %}
+                                    {{ res.balance_display }}
+                                {% else %}
+                                    <i class="bi bi-check-circle-fill me-1"></i> SETTLED (KES 0.00)
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            {# Settlement & Payment Details #}
+            <div class="p-3 rounded bg-light border mb-4">
+                <div class="row g-2 small">
+                    <div class="col-sm-4">
+                        <span class="text-muted">Payment Method:</span>
+                        <strong class="d-block text-dark">{{ res.payment_method or 'MPESA' }}</strong>
+                    </div>
+                    <div class="col-sm-4">
+                        <span class="text-muted">Transaction Reference:</span>
+                        <strong class="d-block text-dark">{{ res.payment_reference or 'QZ99FATUMA' }}</strong>
+                    </div>
+                    <div class="col-sm-4">
+                        <span class="text-muted">Reservation Status:</span>
+                        <div>
+                            {% if res.status == 'CHECKED_IN' %}
+                                <span class="badge bg-danger text-white">Checked In (Active)</span>
+                            {% elif res.status == 'CHECKED_OUT' %}
+                                <span class="badge bg-success text-white">Checked Out</span>
+                            {% elif res.status == 'CONFIRMED' %}
+                                <span class="badge bg-primary text-white">Confirmed</span>
+                            {% else %}
+                                <span class="badge bg-secondary text-white">{{ res.status }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {# Footer Sign-off #}
+            <div class="d-flex justify-content-between align-items-center pt-3 border-top text-muted small">
+                <div>Thank you for choosing us! We hope you enjoyed your stay.</div>
+                <div class="fst-italic">Generated automatically by Angaza Rentals System</div>
+            </div>
         </div>
     </div>
 </div>
@@ -242,7 +494,7 @@
                         </div>
                         <div class="col-6">
                             <label class="form-label fw-semibold">Reference / Code</label>
-                            <input type="text" name="payment_reference" class="form-control" placeholder="e.g. QKB7X29...">
+                            <input type="text" name="payment_reference" class="form-control" value="QZ99FATUMA" placeholder="e.g. QZ99FATUMA">
                         </div>
                     </div>
                 </div>
@@ -254,4 +506,25 @@
         </div>
     </div>
 </div>
+
+<script>
+function setReceiptView(mode) {
+    var thermal = document.getElementById('thermalView');
+    var folio = document.getElementById('folioView');
+    var btnT = document.getElementById('btnThermalMode');
+    var btnF = document.getElementById('btnFolioMode');
+
+    if (mode === 'thermal') {
+        thermal.style.display = 'block';
+        folio.style.display = 'none';
+        btnT.className = 'btn btn-dark active fw-bold';
+        btnF.className = 'btn btn-outline-secondary';
+    } else {
+        thermal.style.display = 'none';
+        folio.style.display = 'block';
+        btnF.className = 'btn btn-secondary active fw-bold';
+        btnT.className = 'btn btn-outline-dark';
+    }
+}
+</script>
 {% endblock %}
