@@ -115,6 +115,13 @@ class User(UserMixin, db.Model):
             return False
         if self.role.name == 'SUPERADMIN':
             return True
+        # Units permissions map to properties permissions for full role compatibility
+        if permission_code in ('units.manage', 'units.create', 'units.edit', 'units.delete'):
+            if any(p.code == 'properties.manage' for p in self.role.permissions):
+                return True
+        if permission_code in ('units.view',):
+            if any(p.code in ('properties.view', 'properties.manage') for p in self.role.permissions):
+                return True
         return any(p.code == permission_code for p in self.role.permissions)
 
     def is_superadmin(self):

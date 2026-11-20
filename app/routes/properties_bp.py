@@ -278,7 +278,7 @@ def create_floor(property_id):
 
 @properties_bp.route('/<int:property_id>/units/create', methods=['POST'])
 @login_required
-@permission_required('units.manage')
+@permission_required('properties.manage')
 def create_unit(property_id):
     unit_number = request.form.get('unit_number', '').strip().upper()
     unit_type = request.form.get('unit_type', 'APARTMENT')
@@ -318,7 +318,7 @@ def create_unit(property_id):
 
 @properties_bp.route('/units/<int:unit_id>/status', methods=['POST'])
 @login_required
-@permission_required('units.manage')
+@permission_required('properties.manage')
 def update_unit_status(unit_id):
     new_status = request.form.get('status')
     reason = request.form.get('reason')
@@ -331,7 +331,7 @@ def update_unit_status(unit_id):
 
 @properties_bp.route('/units/<int:unit_id>/edit', methods=['POST'])
 @login_required
-@permission_required('units.manage')
+@permission_required('properties.manage')
 def edit_unit(unit_id):
     unit = RentalUnit.query.get_or_404(unit_id)
     unit_number = request.form.get('unit_number', '').strip().upper()
@@ -392,7 +392,7 @@ def edit_unit(unit_id):
 
 @properties_bp.route('/units/<int:unit_id>/delete', methods=['POST'])
 @login_required
-@permission_required('units.manage')
+@permission_required('properties.manage')
 def delete_unit(unit_id):
     unit = RentalUnit.query.get_or_404(unit_id)
     prop_id = unit.property_id
