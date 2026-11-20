@@ -232,13 +232,21 @@
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Property Owner / Landlord</label>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label small fw-semibold mb-0">Property Owner / Landlord</label>
+                                <a href="#" class="small text-primary text-decoration-none fw-semibold" data-bs-toggle="modal" data-bs-target="#newLandlordModal">
+                                    <i class="bi bi-person-plus me-1"></i>+ Add Landlord
+                                </a>
+                            </div>
                             <select name="landlord_id" class="form-select" required>
-                                <option value="" disabled selected>Select Landlord...</option>
+                                <option value="" disabled {% if not landlords or landlords|length != 1 %}selected{% endif %}>Select Landlord...</option>
                                 {% for l in landlords %}
-                                <option value="{{ l.id }}">{{ l.name }} ({{ l.phone }})</option>
+                                <option value="{{ l.id }}" {% if landlords|length == 1 %}selected{% endif %}>{{ l.name }} ({{ l.phone }})</option>
                                 {% endfor %}
                             </select>
+                            {% if not landlords %}
+                            <div class="form-text text-danger small">No landlord registered yet. Click <strong>+ Add Landlord</strong> above to register one.</div>
+                            {% endif %}
                         </div>
                         <div class="col-md-8">
                             <label class="form-label small fw-semibold">Physical Location / Address</label>
@@ -257,6 +265,54 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary-custom">Save & Continue</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Quick Register Landlord / Property Owner -->
+<div class="modal fade" id="newLandlordModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold text-dark"><i class="bi bi-person-plus-fill text-primary me-2"></i>Register Property Owner / Landlord</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('properties.create_landlord') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-body p-4">
+                    <p class="text-muted small mb-3">Add a property owner, private landlord, or management entity to assign ownership of properties.</p>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Owner / Landlord / Business Name *</label>
+                            <input type="text" name="name" class="form-control" placeholder="e.g. John Mwangi or Apex Properties Ltd" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Contact Person</label>
+                            <input type="text" name="contact_person" class="form-control" placeholder="e.g. Director or Owner name">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Phone Number *</label>
+                            <input type="text" name="phone" class="form-control" placeholder="+254712345678" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Email Address</label>
+                            <input type="email" name="email" class="form-control" placeholder="owner@example.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">KRA PIN (Optional)</label>
+                            <input type="text" name="tax_pin" class="form-control" placeholder="P051234567Z">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Physical / Postal Address (Optional)</label>
+                            <input type="text" name="address" class="form-control" placeholder="e.g. P.O. Box 1234, Nairobi">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success fw-bold"><i class="bi bi-check-circle me-1"></i>Save Landlord</button>
                 </div>
             </form>
         </div>

@@ -57,12 +57,36 @@ def index():
 
     properties = PropertyService.get_properties(search, property_type, landlord_id, organization_id=org_id)
     if org_id:
-        landlords = (Landlord.query
-                     .join(Property, Property.landlord_id == Landlord.id)
-                     .filter(Property.organization_id == org_id)
-                     .distinct().all())
+        from app.models.user import LandlordUser
+        from app.models.organization import Organization
+        prop_landlord_ids = [row[0] for row in db.session.query(Property.landlord_id).filter(Property.organization_id == org_id).distinct().all()]
+        user_landlord_ids = [row[0] for row in db.session.query(LandlordUser.landlord_id).join(User, User.id == LandlordUser.user_id).filter(User.organization_id == org_id).distinct().all()]
+        direct_ids = [l.id for l in current_user.landlords] if (hasattr(current_user, 'landlords') and current_user.landlords) else []
+        all_ids = list(set(prop_landlord_ids + user_landlord_ids + direct_ids))
+        if all_ids:
+            landlords = Landlord.query.filter(Landlord.id.in_(all_ids), Landlord.is_active == True).order_by(Landlord.name.asc()).all()
+        else:
+            org = db.session.get(Organization, org_id)
+            if org:
+                default_ll = Landlord.query.filter_by(name=org.name).first()
+                if not default_ll:
+                    default_ll = Landlord(
+                        name=org.name,
+                        contact_person=getattr(current_user, 'full_name', org.name),
+                        email=getattr(current_user, 'email', None) or f"info@{org.slug}.co.ke",
+                        phone=getattr(org, 'contact_phone', None) or getattr(current_user, 'phone', None) or '+254700000000',
+                        is_active=True
+                    )
+                    db.session.add(default_ll)
+                    db.session.commit()
+                if hasattr(current_user, 'landlords') and default_ll not in current_user.landlords:
+                    current_user.landlords.append(default_ll)
+                    db.session.commit()
+                landlords = [default_ll]
+            else:
+                landlords = Landlord.query.filter_by(is_active=True).all()
     else:
-        landlords = Landlord.query.filter_by(is_active=True).all()
+        landlords = Landlord.query.filter_by(is_active=True).order_by(Landlord.name.asc()).all()
     stats = PropertyService.get_property_occupancy_stats(organization_id=org_id)
 
     return render_template(
@@ -119,6 +143,41 @@ def create_property():
 
     flash(f"Property '{name}' registered successfully.", 'success')
     return redirect(url_for('properties.detail', property_id=prop.id))
+
+@properties_bp.route('/landlords/create', methods=['POST'])
+@login_required
+@permission_required('properties.manage')
+def create_landlord():
+    """Quick register a new Landlord / Property Owner."""
+    name = request.form.get('name', '').strip()
+    contact_person = request.form.get('contact_person', '').strip()
+    phone = request.form.get('phone', '').strip()
+    email = request.form.get('email', '').strip()
+    tax_pin = request.form.get('tax_pin', '').strip()
+    address = request.form.get('address', '').strip()
+
+    if not name or not phone:
+        flash('Landlord / Owner name and phone number are required.', 'danger')
+        return redirect(request.referrer or url_for('properties.index'))
+
+    ll = Landlord(
+        name=name,
+        contact_person=contact_person if contact_person else None,
+        phone=phone,
+        email=email if email else None,
+        tax_pin=tax_pin if tax_pin else None,
+        address=address if address else None,
+        is_active=True
+    )
+    db.session.add(ll)
+    db.session.flush()
+
+    if hasattr(current_user, 'landlords') and ll not in current_user.landlords:
+        current_user.landlords.append(ll)
+
+    db.session.commit()
+    flash(f"Landlord / Property Owner '{ll.name}' registered successfully. You can now assign them to properties.", 'success')
+    return redirect(request.referrer or url_for('properties.index'))
 
 @properties_bp.route('/<int:property_id>')
 @login_required
