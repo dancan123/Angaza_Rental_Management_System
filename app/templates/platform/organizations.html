@@ -444,36 +444,65 @@
                                 <form method="POST" action="{{ url_for('platform.update_organization_timeline', org_id=org.id) }}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                     <div class="modal-body">
-                                        <div class="p-3 bg-light rounded mb-3">
+                                        <div class="p-3 bg-light rounded mb-3 border">
                                             <div class="small text-muted">Current Subscription Expiration:</div>
                                             <h5 class="fw-bold mb-0 text-dark">
                                                 {{ org.subscription_expires_at.strftime('%d %B %Y') if org.subscription_expires_at else 'No Expiration Set (Permanent)' }}
                                             </h5>
-                                            {% if org.is_trial %}
+                                            {% if org.is_expired %}
+                                            <span class="badge bg-danger mt-1"><i class="bi bi-clock-fill me-1"></i>CLOCKED OUT (Expired)</span>
+                                            {% elif org.is_trial %}
                                             <span class="badge bg-warning text-dark mt-1">14-Day Free Trial ({{ org.days_remaining }} days left)</span>
+                                            {% elif org.subscription_expires_at %}
+                                            <span class="badge bg-success mt-1">{{ org.days_remaining }} days remaining</span>
                                             {% endif %}
                                         </div>
+
+                                        <!-- Exact Expiry Date / Clock-out Date -->
                                         <div class="mb-3">
-                                            <label class="form-label fw-bold">Extend Timeline by Days</label>
-                                            <div class="d-flex gap-2 mb-2">
-                                                <button type="button" class="btn btn-sm btn-outline-dark" onclick="document.getElementById('daysInput{{ org.id }}').value=14;">+14 Days (Trial)</button>
-                                                <button type="button" class="btn btn-sm btn-outline-dark" onclick="document.getElementById('daysInput{{ org.id }}').value=30;">+30 Days (1 Mo)</button>
-                                                <button type="button" class="btn btn-sm btn-outline-dark" onclick="document.getElementById('daysInput{{ org.id }}').value=90;">+90 Days (Qtr)</button>
-                                                <button type="button" class="btn btn-sm btn-outline-dark" onclick="document.getElementById('daysInput{{ org.id }}').value=365;">+365 Days (1 Yr)</button>
-                                            </div>
-                                            <input type="number" id="daysInput{{ org.id }}" name="days" class="form-control" value="30" min="1" required>
+                                            <label class="form-label fw-bold"><i class="bi bi-calendar-event me-1 text-primary"></i> Exact Expiration Date (Clock-out Date)</label>
+                                            <input type="date" name="expiry_date" id="expiryDateInput{{ org.id }}" class="form-control" value="{{ org.subscription_expires_at.strftime('%Y-%m-%d') if org.subscription_expires_at else '' }}">
+                                            <div class="form-text small">Set the exact calendar date when system access should expire / clock out. Leaving empty uses the days extension below.</div>
                                         </div>
+
+                                        <!-- Quick Extend Days -->
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold"><i class="bi bi-plus-circle me-1 text-success"></i> Or Extend Timeline by Days</label>
+                                            <div class="d-flex gap-2 mb-2 flex-wrap">
+                                                <button type="button" class="btn btn-sm btn-outline-dark" onclick="document.getElementById('daysInput{{ org.id }}').value=14; document.getElementById('expiryDateInput{{ org.id }}').value='';">+14 Days</button>
+                                                <button type="button" class="btn btn-sm btn-outline-dark" onclick="document.getElementById('daysInput{{ org.id }}').value=30; document.getElementById('expiryDateInput{{ org.id }}').value='';">+30 Days (1 Mo)</button>
+                                                <button type="button" class="btn btn-sm btn-outline-dark" onclick="document.getElementById('daysInput{{ org.id }}').value=90; document.getElementById('expiryDateInput{{ org.id }}').value='';">+90 Days (Qtr)</button>
+                                                <button type="button" class="btn btn-sm btn-outline-dark" onclick="document.getElementById('daysInput{{ org.id }}').value=365; document.getElementById('expiryDateInput{{ org.id }}').value='';">+365 Days (1 Yr)</button>
+                                            </div>
+                                            <input type="number" id="daysInput{{ org.id }}" name="days" class="form-control" placeholder="Enter days to add (e.g. 30)">
+                                        </div>
+
+                                        <!-- Lockout / Failure Notification Message -->
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i> Lockout / Expiry Notification Message</label>
+                                            <textarea name="suspension_reason" id="suspReasonInput{{ org.id }}" class="form-control mb-1" rows="2" placeholder="e.g. System subscription expired. Settle October premium of KES 5,000 to restore access.">{{ org.suspension_reason or '' }}</textarea>
+                                            <div class="d-flex gap-1 flex-wrap mt-1">
+                                                <button type="button" class="btn btn-outline-secondary btn-sm py-0" style="font-size:0.72rem;" onclick="document.getElementById('suspReasonInput{{ org.id }}').value='Monthly subscription premium is pending settlement.';">Monthly Premium Pending</button>
+                                                <button type="button" class="btn btn-outline-secondary btn-sm py-0" style="font-size:0.72rem;" onclick="document.getElementById('suspReasonInput{{ org.id }}').value='System usage term has expired. Please renew your subscription to continue.';">Term Expired</button>
+                                                <button type="button" class="btn btn-outline-secondary btn-sm py-0" style="font-size:0.72rem;" onclick="document.getElementById('suspReasonInput{{ org.id }}').value='Account deactivated for administrative review. Contact support@angaza.co.ke.';">Administrative Review</button>
+                                            </div>
+                                            <div class="form-text small">This exact reason will be displayed in red to the customer and their staff when they try to log into the system.</div>
+                                        </div>
+
+                                        <!-- Target Status -->
                                         <div class="mb-3">
                                             <label class="form-label fw-bold">Target Status</label>
                                             <select name="status" class="form-select">
-                                                <option value="ACTIVE" selected>ACTIVE (Full Access Paid)</option>
-                                                <option value="TRIAL">TRIAL (Evaluation Period)</option>
+                                                <option value="ACTIVE" {% if org.subscription_status == 'ACTIVE' %}selected{% endif %}>🟢 ACTIVE (Full System Access Granted)</option>
+                                                <option value="TRIAL" {% if org.subscription_status == 'TRIAL' %}selected{% endif %}>🔵 TRIAL (Evaluation Access)</option>
+                                                <option value="SUSPENDED" {% if org.subscription_status == 'SUSPENDED' %}selected{% endif %}>🔴 SUSPENDED / LOCKED OUT</option>
+                                                <option value="EXPIRED" {% if org.subscription_status == 'EXPIRED' %}selected{% endif %}>⚪ EXPIRED (Clocked Out)</option>
                                             </select>
                                         </div>
                                     </div>
                                     <div class="modal-footer">
                                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                                        <button type="submit" class="btn btn-warning">Apply Timeline Extension</button>
+                                        <button type="submit" class="btn btn-warning fw-bold">Save Timeline &amp; Settings</button>
                                     </div>
                                 </form>
                             </div>

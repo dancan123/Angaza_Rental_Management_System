@@ -15,7 +15,7 @@ def login():
         
     if request.method == 'POST':
         org_code = request.form.get('org_code', '').strip().upper()
-        username_or_email = request.form.get('username', '').strip()
+        username_or_email = (request.form.get('username') or request.form.get('username_or_email') or '').strip()
         password = request.form.get('password', '')
         remember = bool(request.form.get('remember'))
 
@@ -93,10 +93,15 @@ def login():
             if user.organization and not user.is_superadmin():
                 org = user.organization
                 if org.is_suspended or org.subscription_status in ('SUSPENDED', 'EXPIRED') or not org.is_active:
-                    reason = getattr(org, 'suspension_reason', None) or 'Payment of monthly system usage premium is pending.'
+                    reason = getattr(org, 'suspension_reason', None)
+                    if not reason:
+                        if org.is_expired and org.subscription_expires_at:
+                            reason = f"System subscription expired on {org.subscription_expires_at.strftime('%d/%m/%Y')}."
+                        else:
+                            reason = 'Payment of monthly system usage premium is pending.'
                     flash(
                         f"Access Suspended: System access for '{org.name}' is currently deactivated. "
-                        f"Reason: {reason}. "
+                        f"Reason: {reason} "
                         "Please settle your premium or contact platform administration to restore access.",
                         'danger'
                     )

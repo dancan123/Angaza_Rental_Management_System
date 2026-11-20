@@ -317,7 +317,7 @@ def add_organization_sms(org_id):
 @platform_bp.route('/organizations/<int:org_id>/timeline', methods=['POST'])
 @login_required
 def update_organization_timeline(org_id):
-    """Manage customer organization trial/subscription timeline and expiration."""
+    """Manage customer organization trial/subscription timeline, expiration date, and lockout message."""
     if not superadmin_only():
         return redirect(url_for('dashboard.index'))
     org = db.session.get(Organization, org_id)
@@ -325,21 +325,39 @@ def update_organization_timeline(org_id):
         from flask import abort; abort(404)
 
     days_to_add = request.form.get('days', type=int) or 0
+    exact_expiry_str = request.form.get('expiry_date', '').strip()
+    suspension_reason = request.form.get('suspension_reason', '').strip()
     status_override = request.form.get('status')
     from datetime import datetime as _dt, timedelta as _td
 
-    base_time = org.subscription_expires_at if (org.subscription_expires_at and org.subscription_expires_at > _dt.utcnow()) else _dt.utcnow()
-    org.subscription_expires_at = base_time + _td(days=days_to_add)
+    if exact_expiry_str:
+        try:
+            org.subscription_expires_at = _dt.strptime(exact_expiry_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+        except Exception:
+            pass
+    elif days_to_add:
+        base_time = org.subscription_expires_at if (org.subscription_expires_at and org.subscription_expires_at > _dt.utcnow()) else _dt.utcnow()
+        org.subscription_expires_at = base_time + _td(days=days_to_add)
+
+    if suspension_reason:
+        org.suspension_reason = suspension_reason
+
     if status_override:
         org.subscription_status = status_override
-    elif org.subscription_status == 'EXPIRED':
+        if status_override in ('ACTIVE', 'TRIAL'):
+            org.is_active = True
+        else:
+            org.is_active = False
+    elif org.subscription_status == 'EXPIRED' and not org.is_expired:
         org.subscription_status = 'ACTIVE'
-    org.is_active = True
+        org.is_active = True
+
     db.session.commit()
 
     from app.services.audit_service import AuditService
-    AuditService.log('EXTEND_SUBSCRIPTION_TIMELINE', 'Organization', org.id, new_values={'days_added': days_to_add, 'new_expiry': str(org.subscription_expires_at)})
-    flash(f"Subscription timeline for '{org.name}' extended by {days_to_add} days (Expires: {org.subscription_expires_at.strftime('%d %b %Y')}).", 'success')
+    expiry_fmt = org.subscription_expires_at.strftime('%d %b %Y') if org.subscription_expires_at else 'No Expiry'
+    AuditService.log('SET_SUBSCRIPTION_TIMELINE', 'Organization', org.id, new_values={'expiry': str(org.subscription_expires_at), 'reason': org.suspension_reason})
+    flash(f"Subscription timeline for '{org.name}' updated (Expires: {expiry_fmt}). Lockout reason set.", 'success')
     return redirect(url_for('platform.organizations'))
 
 

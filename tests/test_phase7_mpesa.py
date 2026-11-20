@@ -97,7 +97,7 @@ def test_c2b_callback_success_flow(app):
         assert payment.rental_unit.unit_number == 'S-101'
 
         # Check charge settlement
-        charge_updated = RentCharge.query.get(charge.id)
+        charge_updated = db.session.get(RentCharge, charge.id)
         assert charge_updated.status == 'PAID'
         assert charge_updated.balance_cents == 0
 

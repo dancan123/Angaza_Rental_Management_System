@@ -93,12 +93,19 @@ class Organization(db.Model):
         return self.subscription_status == 'TRIAL'
 
     @property
+    def is_expired(self) -> bool:
+        if not self.subscription_expires_at:
+            return False
+        from datetime import datetime as _dt
+        return _dt.utcnow() > self.subscription_expires_at
+
+    @property
     def is_suspended(self) -> bool:
-        return self.subscription_status in ('SUSPENDED', 'EXPIRED') or not self.is_active
+        return self.subscription_status in ('SUSPENDED', 'EXPIRED') or not self.is_active or self.is_expired
 
     @property
     def can_operate(self) -> bool:
-        return bool(self.is_active and self.subscription_status in ('ACTIVE', 'TRIAL'))
+        return bool(self.is_active and self.subscription_status in ('ACTIVE', 'TRIAL') and not self.is_expired)
 
     @property
     def days_remaining(self) -> int:
