@@ -208,3 +208,29 @@ def update_integrations():
     return redirect(url_for('settings.index', tab='integrations'))
 
 
+@settings_bp.route('/hospitality', methods=['POST'])
+@login_required
+@permission_required('settings.manage')
+def update_hospitality():
+    """Save Airbnb & Short-Stay configuration and policies."""
+    updates = {
+        'airbnb_business_name': request.form.get('airbnb_business_name', '').strip(),
+        'airbnb_checkin_time': request.form.get('airbnb_checkin_time', '14:00').strip(),
+        'airbnb_checkout_time': request.form.get('airbnb_checkout_time', '10:00').strip(),
+        'airbnb_default_cleaning_fee': request.form.get('airbnb_default_cleaning_fee', '1500').strip(),
+        'airbnb_tourism_levy_percentage': request.form.get('airbnb_tourism_levy_percentage', '2').strip(),
+        'airbnb_cancellation_policy': request.form.get('airbnb_cancellation_policy', 'FLEXIBLE_24H').strip(),
+        'airbnb_house_rules': request.form.get('airbnb_house_rules', '').strip(),
+        'airbnb_wifi_ssid': request.form.get('airbnb_wifi_ssid', '').strip(),
+        'airbnb_wifi_password': request.form.get('airbnb_wifi_password', '').strip(),
+        'airbnb_guest_welcome_note': request.form.get('airbnb_guest_welcome_note', '').strip(),
+        'airbnb_require_guest_id': 'true' if request.form.get('airbnb_require_guest_id') else 'false',
+        'airbnb_mpesa_instructions': request.form.get('airbnb_mpesa_instructions', '').strip(),
+    }
+    PersonalizationService.update_settings(updates)
+    AuditService.log('UPDATE_HOSPITALITY_SETTINGS', 'SystemSetting', new_values=updates)
+    flash('Airbnb & Short-Stay configuration and house policies updated successfully.', 'success')
+    return redirect(url_for('settings.index', tab='hospitality'))
+
+
+

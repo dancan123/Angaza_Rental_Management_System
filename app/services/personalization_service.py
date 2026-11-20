@@ -20,7 +20,21 @@ DEFAULT_SETTINGS = {
     'grace_period_days': '5',
     'late_fee_percentage': '5',
     'financial_year_start': '1',           # January
-    'default_payment_instructions': 'Pay via M-Pesa Paybill 247247, Account: [Unit Number] or Bank: Equity Bank A/C 0123456789'
+    'default_payment_instructions': 'Pay via M-Pesa Paybill 247247, Account: [Unit Number] or Bank: Equity Bank A/C 0123456789',
+    
+    # Airbnb & Short-Stay Hospitality Configurations
+    'airbnb_business_name': '',
+    'airbnb_checkin_time': '14:00',
+    'airbnb_checkout_time': '10:00',
+    'airbnb_default_cleaning_fee': '1500',
+    'airbnb_tourism_levy_percentage': '2',
+    'airbnb_cancellation_policy': 'FLEXIBLE_24H',
+    'airbnb_house_rules': '1. No smoking inside premises.\n2. Quiet hours from 10:00 PM.\n3. Valid Government ID required upon check-in.\n4. Turn off AC and lighting when vacating.',
+    'airbnb_wifi_ssid': '',
+    'airbnb_wifi_password': '',
+    'airbnb_guest_welcome_note': 'Welcome to your short-stay suite! We wish you a peaceful, relaxing, and memorable stay.',
+    'airbnb_require_guest_id': 'true',
+    'airbnb_mpesa_instructions': 'Pay via Safaricom Buy Goods Till or M-Pesa Paybill. Quote your Reservation Code.'
 }
 
 class PersonalizationService:

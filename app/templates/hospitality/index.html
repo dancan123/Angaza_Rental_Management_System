@@ -33,6 +33,11 @@
         <a href="{{ url_for('hospitality.housekeeping') }}" class="btn btn-outline-secondary">
             <i class="bi bi-stars me-1 text-warning"></i> Housekeeping
         </a>
+        {% if current_user.has_permission('settings.manage') %}
+        <a href="{{ url_for('settings.index', tab='hospitality') }}" class="btn btn-outline-danger" title="Configure Airbnb policies, turnover fees, check-in rules, and hospitality settings">
+            <i class="bi bi-sliders me-1"></i> Airbnb Settings
+        </a>
+        {% endif %}
     </div>
 </div>
 

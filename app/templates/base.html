@@ -386,6 +386,26 @@
                 <i class="bi bi-chat-dots-fill"></i>
                 <span>SMS Delivery Logs</span>
             </a>
+
+            <div class="nav-item-header text-danger">Administration &amp; Settings</div>
+            {% if current_user.has_permission('settings.manage') %}
+            <a href="{{ url_for('settings.index', tab='hospitality') }}" class="sidebar-nav-link {% if 'settings' in request.endpoint %}active{% endif %}">
+                <i class="bi bi-sliders text-danger"></i>
+                <span>Airbnb &amp; System Settings</span>
+            </a>
+            {% endif %}
+            {% if current_user.has_permission('users.manage') %}
+            <a href="{{ url_for('users.index') }}" class="sidebar-nav-link {% if 'users' in request.endpoint %}active{% endif %}">
+                <i class="bi bi-person-gear"></i>
+                <span>Staff &amp; User Accounts</span>
+            </a>
+            {% endif %}
+            {% if current_user.has_permission('settings.view') %}
+            <a href="{{ url_for('audit.index') }}" class="sidebar-nav-link {% if 'audit' in request.endpoint %}active{% endif %}">
+                <i class="bi bi-clock-history"></i>
+                <span>Activity Audit Trail</span>
+            </a>
+            {% endif %}
             {% endif %}
 
             {# ══════════════════════════════════════════════════════════════════════
@@ -463,30 +483,29 @@
                 <i class="bi bi-chat-dots-fill"></i>
                 <span>SMS Delivery Logs</span>
             </a>
-            {% endif %}
 
             {% if current_user.has_permission('users.manage') or current_user.has_permission('settings.manage') %}
-            <div class="nav-item-header">Administration</div>
+            <div class="nav-item-header">Administration &amp; Settings</div>
+            {% if current_user.has_permission('settings.manage') %}
+            <a href="{{ url_for('settings.index') }}" class="sidebar-nav-link {% if 'settings' in request.endpoint %}active{% endif %}">
+                <i class="bi bi-sliders"></i>
+                <span>Rental &amp; System Settings</span>
+            </a>
+            {% endif %}
             {% if current_user.has_permission('users.manage') %}
             <a href="{{ url_for('users.index') }}" class="sidebar-nav-link {% if 'users' in request.endpoint %}active{% endif %}">
                 <i class="bi bi-person-gear"></i>
-                <span>User & Roles</span>
+                <span>Staff &amp; User Accounts</span>
             </a>
             {% endif %}
-
-            {% if current_user.has_permission("settings.view") %}
+            {% if current_user.has_permission('settings.view') %}
             <a href="{{ url_for('audit.index') }}" class="sidebar-nav-link {% if 'audit' in request.endpoint %}active{% endif %}">
                 <i class="bi bi-clock-history"></i>
                 <span>Activity Audit Trail</span>
             </a>
             {% endif %}
-            {% if current_user.has_permission('settings.manage') %}
-            <a href="{{ url_for('settings.index') }}" class="sidebar-nav-link {% if 'settings' in request.endpoint %}active{% endif %}">
-                <i class="bi bi-sliders"></i>
-                <span>Personalization & Settings</span>
-            </a>
             {% endif %}
-            {% endif %}
+            {% endif %}{# end can_rentals block #}
 
             {% endif %}{# end non-superadmin block #}
         </div>

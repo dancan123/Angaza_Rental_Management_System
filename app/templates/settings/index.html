@@ -26,12 +26,19 @@
                 <button class="nav-link text-start py-3" id="branding-tab" data-bs-toggle="pill" data-bs-target="#tab-branding" type="button">
                     <i class="bi bi-palette-fill me-2"></i> Branding & Colors
                 </button>
+                {% if not active_org or active_org.can_access_rental_module() %}
                 <button class="nav-link text-start py-3" id="financial-tab" data-bs-toggle="pill" data-bs-target="#tab-financial" type="button">
-                    <i class="bi bi-coin me-2"></i> Currency & Billing Rules
+                    <i class="bi bi-coin me-2"></i> Currency &amp; Rent Rules
                 </button>
                 <button class="nav-link text-start py-3" id="invoicing-tab" data-bs-toggle="pill" data-bs-target="#tab-invoicing" type="button">
-                    <i class="bi bi-receipt me-2"></i> Invoicing & Receipts
+                    <i class="bi bi-receipt me-2"></i> Invoicing &amp; Receipts
                 </button>
+                {% endif %}
+                {% if not active_org or active_org.can_access_hospitality_module() %}
+                <button class="nav-link text-start py-3 text-danger fw-semibold" id="hospitality-tab" data-bs-toggle="pill" data-bs-target="#tab-hospitality" type="button">
+                    <i class="bi bi-cup-hot-fill me-2 text-danger"></i> Airbnb &amp; Short-Stay Rules
+                </button>
+                {% endif %}
                 <button class="nav-link text-start py-3 text-primary fw-semibold" id="integrations-tab" data-bs-toggle="pill" data-bs-target="#tab-integrations" type="button">
                     <i class="bi bi-broadcast-pin me-2 text-primary"></i> M-Pesa, WhatsApp &amp; Contacts
                 </button>
@@ -245,6 +252,135 @@
                         <div class="mt-4 pt-3 border-top text-end">
                             <button type="submit" class="btn btn-primary-custom px-4">
                                 <i class="bi bi-save me-1"></i> Save Invoicing Preferences
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 5. Airbnb & Short-Stay Hospitality Settings -->
+            <div class="tab-pane fade" id="tab-hospitality" role="tabpanel">
+                <div class="card card-custom bg-white p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <div>
+                            <h5 class="fw-bold mb-1 text-danger"><i class="bi bi-cup-hot-fill me-2"></i> Airbnb, Short-Stay &amp; Hospitality Policies</h5>
+                            <span class="text-muted small">Configure default check-in/out hours, turnover fees, Kenya tourism fund levy, house rules, and guest welcome details.</span>
+                        </div>
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 fw-bold">
+                            <i class="bi bi-house-heart-fill me-1"></i> Hospitality Suite
+                        </span>
+                    </div>
+
+                    <form method="POST" action="{{ url_for('settings.update_hospitality') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Airbnb / Guest House Trading Name</label>
+                                <input type="text" name="airbnb_business_name" class="form-control" 
+                                       value="{{ settings.get('airbnb_business_name', '') }}" 
+                                       placeholder="e.g. Angaza Luxury Haven Suites">
+                                <div class="form-text">Displayed on guest confirmation vouchers and folio invoices.</div>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label small fw-semibold">Standard Check-In Time</label>
+                                <input type="time" name="airbnb_checkin_time" class="form-control" 
+                                       value="{{ settings.get('airbnb_checkin_time', '14:00') }}" required>
+                                <div class="form-text">e.g. 14:00 (2:00 PM)</div>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label small fw-semibold">Standard Check-Out Time</label>
+                                <input type="time" name="airbnb_checkout_time" class="form-control" 
+                                       value="{{ settings.get('airbnb_checkout_time', '10:00') }}" required>
+                                <div class="form-text">e.g. 10:00 (10:00 AM)</div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Turnover Cleaning Fee (KES)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">KES</span>
+                                    <input type="number" name="airbnb_default_cleaning_fee" class="form-control" min="0" step="50"
+                                           value="{{ settings.get('airbnb_default_cleaning_fee', '1500') }}">
+                                </div>
+                                <div class="form-text">Standard turnover housekeeping fee added to guest folios.</div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Tourism / Catering Levy (%)</label>
+                                <div class="input-group">
+                                    <input type="number" name="airbnb_tourism_levy_percentage" class="form-control" min="0" max="25" step="0.5"
+                                           value="{{ settings.get('airbnb_tourism_levy_percentage', '2') }}">
+                                    <span class="input-group-text">%</span>
+                                </div>
+                                <div class="form-text">Statutory Tourism Fund Levy (defaults to 2% in Kenya).</div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Cancellation Policy</label>
+                                <select name="airbnb_cancellation_policy" class="form-select">
+                                    <option value="FLEXIBLE_24H" {% if settings.get('airbnb_cancellation_policy') == 'FLEXIBLE_24H' %}selected{% endif %}>Flexible (Full refund up to 24h prior)</option>
+                                    <option value="MODERATE_5D" {% if settings.get('airbnb_cancellation_policy') == 'MODERATE_5D' %}selected{% endif %}>Moderate (Full refund up to 5 days prior)</option>
+                                    <option value="STRICT_7D" {% if settings.get('airbnb_cancellation_policy') == 'STRICT_7D' %}selected{% endif %}>Strict (50% refund up to 7 days prior)</option>
+                                    <option value="NON_REFUNDABLE" {% if settings.get('airbnb_cancellation_policy') == 'NON_REFUNDABLE' %}selected{% endif %}>Non-Refundable (No refund once booked)</option>
+                                </select>
+                                <div class="form-text">Printed on guest booking confirmation vouchers.</div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Guest WiFi Network Name (SSID)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-wifi"></i></span>
+                                    <input type="text" name="airbnb_wifi_ssid" class="form-control" 
+                                           value="{{ settings.get('airbnb_wifi_ssid', '') }}" placeholder="e.g. Angaza_Suites_Guest">
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Guest WiFi Password</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-key"></i></span>
+                                    <input type="text" name="airbnb_wifi_password" class="form-control" 
+                                           value="{{ settings.get('airbnb_wifi_password', '') }}" placeholder="e.g. KaribuGuest2026!">
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-check form-switch mt-2">
+                                    <input class="form-check-input" type="checkbox" name="airbnb_require_guest_id" id="requireGuestIdSwitch" 
+                                           {% if settings.get('airbnb_require_guest_id') == 'true' %}checked{% endif %}>
+                                    <label class="form-check-label fw-semibold" for="requireGuestIdSwitch">
+                                        Mandatory Guest Identity Verification (Capture National ID / Passport upon arrival)
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Guest Welcome Note</label>
+                                <textarea name="airbnb_guest_welcome_note" class="form-control" rows="2" 
+                                          placeholder="Welcome to our serviced suite! We wish you a peaceful and enjoyable stay.">{{ settings.get('airbnb_guest_welcome_note', '') }}</textarea>
+                                <div class="form-text">Included in guest confirmation PDF and digital check-in.</div>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">House Rules &amp; Premises Etiquette</label>
+                                <textarea name="airbnb_house_rules" class="form-control" rows="3" 
+                                          placeholder="1. No smoking inside units.&#10;2. Quiet hours from 10:00 PM.&#10;3. No unauthorized parties.">{{ settings.get('airbnb_house_rules', '') }}</textarea>
+                                <div class="form-text">Clear guidelines for visiting guests to ensure neighbor harmony and property preservation.</div>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Guest Payment Instructions (M-Pesa Till / Paybill)</label>
+                                <input type="text" name="airbnb_mpesa_instructions" class="form-control" 
+                                       value="{{ settings.get('airbnb_mpesa_instructions', '') }}" 
+                                       placeholder="e.g. Settle via Buy Goods Till 123456 (Angaza Suites) or M-Pesa Paybill 247247 A/C [Booking Code]">
+                            </div>
+                        </div>
+
+                        <div class="mt-4 pt-3 border-top text-end">
+                            <button type="submit" class="btn btn-danger px-4">
+                                <i class="bi bi-save me-1"></i> Save Airbnb &amp; Hospitality Policies
                             </button>
                         </div>
                     </form>
