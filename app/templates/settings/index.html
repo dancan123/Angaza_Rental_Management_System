@@ -42,9 +42,11 @@
                 <button class="nav-link text-start py-3 text-primary fw-semibold" id="integrations-tab" data-bs-toggle="pill" data-bs-target="#tab-integrations" type="button">
                     <i class="bi bi-broadcast-pin me-2 text-primary"></i> M-Pesa, WhatsApp &amp; Contacts
                 </button>
+                {% if is_pm_or_sa %}
                 <button class="nav-link text-start py-3" id="backups-tab" data-bs-toggle="pill" data-bs-target="#tab-backups" type="button">
                     <i class="bi bi-database-check me-2"></i> Database Backups
                 </button>
+                {% endif %}
                 {% if current_user.is_superadmin() %}
                 <button class="nav-link text-start py-3 text-danger" id="rbac-tab" data-bs-toggle="pill" data-bs-target="#tab-rbac" type="button">
                     <i class="bi bi-shield-lock-fill me-2"></i> Roles &amp; Access Control

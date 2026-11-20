@@ -17,11 +17,36 @@ settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
 @login_required
 @permission_required('settings.manage')
 def index():
-    settings = PersonalizationService.get_all_settings()
-    backups = DatabaseBackup.query.order_by(DatabaseBackup.created_at.desc()).all()
-    roles = Role.query.all()
-    permissions = Permission.query.order_by(Permission.module, Permission.code).all()
-    users = User.query.order_by(User.created_at.desc()).all()
+    is_sa = current_user.is_superadmin()
+    org_id = getattr(current_user, 'organization_id', None)
+
+    # Settings are always org-scoped for org users; superadmin sees global defaults
+    settings = PersonalizationService.get_all_settings(
+        organization_id=org_id if not is_sa else None
+    )
+
+    # Backups: only Superadmin and Property Manager roles should see these
+    is_pm_or_sa = is_sa or (current_user.role and current_user.role.name == 'PROPERTY_MANAGER')
+    backups = (
+        DatabaseBackup.query.order_by(DatabaseBackup.created_at.desc()).all()
+        if is_pm_or_sa else []
+    )
+
+    # Roles & Permissions: global — Superadmin only (org users cannot change roles)
+    roles = Role.query.all() if is_sa else []
+    permissions = (
+        Permission.query.order_by(Permission.module, Permission.code).all()
+        if is_sa else []
+    )
+
+    # Users: strictly scoped to the user's own organization (data isolation)
+    if is_sa:
+        users = User.query.order_by(User.created_at.desc()).all()
+    elif org_id:
+        users = User.query.filter_by(organization_id=org_id).order_by(User.created_at.desc()).all()
+    else:
+        users = []
+
     active_org = getattr(current_user, 'active_organization', None)
     return render_template(
         'settings/index.html',
@@ -30,7 +55,8 @@ def index():
         roles=roles,
         permissions=permissions,
         users=users,
-        active_org=active_org
+        active_org=active_org,
+        is_pm_or_sa=is_pm_or_sa,
     )
 
 @settings_bp.route('/general', methods=['POST'])

@@ -130,6 +130,10 @@ class User(UserMixin, db.Model):
         if permission_code in ('users.manage', 'users.view'):
             if self.role.name == 'PROPERTY_MANAGER':
                 return True
+        # Org-level roles can access their own settings (org-scoped, not global)
+        if permission_code == 'settings.manage':
+            if self.role.name in ('LANDLORD', 'MANAGER', 'ACCOUNTANT', 'PROPERTY_MANAGER'):
+                return True
         return any(p.code == permission_code for p in self.role.permissions)
 
     def is_superadmin(self):
