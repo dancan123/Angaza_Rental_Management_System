@@ -65,8 +65,11 @@
                         <label class="form-label small fw-semibold">Current Password</label>
                         <div class="input-group">
                             <span class="input-group-text bg-white"><i class="bi bi-lock text-muted"></i></span>
-                            <input type="password" name="current_password" class="form-control" 
+                            <input type="password" name="current_password" id="currentPwd" class="form-control" 
                                    placeholder="Enter your current password" required>
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('currentPwd', 'eyeCurrent')" title="Preview password">
+                                <i class="bi bi-eye" id="eyeCurrent"></i>
+                            </button>
                         </div>
                     </div>
                     <div class="mb-3">
@@ -75,6 +78,9 @@
                             <span class="input-group-text bg-white"><i class="bi bi-lock-fill text-muted"></i></span>
                             <input type="password" name="new_password" id="newPwd" class="form-control" 
                                    placeholder="Enter new password (min. 8 characters)" required minlength="8">
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('newPwd', 'eyeNew')" title="Preview password">
+                                <i class="bi bi-eye" id="eyeNew"></i>
+                            </button>
                         </div>
                     </div>
                     <div class="mb-4">
@@ -83,6 +89,9 @@
                             <span class="input-group-text bg-white"><i class="bi bi-lock-fill text-muted"></i></span>
                             <input type="password" name="confirm_password" id="confirmPwd" class="form-control" 
                                    placeholder="Repeat new password" required minlength="8">
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('confirmPwd', 'eyeConfirm')" title="Preview password">
+                                <i class="bi bi-eye" id="eyeConfirm"></i>
+                            </button>
                         </div>
                         <div id="pwdMatchMsg" class="form-text text-danger d-none">Passwords do not match.</div>
                     </div>
@@ -141,6 +150,21 @@ function checkMatch() {
 
 newPwd.addEventListener('input', checkMatch);
 confirmPwd.addEventListener('input', checkMatch);
+
+function togglePasswordVisibility(inputId, iconId) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+    if (!input || !icon) return;
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('bi-eye');
+        icon.classList.add('bi-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('bi-eye-slash');
+        icon.classList.add('bi-eye');
+    }
+}
 </script>
 {% endblock %}
 

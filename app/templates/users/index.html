@@ -243,7 +243,12 @@
                         </div>
                         <div class="col-12">
                             <label class="form-label small fw-semibold">Initial Password</label>
-                            <input type="password" name="password" class="form-control" placeholder="••••••••" required minlength="6">
+                            <div class="input-group">
+                                <input type="password" id="newUserInitPwd" name="password" class="form-control" placeholder="••••••••" required minlength="6">
+                                <button class="btn btn-outline-secondary" type="button" onclick="const p = document.getElementById('newUserInitPwd'); const i = document.getElementById('eyeNewUserInit'); if (p.type === 'password') { p.type = 'text'; i.className = 'bi bi-eye-slash'; } else { p.type = 'password'; i.className = 'bi bi-eye'; }">
+                                    <i class="bi bi-eye" id="eyeNewUserInit"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
