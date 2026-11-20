@@ -54,10 +54,12 @@ def create_app(config_name=None):
             settings = PersonalizationService.get_all_settings()
         except Exception:
             settings = {}
+        from flask_login import current_user
+        org_name = current_user.organization.name if (current_user and current_user.is_authenticated and getattr(current_user, 'organization', None)) else None
         return dict(
             sys_settings=settings,
             app_name=settings.get('app_name', 'Rental Property Manager'),
-            business_name=settings.get('business_name', 'Property Management System'),
+            business_name=settings.get('business_name') or org_name or 'Property Management System',
             logo_url=settings.get('logo_url', '/static/img/logo.png'),
             currency=settings.get('currency', 'KES')
         )
