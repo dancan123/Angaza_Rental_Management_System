@@ -161,11 +161,14 @@ class SmsService:
         Sends SMS to:
           1. Tenant: Payment receipt confirmation with remaining balance.
           2. Landlord: Notification of revenue received.
+        Personalizes sender header with organization name.
         """
         tenant = payment.tenant
         unit = payment.rental_unit
         prop = payment.property
         landlord = prop.landlord if prop else None
+        org = prop.organization if prop and hasattr(prop, 'organization') else None
+        org_name = org.name if org else "Property Management"
 
         from app.services.tenant_service import TenantService
         summary = TenantService.get_tenant_financial_summary(tenant.id) if tenant else {'outstanding_cents': 0}
@@ -175,40 +178,46 @@ class SmsService:
         # 1. SMS to Tenant
         if tenant and tenant.phone:
             tenant_msg = (
-                f"Dear {tenant.first_name}, payment of {payment.amount_display} for Unit {unit.unit_number} ({prop.name}) "
+                f"[{org_name}] Dear {tenant.first_name}, payment of {payment.amount_display} for Unit {unit.unit_number} ({prop.name}) "
                 f"has been confirmed. Receipt: {payment.receipt_number}. Remaining Balance: {balance_str}. Thank you!"
             )
             cls.send_sms(
                 to_phone=tenant.phone,
                 message=tenant_msg,
                 notification_type='RENT_PAYMENT_CONFIRMED',
-                landlord_id=landlord.id if landlord else None
+                landlord_id=landlord.id if landlord else None,
+                organization_id=org.id if org else None
             )
 
         # 2. SMS to Landlord
         if landlord and landlord.phone:
             landlord_msg = (
-                f"Payment Alert: Rent {payment.amount_display} received from {tenant.full_name} for Unit {unit.unit_number} "
+                f"[{org_name}] Payment Alert: Rent {payment.amount_display} received from {tenant.full_name} for Unit {unit.unit_number} "
                 f"({prop.name}). Ref: {payment.transaction_reference or payment.receipt_number}."
             )
             cls.send_sms(
                 to_phone=landlord.phone,
                 message=landlord_msg,
                 notification_type='RENT_PAYMENT_CONFIRMED',
-                landlord_id=landlord.id
+                landlord_id=landlord.id,
+                organization_id=org.id if org else None
             )
 
     @classmethod
     def send_booking_sms(cls, booking):
         """
         Dispatches booking confirmation SMS to prospective tenant/guest.
+        Personalizes sender header with organization name.
         """
         if not booking.prospective_phone:
             return
         unit = booking.rental_unit
         prop = unit.property if unit else None
+        org = prop.organization if prop and hasattr(prop, 'organization') else None
+        org_name = org.name if org else "Property Management"
+
         msg = (
-            f"Dear {booking.prospective_name}, your reservation for Unit {unit.unit_number} at {prop.name} "
+            f"[{org_name}] Dear {booking.prospective_name}, your reservation for Unit {unit.unit_number} at {prop.name} "
             f"has been received! Ref: {booking.booking_reference}. Move-in date: {booking.expected_move_in_date}. "
             f"Our team will contact you shortly."
         )
@@ -216,5 +225,6 @@ class SmsService:
             to_phone=booking.prospective_phone,
             message=msg,
             notification_type='BOOKING_CREATED',
-            landlord_id=prop.landlord_id if prop else None
+            landlord_id=prop.landlord_id if prop else None,
+            organization_id=org.id if org else None
         )
