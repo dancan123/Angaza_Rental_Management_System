@@ -345,6 +345,9 @@ def seed_initial_data():
                 'reports.view', 'reports.export',
                 'maintenance.view', 'maintenance.manage',
                 'leases.view', 'leases.manage',
+                'mpesa.manage',
+                'banking.manage',
+                'settings.manage',
             ]
         ]),
         'LANDLORD': ('Property Owner / Landlord', [
@@ -356,6 +359,7 @@ def seed_initial_data():
                 'reports.view', 'reports.export',
                 'maintenance.view',
                 'leases.view',
+                'mpesa.manage',
             ]
         ]),
         'CARETAKER': ('Caretaker', [
