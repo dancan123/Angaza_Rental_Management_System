@@ -102,8 +102,17 @@ class MpesaCallbackHandler:
         if existing_callback:
             return {"ResultCode": 0, "ResultDesc": "Duplicate transaction acknowledged"}, 200
 
+        # Resolve organization by matching the incoming shortcode/till against active configs
+        incoming_shortcode = payload.get('BusinessShortCode', '').strip()
+        matched_cfg = PaymentGatewayConfig.query.filter(
+            (PaymentGatewayConfig.shortcode == incoming_shortcode) |
+            (PaymentGatewayConfig.till_number == incoming_shortcode)
+        ).first()
+        org_id = matched_cfg.organization_id if matched_cfg else None
+
         # Record incoming callback
         callback_log = PaymentCallback(
+            organization_id=org_id,
             gateway_type='MPESA_C2B',
             transaction_reference=trans_id,
             payload_json=json.dumps(payload),
@@ -120,9 +129,16 @@ class MpesaCallbackHandler:
             first_name = payload.get('FirstName', '')
             last_name = payload.get('LastName', '')
 
-            # 3. Match Tenant and Rental Unit
+            # 3. Match Tenant and Rental Unit strictly within this organization if known
+            from app.models.property import Property
+            unit_query = RentalUnit.query.join(Property)
+            tenant_query = Tenant.query
+            if org_id:
+                unit_query = unit_query.filter(Property.organization_id == org_id)
+                tenant_query = tenant_query.filter(Tenant.organization_id == org_id)
+
             # Strategy A: Match bill_ref directly against Unit Number
-            unit = RentalUnit.query.filter_by(unit_number=bill_ref).first()
+            unit = unit_query.filter(RentalUnit.unit_number == bill_ref).first()
             tenant = None
 
             if unit and unit.current_tenant:
@@ -130,7 +146,7 @@ class MpesaCallbackHandler:
             else:
                 # Strategy B: Match by phone number
                 clean_phone = phone[-9:] if len(phone) >= 9 else phone
-                tenant = Tenant.query.filter(Tenant.phone.ilike(f"%{clean_phone}")).first()
+                tenant = tenant_query.filter(Tenant.phone.ilike(f"%{clean_phone}")).first()
                 if tenant and tenant.current_unit:
                     unit = tenant.current_unit
 
@@ -140,6 +156,10 @@ class MpesaCallbackHandler:
                 callback_log.error_message = f"Could not match reference '{bill_ref}' or phone '{phone}' to an active tenant or unit."
                 db.session.commit()
                 return {"ResultCode": 0, "ResultDesc": "Payment received into reconciliation queue"}, 200
+
+            # Stash org_id onto the callback if it wasn't resolved by shortcode
+            if not callback_log.organization_id and unit.property:
+                callback_log.organization_id = unit.property.organization_id
 
             # 4. Record and Confirm Payment
             payment = PaymentService.record_payment(

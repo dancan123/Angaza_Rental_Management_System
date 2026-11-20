@@ -37,6 +37,7 @@ class PaymentCallback(db.Model):
     __tablename__ = 'payment_callbacks'
     
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id', ondelete='CASCADE'), nullable=True, index=True)
     gateway_type = db.Column(db.String(30), nullable=False, index=True)
     transaction_reference = db.Column(db.String(100), unique=True, nullable=False, index=True)
     payload_json = db.Column(db.Text, nullable=False)
