@@ -13,6 +13,9 @@ class Organization(db.Model):
     name = db.Column(db.String(150), unique=True, nullable=False, index=True)
     slug = db.Column(db.String(60), unique=True, nullable=False, index=True)
     org_code = db.Column(db.String(30), unique=True, nullable=True, index=True)
+    region = db.Column(db.String(100), default='Nairobi', index=True) # e.g. Meru, Nairobi, Mombasa, Kisumu, Eldoret, Nakuru
+    county = db.Column(db.String(100), nullable=True) # e.g. Meru County, Nairobi City, Kiambu
+    town = db.Column(db.String(100), nullable=True)   # e.g. Meru Town, Westlands, Kilimani
     contact_email = db.Column(db.String(120), index=True)
     contact_phone = db.Column(db.String(30))
     contact_person = db.Column(db.String(100))

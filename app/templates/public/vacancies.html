@@ -190,11 +190,11 @@
             <div class="container">
                 <div class="hero-badge">
                     <span class="dot"></span>
-                    <i class="bi bi-houses-fill"></i> Available Houses &amp; Commercial Spaces — Updated Live
+                    <i class="bi bi-geo-alt-fill text-warning me-1"></i> Available Houses in {{ region_name }} — Updated Live
                 </div>
-                <h1 class="hero-title">Find Your Next Rental Home<br>or Office Space in Kenya</h1>
+                <h1 class="hero-title">Find Your Next Rental Home<br>in {{ region_name }}</h1>
                 <p class="hero-sub">
-                    Browse verified vacant apartments, townhouses, bedsitters, and retail spaces managed by <strong>{{ business_name }}</strong>. Book a viewing or inquire online instantly.
+                    Browse verified vacant apartments, townhouses, bedsitters, and retail spaces in <strong>{{ region_name }}</strong> managed by <strong>{{ business_name }}</strong>. Book a viewing or inquire online instantly.
                 </p>
                 <div class="d-flex justify-content-center gap-2 flex-wrap">
                     <button type="button" class="btn btn-warning fw-bold px-4 py-2 shadow-lg rounded-pill" data-bs-toggle="modal" data-bs-target="#houseAlertModal" style="min-width:200px;">
@@ -303,7 +303,7 @@
                 {% if target_org %}
                 <input type="hidden" name="org_code" value="{{ target_org.org_code }}">
                 {% endif %}
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label small fw-semibold text-muted mb-1">Filter by Property</label>
                     <select name="property_id" class="form-select">
                         <option value="">All Properties / Estates</option>
@@ -313,20 +313,24 @@
                     </select>
                 </div>
                 <div class="col-md-3">
+                    <label class="form-label small fw-semibold text-muted mb-1">Neighbourhood / Locality</label>
+                    <input type="text" name="location" class="form-control" placeholder="e.g. Makutano, Kilimani..." value="{{ selected_location or '' }}">
+                </div>
+                <div class="col-md-2">
                     <label class="form-label small fw-semibold text-muted mb-1">Unit Type</label>
                     <select name="type" class="form-select">
-                        <option value="">All Unit Types</option>
-                        <option value="BEDSITTER" {% if selected_type == 'BEDSITTER' %}selected{% endif %}>Bedsitter / Studio</option>
+                        <option value="">All Types</option>
+                        <option value="BEDSITTER" {% if selected_type == 'BEDSITTER' %}selected{% endif %}>Bedsitter</option>
                         <option value="1_BEDROOM" {% if selected_type == '1_BEDROOM' %}selected{% endif %}>1 Bedroom</option>
                         <option value="2_BEDROOM" {% if selected_type == '2_BEDROOM' %}selected{% endif %}>2 Bedroom</option>
                         <option value="3_BEDROOM" {% if selected_type == '3_BEDROOM' %}selected{% endif %}>3 Bedroom</option>
-                        <option value="4_BEDROOM" {% if selected_type == '4_BEDROOM' %}selected{% endif %}>4+ Bedroom Villa</option>
-                        <option value="COMMERCIAL_SHOP" {% if selected_type == 'COMMERCIAL_SHOP' %}selected{% endif %}>Retail Shop</option>
-                        <option value="OFFICE_SPACE" {% if selected_type == 'OFFICE_SPACE' %}selected{% endif %}>Commercial Office</option>
+                        <option value="4_BEDROOM" {% if selected_type == '4_BEDROOM' %}selected{% endif %}>4+ Bedroom</option>
+                        <option value="COMMERCIAL_SHOP" {% if selected_type == 'COMMERCIAL_SHOP' %}selected{% endif %}>Shop</option>
+                        <option value="OFFICE_SPACE" {% if selected_type == 'OFFICE_SPACE' %}selected{% endif %}>Office</option>
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label small fw-semibold text-muted mb-1">Max Monthly Rent ({{ currency }})</label>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold text-muted mb-1">Max Rent ({{ currency }})</label>
                     <input type="number" name="max_rent" class="form-control" placeholder="e.g. 60000" value="{{ max_rent or '' }}">
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
@@ -530,12 +534,12 @@
         <div class="mt-5 mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
                 <h5 class="fw-bold mb-0 text-dark">
-                    <i class="bi bi-stars text-warning me-1"></i> Partner &amp; External Landlord Vacancies ({{ external_listings|length }})
+                    <i class="bi bi-buildings-fill text-info me-2"></i> Neighboring &amp; Partner Apartments in {{ region_name }} ({{ external_listings|length }})
                 </h5>
-                <span class="text-muted small">Verified listings managed or marketed for partner apartment owners</span>
+                <span class="text-muted small">Verified listings managed or marketed for partner property owners in {{ region_name }}</span>
             </div>
             <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-2 fw-semibold">
-                <i class="bi bi-patch-check-fill me-1"></i> Verified External Homes
+                <i class="bi bi-geo-alt-fill me-1"></i> {{ region_name }} Verified
             </span>
         </div>
 

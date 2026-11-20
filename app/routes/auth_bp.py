@@ -147,6 +147,9 @@ def register():
         phone = request.form.get('phone', '').strip()
         password = request.form.get('password', '')
         suite_tier = request.form.get('subscription_tier', 'COMBINED_SUITE')
+        region = request.form.get('region', '').strip() or 'Nairobi'
+        county = request.form.get('county', '').strip() or f"{region} County"
+        town = request.form.get('town', '').strip() or region
 
         if not org_name or not email or not password or not full_name:
             flash('Organization name, full name, work email, and password are required.', 'danger')
@@ -184,6 +187,9 @@ def register():
                 name=org_name,
                 slug=slug,
                 org_code=unique_org_code,
+                region=region,
+                county=county,
+                town=town,
                 contact_email=email,
                 contact_phone=phone if phone else None,
                 subscription_tier=suite_tier,

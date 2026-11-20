@@ -366,7 +366,12 @@ def marketplace():
     status_filter = request.args.get('status', 'ALL')
     search = request.args.get('search', '').strip()
 
+    org_id = getattr(current_user, 'organization_id', None) if not current_user.is_superadmin() else None
+
     listing_query = ExternalPropertyListing.query
+    if org_id:
+        listing_query = listing_query.filter(ExternalPropertyListing.organization_id == org_id)
+
     if status_filter != 'ALL':
         listing_query = listing_query.filter_by(status=status_filter)
     if search:
@@ -379,11 +384,23 @@ def marketplace():
         )
 
     listings = listing_query.order_by(ExternalPropertyListing.created_at.desc()).all()
-    leads = HouseSeekerLead.query.order_by(HouseSeekerLead.created_at.desc()).limit(50).all()
 
-    total_published = ExternalPropertyListing.query.filter_by(status='PUBLISHED').count()
-    total_pending = ExternalPropertyListing.query.filter_by(status='PENDING').count()
-    total_leads = HouseSeekerLead.query.count()
+    leads_query = HouseSeekerLead.query
+    if org_id:
+        leads_query = leads_query.filter(HouseSeekerLead.organization_id == org_id)
+    leads = leads_query.order_by(HouseSeekerLead.created_at.desc()).limit(50).all()
+
+    pub_query = ExternalPropertyListing.query.filter_by(status='PUBLISHED')
+    pend_query = ExternalPropertyListing.query.filter_by(status='PENDING')
+    lead_count_query = HouseSeekerLead.query
+    if org_id:
+        pub_query = pub_query.filter(ExternalPropertyListing.organization_id == org_id)
+        pend_query = pend_query.filter(ExternalPropertyListing.organization_id == org_id)
+        lead_count_query = lead_count_query.filter(HouseSeekerLead.organization_id == org_id)
+
+    total_published = pub_query.count()
+    total_pending = pend_query.count()
+    total_leads = lead_count_query.count()
 
     return render_template(
         'properties/marketplace.html',
@@ -419,7 +436,10 @@ def create_external_listing():
         flash('Owner Name, Telephone, Property Title, Location, and Monthly Rent are required.', 'danger')
         return redirect(url_for('properties.marketplace'))
 
+    org_id = getattr(current_user, 'organization_id', None) if not current_user.is_superadmin() else None
+
     listing = ExternalPropertyListing(
+        organization_id=org_id,
         owner_name=owner_name,
         owner_phone=owner_phone,
         owner_email=owner_email,

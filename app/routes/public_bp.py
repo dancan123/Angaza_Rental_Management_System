@@ -39,6 +39,7 @@ def vacancies(org_code=None):
     property_id = request.args.get('property_id', type=int)
     unit_type = request.args.get('type')
     max_rent = request.args.get('max_rent', type=float)
+    location_filter = request.args.get('location', '').strip()
 
     query = RentalUnit.query.filter_by(occupancy_status='VACANT')
 
@@ -59,6 +60,12 @@ def vacancies(org_code=None):
     if max_rent:
         query = query.filter(RentalUnit.rent_amount_cents <= to_cents(max_rent))
         ext_query = ext_query.filter(ExternalPropertyListing.monthly_rent_cents <= to_cents(max_rent))
+    if location_filter:
+        loc_term = f"%{location_filter}%"
+        if not target_org:
+            query = query.join(Property, RentalUnit.property_id == Property.id)
+        query = query.filter(Property.location.ilike(loc_term))
+        ext_query = ext_query.filter(ExternalPropertyListing.location.ilike(loc_term))
 
     vacant_units = query.order_by(RentalUnit.rent_amount_cents.asc()).all()
     external_listings = ext_query.order_by(ExternalPropertyListing.created_at.desc()).all()
@@ -69,10 +76,16 @@ def vacancies(org_code=None):
         business_name = target_org.name
         business_phone = target_org.contact_phone or PersonalizationService.get_setting('business_phone', '+254700000000')
         business_email = target_org.contact_email or PersonalizationService.get_setting('business_email', 'info@rentalsystem.co.ke')
+        region_name = target_org.region or 'Kenya'
+        county_name = target_org.county or ''
+        town_name = target_org.town or ''
     else:
         business_name = PersonalizationService.get_setting('business_name', 'Angaza Rental Management System')
         business_phone = PersonalizationService.get_setting('business_phone', '+254700000000')
         business_email = PersonalizationService.get_setting('business_email', 'info@rentalsystem.co.ke')
+        region_name = 'Kenya'
+        county_name = ''
+        town_name = ''
 
     clean_phone = ''.join(c for c in business_phone if c.isdigit())
     if clean_phone.startswith('0'):
@@ -81,8 +94,14 @@ def vacancies(org_code=None):
         clean_phone = '254' + clean_phone
 
     # Default WhatsApp pre-filled inquiry text
-    wa_msg = f"Hello {business_name}, I saw your available rentals on your public portal. Please share more details."
+    wa_msg = f"Hello {business_name}, I saw your available rentals in {region_name} on your public portal. Please share more details."
     wa_default_msg = urllib.parse.quote(wa_msg)
+
+    # Extract distinct locations/neighbourhoods in this regional scope for quick filtering
+    available_locations = sorted(list(set(
+        [p.location.strip() for p in properties if p.location] +
+        [e.location.strip() for e in external_listings if e.location]
+    )))
 
     return render_template(
         'public/vacancies.html',
@@ -92,13 +111,18 @@ def vacancies(org_code=None):
         selected_property=property_id,
         selected_type=unit_type,
         max_rent=max_rent,
+        selected_location=location_filter,
+        available_locations=available_locations,
         currency=currency,
         business_name=business_name,
         business_phone=business_phone,
         business_email=business_email,
         clean_phone=clean_phone,
         wa_default_msg=wa_default_msg,
-        target_org=target_org
+        target_org=target_org,
+        region_name=region_name,
+        county_name=county_name,
+        town_name=town_name
     )
 
 @public_bp.route('/vacancies/inquire', methods=['POST'])
