@@ -1,11 +1,11 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
-from flask_login import login_required
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
+from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.tenant import Tenant
 from app.models.property import RentalUnit
 from app.models.lease import TenancyRecord
 from app.services.tenant_service import TenantService
-from app.utils.decorators import permission_required
+from app.utils.decorators import permission_required, multi_tenant_scoped
 
 tenants_bp = Blueprint('tenants', __name__, url_prefix='/tenants')
 
@@ -42,7 +42,7 @@ def index():
             'next_of_kin': nok
         })
 
-    vacant_units = RentalUnit.query.filter_by(occupancy_status='VACANT').all()
+    vacant_units = multi_tenant_scoped(RentalUnit.query.filter_by(occupancy_status='VACANT'), RentalUnit).all()
 
     return render_template(
         'tenants/index.html',
@@ -102,7 +102,9 @@ def create_tenant():
 def detail(tenant_id):
     tenant = db.session.get(Tenant, tenant_id)
     if not tenant:
-        from flask import abort; abort(404)
+        abort(404)
+    if not current_user.is_superadmin() and tenant.organization_id and current_user.organization_id and tenant.organization_id != current_user.organization_id:
+        abort(404)
     summary = TenantService.get_tenant_financial_summary(tenant.id)
     active_lease = tenant.leases.filter_by(status='ACTIVE').first()
     if active_lease:
@@ -113,7 +115,7 @@ def detail(tenant_id):
     tenancy_records = TenancyRecord.query.filter_by(tenant_id=tenant.id).order_by(TenancyRecord.created_at.desc()).all()
     charges = tenant.rent_charges.order_by(db.desc('due_date')).all()
     payments = tenant.payments.order_by(db.desc('payment_date')).all()
-    vacant_units = RentalUnit.query.filter_by(occupancy_status='VACANT').all()
+    vacant_units = multi_tenant_scoped(RentalUnit.query.filter_by(occupancy_status='VACANT'), RentalUnit).all()
 
     return render_template(
         'tenants/detail.html',
@@ -135,7 +137,9 @@ def edit_tenant(tenant_id):
     """
     tenant = db.session.get(Tenant, tenant_id)
     if not tenant:
-        from flask import abort; abort(404)
+        abort(404)
+    if not current_user.is_superadmin() and tenant.organization_id and current_user.organization_id and tenant.organization_id != current_user.organization_id:
+        abort(404)
 
     first_name = request.form.get('first_name', '').strip()
     last_name = request.form.get('last_name', '').strip()
@@ -195,7 +199,9 @@ def delete_tenant(tenant_id):
     """
     tenant = db.session.get(Tenant, tenant_id)
     if not tenant:
-        from flask import abort; abort(404)
+        abort(404)
+    if not current_user.is_superadmin() and tenant.organization_id and current_user.organization_id and tenant.organization_id != current_user.organization_id:
+        abort(404)
 
     if tenant.current_unit:
         flash(f"Cannot delete tenant while assigned to Unit {tenant.current_unit.unit_number}. Process move-out first.", 'danger')
@@ -211,6 +217,11 @@ def delete_tenant(tenant_id):
 @login_required
 @permission_required('tenants.manage')
 def transfer_unit(tenant_id):
+    tenant = db.session.get(Tenant, tenant_id)
+    if not tenant:
+        abort(404)
+    if not current_user.is_superadmin() and tenant.organization_id and current_user.organization_id and tenant.organization_id != current_user.organization_id:
+        abort(404)
     new_unit_id = request.form.get('new_unit_id', type=int)
     transfer_reason = request.form.get('transfer_reason', '').strip()
 
@@ -230,6 +241,11 @@ def transfer_unit(tenant_id):
 @login_required
 @permission_required('tenants.manage')
 def move_out(tenant_id):
+    tenant = db.session.get(Tenant, tenant_id)
+    if not tenant:
+        abort(404)
+    if not current_user.is_superadmin() and tenant.organization_id and current_user.organization_id and tenant.organization_id != current_user.organization_id:
+        abort(404)
     inspection_notes = request.form.get('inspection_notes', '').strip()
     deposit_refunded = request.form.get('deposit_refunded', 0, type=float)
     deposit_deductions = request.form.get('deposit_deductions', 0, type=float)
@@ -259,7 +275,9 @@ def download_statement_pdf(tenant_id):
     from app.utils.pdf_generator import generate_tenant_statement_pdf
     tenant = db.session.get(Tenant, tenant_id)
     if not tenant:
-        from flask import abort; abort(404)
+        abort(404)
+    if not current_user.is_superadmin() and tenant.organization_id and current_user.organization_id and tenant.organization_id != current_user.organization_id:
+        abort(404)
     pdf_bytes = generate_tenant_statement_pdf(tenant)
     return send_file(
         BytesIO(pdf_bytes),

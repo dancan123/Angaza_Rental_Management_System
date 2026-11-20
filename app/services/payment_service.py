@@ -38,10 +38,17 @@ class PaymentService:
         receipt_no = PaymentService.generate_receipt_number()
         payment_no = f"PAY-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
 
+        org_id = None
+        if unit and unit.property:
+            org_id = unit.property.organization_id
+        elif tenant:
+            org_id = tenant.organization_id
+
         payment = Payment(
             tenant_id=tenant.id,
             rental_unit_id=unit.id,
             property_id=unit.property_id,
+            organization_id=org_id,
             payment_number=payment_no,
             receipt_number=receipt_no,
             amount_cents=cents,

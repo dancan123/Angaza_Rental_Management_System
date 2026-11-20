@@ -31,10 +31,27 @@ def login():
                 org_code = parts[1].strip().upper()
 
         user = None
-        if org_code and org_code != 'SYSTEM':
+        # Normalize code aliases (e.g. legacy ANGAZA -> ANG0002, SARAH -> ANG0003, CAPITAL -> ANG0004)
+        LEGACY_CODE_ALIASES = {
+            'ANGAZA': 'ANG0002',
+            'SARAH': 'ANG0003',
+            'CAPITAL': 'ANG0004'
+        }
+        lookup_code = LEGACY_CODE_ALIASES.get(org_code, org_code)
+
+        if org_code in ('ANG0001', 'SYSTEM', 'SUPERADMIN'):
+            # Platform Super Admin scoped login
+            user = User.query.join(Role).filter(
+                Role.name == 'SUPERADMIN',
+                (User.username == username_or_email) | (User.email == username_or_email)
+            ).first()
+            if not user and username_or_email.lower() in ('admin', 'superadmin', 'manager', 'owner'):
+                user = User.query.filter(User.username == 'admin').first()
+        elif org_code:
             # Multi-Tenant scoped login for specific business / organization
             org = Organization.query.filter(
                 (Organization.org_code == org_code) |
+                (Organization.org_code == lookup_code) |
                 (Organization.slug == org_code.lower()) |
                 (Organization.name.ilike(f"%{org_code}%"))
             ).first()
@@ -64,7 +81,7 @@ def login():
             ).first()
 
             # If username is generic 'admin' and no business code given, default to Superadmin
-            if not user and username_or_email.lower() == 'admin':
+            if not user and username_or_email.lower() in ('admin', 'superadmin'):
                 user = User.query.filter(User.username == 'admin').first()
         
         if user and user.check_password(password):
@@ -148,11 +165,13 @@ def register():
             slug = f"{base_slug}-{counter}"
             counter += 1
 
-        # 1. Provision customer Organization tenant with 14-day trial & 50 SMS credits
+        # 1. Provision customer Organization tenant with auto-generated unique business code (ANGxxxx)
         trial_expiry = datetime.utcnow() + timedelta(days=14)
+        unique_org_code = Organization.generate_unique_org_code()
         org = Organization(
             name=org_name,
             slug=slug,
+            org_code=unique_org_code,
             contact_email=email,
             contact_phone=phone if phone else None,
             subscription_tier=suite_tier,
@@ -197,11 +216,11 @@ def register():
 
         # Auto-login to system
         login_user(user)
-        AuditService.log('SELF_ONBOARDING_TRIAL', 'Organization', org.id, new_values={'name': org_name, 'tier': suite_tier, 'expires_at': str(trial_expiry)})
+        AuditService.log('SELF_ONBOARDING_TRIAL', 'Organization', org.id, new_values={'name': org_name, 'tier': suite_tier, 'org_code': unique_org_code, 'expires_at': str(trial_expiry)})
 
         flash(
-            f"🎉 Welcome to Angaza, {full_name}! Your 14-day complimentary trial for '{org_name}' "
-            f"is now active with 50 free SMS credits. Explore your dedicated management suite!",
+            f"🎉 Welcome to Angaza, {full_name}! Your organization '{org_name}' is active with unique Business Code: "
+            f"'{unique_org_code}'. Please save this code for signing in to your isolated workspace. (14-day trial & 50 free SMS active)",
             'success'
         )
         return redirect(url_for('dashboard.index'))

@@ -16,12 +16,14 @@ class Tenant(db.Model):
     occupation = db.Column(db.String(100))
     photo_url = db.Column(db.String(255))
     is_active = db.Column(db.Boolean, default=True, index=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id', ondelete='SET NULL'), nullable=True, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
+    organization = db.relationship('Organization')
     user = db.relationship('User')
     current_unit = db.relationship('RentalUnit', foreign_keys='RentalUnit.current_tenant_id', back_populates='current_tenant', uselist=False)
     documents = db.relationship('TenantDocument', back_populates='tenant', lazy='dynamic', cascade='all, delete-orphan')

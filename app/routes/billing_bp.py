@@ -9,7 +9,7 @@ from app.models.property import Property, RentalUnit
 from app.services.rent_service import RentService
 from app.services.payment_service import PaymentService
 from app.utils.pdf_generator import generate_receipt_pdf, generate_invoice_pdf
-from app.utils.decorators import permission_required
+from app.utils.decorators import permission_required, multi_tenant_scoped
 
 billing_bp = Blueprint('billing', __name__, url_prefix='/billing')
 
@@ -34,8 +34,8 @@ def index():
     search = request.args.get('search', '').strip()
     tenant_id_filter = request.args.get('tenant_id', type=int)
 
-    # Query Invoices / Charges
-    charges_query = RentCharge.query
+    # Query Invoices / Charges (Enterprise Multi-Tenant Scoped)
+    charges_query = multi_tenant_scoped(RentCharge.query, RentCharge)
     if tenant_id_filter:
         charges_query = charges_query.filter_by(tenant_id=tenant_id_filter)
     elif not search:
@@ -53,12 +53,12 @@ def index():
         )
     charges = charges_query.order_by(RentCharge.due_date.asc()).all()
 
-    # Query Payments
-    payments = Payment.query.order_by(Payment.created_at.desc()).limit(100).all()
+    # Query Payments (Enterprise Multi-Tenant Scoped)
+    payments = multi_tenant_scoped(Payment.query, Payment).order_by(Payment.created_at.desc()).limit(100).all()
 
-    # Active tenants for payment recording
-    active_tenants = Tenant.query.filter_by(is_active=True).all()
-    properties = Property.query.all()
+    # Active tenants & properties for payment recording (Enterprise Multi-Tenant Scoped)
+    active_tenants = multi_tenant_scoped(Tenant.query.filter_by(is_active=True), Tenant).all()
+    properties = multi_tenant_scoped(Property.query, Property).all()
 
     # Summary metrics for current month
     total_billed_cents = sum(c.amount_cents for c in charges)
@@ -66,8 +66,8 @@ def index():
     total_outstanding_cents = sum(c.balance_cents for c in charges)
     collection_pct = round((total_collected_cents / total_billed_cents * 100), 1) if total_billed_cents > 0 else 0
 
-    # Calculate comprehensive unit-by-unit house payment status breakdown
-    all_units = RentalUnit.query.order_by(RentalUnit.property_id.asc(), RentalUnit.unit_number.asc()).all()
+    # Calculate comprehensive unit-by-unit house payment status breakdown (Enterprise Multi-Tenant Scoped)
+    all_units = multi_tenant_scoped(RentalUnit.query, RentalUnit).order_by(RentalUnit.property_id.asc(), RentalUnit.unit_number.asc()).all()
     unit_performance = []
     
     counts = {
@@ -240,6 +240,8 @@ def view_receipt(payment_id):
     payment = db.session.get(Payment, payment_id)
     if not payment:
         from flask import abort; abort(404)
+    if not current_user.is_superadmin() and payment.organization_id and current_user.organization_id and payment.organization_id != current_user.organization_id:
+        from flask import abort; abort(404)
     return render_template('billing/receipt.html', payment=payment)
 
 @billing_bp.route('/receipt/<int:payment_id>/pdf')
@@ -248,6 +250,8 @@ def view_receipt(payment_id):
 def download_receipt_pdf(payment_id):
     payment = db.session.get(Payment, payment_id)
     if not payment:
+        from flask import abort; abort(404)
+    if not current_user.is_superadmin() and payment.organization_id and current_user.organization_id and payment.organization_id != current_user.organization_id:
         from flask import abort; abort(404)
     pdf_bytes = generate_receipt_pdf(payment)
     return send_file(
@@ -263,6 +267,8 @@ def download_receipt_pdf(payment_id):
 def download_invoice_pdf(charge_id):
     charge = db.session.get(RentCharge, charge_id)
     if not charge:
+        from flask import abort; abort(404)
+    if not current_user.is_superadmin() and charge.organization_id and current_user.organization_id and charge.organization_id != current_user.organization_id:
         from flask import abort; abort(404)
     pdf_bytes = generate_invoice_pdf(charge)
     return send_file(

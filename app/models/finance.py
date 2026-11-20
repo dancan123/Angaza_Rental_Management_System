@@ -7,6 +7,7 @@ class RentCharge(db.Model):
     __tablename__ = 'rent_charges'
     
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id', ondelete='SET NULL'), nullable=True, index=True)
     lease_id = db.Column(db.Integer, db.ForeignKey('leases.id', ondelete='SET NULL'), nullable=True, index=True)
     tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='RESTRICT'), nullable=False, index=True)
     rental_unit_id = db.Column(db.Integer, db.ForeignKey('rental_units.id', ondelete='RESTRICT'), nullable=False, index=True)
@@ -30,6 +31,7 @@ class RentCharge(db.Model):
     lease = db.relationship('Lease', back_populates='rent_charges')
     tenant = db.relationship('Tenant', back_populates='rent_charges')
     rental_unit = db.relationship('RentalUnit')
+    organization = db.relationship('Organization')
     allocations = db.relationship('PaymentAllocation', back_populates='rent_charge', lazy='dynamic', cascade='all, delete-orphan')
 
     @property
@@ -55,6 +57,7 @@ class Payment(db.Model):
     __tablename__ = 'payments'
     
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id', ondelete='SET NULL'), nullable=True, index=True)
     tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='RESTRICT'), nullable=False, index=True)
     rental_unit_id = db.Column(db.Integer, db.ForeignKey('rental_units.id', ondelete='RESTRICT'), nullable=False, index=True)
     property_id = db.Column(db.Integer, db.ForeignKey('properties.id', ondelete='RESTRICT'), nullable=False, index=True)
@@ -79,6 +82,7 @@ class Payment(db.Model):
     tenant = db.relationship('Tenant', back_populates='payments')
     rental_unit = db.relationship('RentalUnit')
     property = db.relationship('Property')
+    organization = db.relationship('Organization')
     recorded_by = db.relationship('User', foreign_keys=[recorded_by_user_id])
     allocations = db.relationship('PaymentAllocation', back_populates='payment', lazy='dynamic', cascade='all, delete-orphan')
     reversal = db.relationship('PaymentReversal', back_populates='payment', uselist=False, cascade='all, delete-orphan')

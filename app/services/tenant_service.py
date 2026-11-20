@@ -9,9 +9,16 @@ from app.utils.currency import to_cents
 
 class TenantService:
     @staticmethod
-    def get_tenants(search=None, is_active=True):
+    def get_tenants(search=None, is_active=True, organization_id=None):
+        from flask_login import current_user
         from app.models.property import Property
         query = Tenant.query.outerjoin(RentalUnit, Tenant.id == RentalUnit.current_tenant_id).outerjoin(Property, RentalUnit.property_id == Property.id)
+        if organization_id is not None:
+            query = query.filter(Tenant.organization_id == organization_id)
+        elif current_user and current_user.is_authenticated and not current_user.is_superadmin():
+            if current_user.organization_id:
+                query = query.filter(Tenant.organization_id == current_user.organization_id)
+
         if is_active is not None:
             query = query.filter(Tenant.is_active == is_active)
         if search:
@@ -47,10 +54,14 @@ class TenantService:
         return query.distinct().order_by(Tenant.created_at.desc()).all()
 
     @staticmethod
-    def create_tenant(first_name, last_name, id_passport_number, phone, email=None, emergency_contact=None, emergency_phone=None, physical_address=None, occupation=None, next_of_kin_data=None):
+    def create_tenant(first_name, last_name, id_passport_number, phone, email=None, emergency_contact=None, emergency_phone=None, physical_address=None, occupation=None, next_of_kin_data=None, organization_id=None):
+        from flask_login import current_user
         existing = Tenant.query.filter_by(id_passport_number=id_passport_number).first()
         if existing:
             raise ValueError(f"Tenant with ID/Passport {id_passport_number} is already registered.")
+
+        if organization_id is None and current_user and current_user.is_authenticated:
+            organization_id = getattr(current_user, 'organization_id', None)
 
         tenant = Tenant(
             first_name=first_name.strip(),
@@ -62,6 +73,7 @@ class TenantService:
             emergency_phone=emergency_phone,
             physical_address=physical_address,
             occupation=occupation,
+            organization_id=organization_id,
             is_active=True
         )
         db.session.add(tenant)

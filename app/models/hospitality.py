@@ -15,9 +15,11 @@ class Guest(db.Model):
     emergency_contact = db.Column(db.String(100))
     emergency_phone = db.Column(db.String(30))
     special_notes = db.Column(db.Text)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id', ondelete='SET NULL'), nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    organization = db.relationship('Organization')
     reservations = db.relationship('HospitalityReservation', back_populates='guest', lazy='dynamic', cascade='all, delete-orphan')
 
     @property
@@ -31,6 +33,7 @@ class HospitalityReservation(db.Model):
     __tablename__ = 'hospitality_reservations'
 
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id', ondelete='SET NULL'), nullable=True, index=True)
     reservation_code = db.Column(db.String(50), unique=True, nullable=False, index=True)
     guest_id = db.Column(db.Integer, db.ForeignKey('guests.id', ondelete='CASCADE'), nullable=False, index=True)
     rental_unit_id = db.Column(db.Integer, db.ForeignKey('rental_units.id', ondelete='RESTRICT'), nullable=False, index=True)
@@ -62,6 +65,7 @@ class HospitalityReservation(db.Model):
 
     guest = db.relationship('Guest', back_populates='reservations')
     rental_unit = db.relationship('RentalUnit')
+    organization = db.relationship('Organization')
     created_by = db.relationship('User', foreign_keys=[created_by_user_id])
 
     @property

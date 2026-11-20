@@ -68,7 +68,7 @@ def create_organization():
 
     name = request.form.get('name', '').strip()
     slug = request.form.get('slug', '').strip().lower().replace(' ', '-')
-    org_code = request.form.get('org_code', '').strip().upper() or slug.upper().replace('-', '_')
+    org_code = request.form.get('org_code', '').strip().upper() or Organization.generate_unique_org_code()
     contact_email = request.form.get('contact_email', '').strip().lower()
     contact_phone = request.form.get('contact_phone', '').strip()
     tax_pin = request.form.get('tax_pin', '').strip().upper()

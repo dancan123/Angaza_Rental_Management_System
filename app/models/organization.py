@@ -61,6 +61,26 @@ class Organization(db.Model):
     properties = db.relationship('Property', back_populates='organization', lazy='dynamic')
     users = db.relationship('User', back_populates='organization', lazy='dynamic')
 
+    @classmethod
+    def generate_unique_org_code(cls) -> str:
+        """
+        Auto-generates sequential unique business code in the standardized 'ANGxxxx' format.
+        - 'ANG0001' is reserved for Platform Super Admin.
+        - Subsequent organizations receive 'ANG0002', 'ANG0003', etc.
+        """
+        import re
+        all_orgs = cls.query.all()
+        max_num = 1  # Start past ANG0001
+        for org in all_orgs:
+            if org.org_code:
+                match = re.match(r'^ANG(\d{4,})$', str(org.org_code).strip().upper())
+                if match:
+                    num = int(match.group(1))
+                    if num > max_num:
+                        max_num = num
+        next_num = max_num + 1
+        return f"ANG{next_num:04d}"
+
     @property
     def business_code(self) -> str:
         return self.org_code or (self.slug.upper().replace('-', '_') if self.slug else f"ORG{self.id}")

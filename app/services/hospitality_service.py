@@ -42,7 +42,7 @@ class HospitalityService:
         return overlapping is None
 
     @staticmethod
-    def get_or_create_guest(first_name, last_name, phone, email=None, id_passport_number=None, nationality='Kenyan', emergency_contact=None, emergency_phone=None):
+    def get_or_create_guest(first_name, last_name, phone, email=None, id_passport_number=None, nationality='Kenyan', emergency_contact=None, emergency_phone=None, organization_id=None):
         clean_phone = phone.strip()
         guest = Guest.query.filter_by(phone=clean_phone).first()
         if not guest and id_passport_number:
@@ -57,11 +57,14 @@ class HospitalityService:
                 id_passport_number=id_passport_number.strip().upper() if id_passport_number else None,
                 nationality=nationality or 'Kenyan',
                 emergency_contact=emergency_contact,
-                emergency_phone=emergency_phone
+                emergency_phone=emergency_phone,
+                organization_id=organization_id
             )
             db.session.add(guest)
             db.session.flush()
         else:
+            if organization_id and not guest.organization_id:
+                guest.organization_id = organization_id
             # Update contact info if provided
             if email:
                 guest.email = email.strip().lower()
@@ -87,6 +90,8 @@ class HospitalityService:
         if not HospitalityService.is_unit_available(unit_id, check_in_date, check_out_date):
             raise ValueError(f"Unit {unit.unit_number} is not available between {check_in_date} and {check_out_date}.")
 
+        org_id = unit.property.organization_id if (unit and unit.property) else None
+
         # Retrieve or create guest
         guest = HospitalityService.get_or_create_guest(
             first_name=guest_data.get('first_name', ''),
@@ -96,7 +101,8 @@ class HospitalityService:
             id_passport_number=guest_data.get('id_passport_number'),
             nationality=guest_data.get('nationality', 'Kenyan'),
             emergency_contact=guest_data.get('emergency_contact'),
-            emergency_phone=guest_data.get('emergency_phone')
+            emergency_phone=guest_data.get('emergency_phone'),
+            organization_id=org_id
         )
 
         num_nights = (check_out_date - check_in_date).days
@@ -142,6 +148,7 @@ class HospitalityService:
             reservation_code=res_code,
             guest_id=guest.id,
             rental_unit_id=unit.id,
+            organization_id=org_id,
             check_in_date=check_in_date,
             check_out_date=check_out_date,
             num_guests=num_guests,

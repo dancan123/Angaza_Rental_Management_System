@@ -41,10 +41,12 @@ class RentService:
             if not existing:
                 unit_num = lease.rental_unit.unit_number if lease.rental_unit else f"UNIT-{lease.rental_unit_id}"
                 inv_number = f"INV-{year}{month:02d}-{unit_num}-{lease.tenant_id}"
+                org_id = lease.rental_unit.property.organization_id if (lease.rental_unit and lease.rental_unit.property) else None
                 charge = RentCharge(
                     lease_id=lease.id,
                     tenant_id=lease.tenant_id,
                     rental_unit_id=lease.rental_unit_id,
+                    organization_id=org_id,
                     invoice_number=inv_number,
                     charge_type='RENT',
                     period_month=month,

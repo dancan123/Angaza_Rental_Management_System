@@ -134,7 +134,12 @@
                     {% set user_count = org.users.count() %}
                     <tr>
                         <td class="ps-3">
-                            <div class="fw-bold text-dark">{{ org.name }}</div>
+                            <div class="fw-bold text-dark d-flex align-items-center">
+                                {{ org.name }}
+                                <span class="badge bg-secondary-subtle text-dark border font-monospace ms-2" title="Unique Business Code">
+                                    <i class="bi bi-key me-1"></i>{{ org.org_code or 'ANG0001' }}
+                                </span>
+                            </div>
                             <small class="text-muted">Registered: {{ org.created_at.strftime('%d/%m/%Y') }}</small>
                         </td>
                         <td>
@@ -500,13 +505,18 @@
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <div class="modal-body">
                     <div class="row g-3">
-                        <div class="col-md-7">
+                        <div class="col-md-6">
                             <label class="form-label small fw-semibold">Company / Trading Name *</label>
                             <input type="text" name="name" class="form-control" required placeholder="e.g. Skyline Real Estate Management Ltd">
                         </div>
-                        <div class="col-md-5">
-                            <label class="form-label small fw-semibold">Unique Subdomain / Slug *</label>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Subdomain / Slug *</label>
                             <input type="text" name="slug" class="form-control" required placeholder="e.g. skyline-estates">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Business Code</label>
+                            <input type="text" name="org_code" class="form-control text-uppercase" placeholder="Auto (e.g. ANG0005)">
+                            <div class="form-text" style="font-size:0.7rem;">Leave blank to auto-generate next code</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-semibold">Official Contact Email</label>
