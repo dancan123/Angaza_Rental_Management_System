@@ -97,6 +97,25 @@
             padding: 0.75rem 0.75rem 0.25rem;
         }
 
+        a.nav-item-header {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            text-decoration: none;
+            transition: color 0.15s ease, background 0.15s ease;
+            border-radius: 6px;
+        }
+
+        a.nav-item-header:hover {
+            color: #e11d48;
+            background: rgba(225,29,72,0.07);
+            padding-left: 1rem;
+        }
+
+        a.nav-item-header.text-danger:hover {
+            color: #be123c !important;
+        }
+
         .sidebar-nav-link {
             display: flex;
             align-items: center;
@@ -387,7 +406,7 @@
                 <span>SMS Delivery Logs</span>
             </a>
 
-            <div class="nav-item-header text-danger">Administration &amp; Settings</div>
+            <a href="{{ url_for('settings.index', tab='hospitality') }}" class="nav-item-header text-danger" title="Open Administration & Settings"><i class="bi bi-gear-fill me-1"></i>Administration &amp; Settings</a>
             {% if current_user.has_permission('settings.manage') %}
             <a href="{{ url_for('settings.index', tab='hospitality') }}" class="sidebar-nav-link {% if 'settings' in request.endpoint %}active{% endif %}">
                 <i class="bi bi-sliders text-danger"></i>
@@ -485,7 +504,7 @@
             </a>
 
             {% if current_user.has_permission('users.manage') or current_user.has_permission('settings.manage') %}
-            <div class="nav-item-header">Administration &amp; Settings</div>
+            <a href="{{ url_for('settings.index') }}" class="nav-item-header" title="Open Administration & Settings"><i class="bi bi-gear-fill me-1"></i>Administration &amp; Settings</a>
             {% if current_user.has_permission('settings.manage') %}
             <a href="{{ url_for('settings.index') }}" class="sidebar-nav-link {% if 'settings' in request.endpoint %}active{% endif %}">
                 <i class="bi bi-sliders"></i>
