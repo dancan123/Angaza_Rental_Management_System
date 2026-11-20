@@ -6,6 +6,7 @@ class HouseSeekerLead(db.Model):
     __tablename__ = 'house_seeker_leads'
     
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id', ondelete='CASCADE'), nullable=True, index=True)
     full_name = db.Column(db.String(120), nullable=False)
     phone = db.Column(db.String(30), nullable=False, index=True)
     email = db.Column(db.String(120), nullable=True)
@@ -39,6 +40,7 @@ class ExternalPropertyListing(db.Model):
     __tablename__ = 'external_property_listings'
     
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id', ondelete='CASCADE'), nullable=True, index=True)
     owner_name = db.Column(db.String(120), nullable=False)
     owner_phone = db.Column(db.String(30), nullable=False, index=True)
     owner_email = db.Column(db.String(120), nullable=True)

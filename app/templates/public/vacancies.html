@@ -159,11 +159,16 @@
     <!-- Public Header / Navbar -->
     <nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top py-3">
         <div class="container">
-            <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('public.vacancies') }}">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('public.vacancies_by_org', org_code=target_org.org_code) if target_org else url_for('public.vacancies') }}">
                 {% if logo_url %}
                 <img src="{{ logo_url }}" alt="Logo" height="36" onerror="this.style.display='none'">
                 {% endif %}
                 <span class="fw-bold text-dark fs-5">{{ business_name }}</span>
+                {% if target_org %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle font-monospace ms-1" title="Unique Business Code">
+                    <i class="bi bi-shield-check me-1"></i>{{ target_org.org_code }}
+                </span>
+                {% endif %}
             </a>
             <div class="d-flex align-items-center gap-3">
                 <button type="button" class="btn btn-outline-primary btn-sm fw-semibold d-none d-md-inline-flex align-items-center gap-1 shadow-sm" data-bs-toggle="modal" data-bs-target="#landlordListingModal">
@@ -252,6 +257,34 @@
 
     <div class="container my-5">
 
+        <!-- Dedicated Landlord / Organization Regional Banner -->
+        {% if target_org %}
+        <div class="alert alert-primary border-0 shadow-sm d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4 rounded-3 p-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="bg-primary text-white rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;">
+                    <i class="bi bi-patch-check-fill fs-4"></i>
+                </div>
+                <div>
+                    <div class="fw-bold fs-6 text-dark">
+                        {{ target_org.name }} — Official Regional Vacancy Portal
+                        <span class="badge bg-primary text-white font-monospace ms-2">{{ target_org.org_code }}</span>
+                    </div>
+                    <div class="small text-muted">
+                        All vacant houses, apartments, and listings shown below are exclusively managed by <strong>{{ target_org.name }}</strong> in this region.
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="https://wa.me/{{ clean_phone }}?text={{ wa_default_msg }}" target="_blank" class="btn btn-sm btn-success fw-bold">
+                    <i class="bi bi-whatsapp me-1"></i> WhatsApp Landlord
+                </a>
+                <a href="tel:{{ business_phone }}" class="btn btn-sm btn-outline-primary fw-semibold">
+                    <i class="bi bi-telephone-fill me-1"></i> Call {{ business_phone }}
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Flash messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -266,7 +299,10 @@
 
         <!-- Filter Bar -->
         <div class="card card-unit p-3 mb-4 shadow-sm">
-            <form method="GET" action="{{ url_for('public.vacancies') }}" class="row g-2 align-items-center">
+            <form method="GET" action="{{ url_for('public.vacancies_by_org', org_code=target_org.org_code) if target_org else url_for('public.vacancies') }}" class="row g-2 align-items-center">
+                {% if target_org %}
+                <input type="hidden" name="org_code" value="{{ target_org.org_code }}">
+                {% endif %}
                 <div class="col-md-4">
                     <label class="form-label small fw-semibold text-muted mb-1">Filter by Property</label>
                     <select name="property_id" class="form-select">
@@ -437,6 +473,7 @@
                                 <form method="POST" action="{{ url_for('public.inquire') }}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                     <input type="hidden" name="unit_id" value="{{ u.id }}">
+                                    <input type="hidden" name="org_code" value="{{ target_org.org_code if target_org else '' }}">
                                     <div class="mb-2">
                                         <label class="form-label small fw-semibold">Your Full Name *</label>
                                         <input type="text" name="full_name" class="form-control form-control-sm" placeholder="e.g. Grace Wambui" required>
@@ -625,6 +662,7 @@
                                 <form method="POST" action="{{ url_for('public.inquire_external_lead') }}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                     <input type="hidden" name="listing_id" value="{{ ext.id }}">
+                                    <input type="hidden" name="org_code" value="{{ target_org.org_code if target_org else '' }}">
                                     <div class="mb-2">
                                         <label class="form-label small fw-semibold">Your Full Name *</label>
                                         <input type="text" name="full_name" class="form-control form-control-sm" placeholder="e.g. David Mwangi" required>
@@ -676,6 +714,7 @@
                 </div>
                 <form method="POST" action="{{ url_for('public.register_house_alert') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <input type="hidden" name="org_code" value="{{ target_org.org_code if target_org else '' }}">
                     <div class="modal-body p-4">
                         <div class="row g-3">
                             <div class="col-md-6">
@@ -778,6 +817,7 @@
                 </div>
                 <form method="POST" action="{{ url_for('public.list_property_lead') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <input type="hidden" name="org_code" value="{{ target_org.org_code if target_org else '' }}">
                     <div class="modal-body p-4">
                         <div class="row g-3">
                             <div class="col-md-6">

@@ -18,6 +18,43 @@
     </div>
 </div>
 
+{% if current_user.organization and current_user.organization.org_code %}
+<!-- Landlord Dedicated Public Vacancies Portal Sharing Strip -->
+<div class="card card-custom bg-white border-start border-4 border-success p-3 mb-4 shadow-sm">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div class="d-flex align-items-center gap-3">
+            <div class="bg-success-subtle text-success rounded-circle p-3 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                <i class="bi bi-broadcast fs-4"></i>
+            </div>
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="badge bg-success text-white small">YOUR DEDICATED PUBLIC VACANCIES LINK</span>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle font-monospace">{{ current_user.organization.org_code }}</span>
+                </div>
+                <h6 class="fw-bold mb-0 text-dark">Advertise &amp; Share Your Vacant Houses in Your Region</h6>
+                <div class="small text-muted">
+                    Only vacant houses posted under <strong>{{ current_user.organization.name }}</strong> will appear on this link. Other landlords' listings remain isolated.
+                </div>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <div class="input-group input-group-sm" style="min-width: 280px; max-width: 360px;">
+                <input type="text" class="form-control font-monospace bg-light" id="publicVacLinkDash" value="{{ url_for('public.vacancies_by_org', org_code=current_user.organization.org_code, _external=True) }}" readonly>
+                <button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('publicVacLinkDash').value); alert('Public Vacancies link copied to clipboard!');" title="Copy Public Vacancy Link">
+                    <i class="bi bi-clipboard"></i> Copy
+                </button>
+            </div>
+            <a href="{{ url_for('public.vacancies_by_org', org_code=current_user.organization.org_code) }}" target="_blank" class="btn btn-sm btn-outline-primary fw-semibold">
+                <i class="bi bi-box-arrow-up-right me-1"></i> Preview
+            </a>
+            <a href="https://wa.me/?text={{ ('Looking for a vacant house to rent? Check out verified available apartments and rooms by ' ~ current_user.organization.name ~ ': ' ~ url_for('public.vacancies_by_org', org_code=current_user.organization.org_code, _external=True)) | urlencode }}" target="_blank" class="btn btn-sm btn-success fw-semibold">
+                <i class="bi bi-whatsapp me-1"></i> Share on WhatsApp
+            </a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Primary Financial & Occupancy KPI Cards -->
 <div class="row g-3 mb-4">
     <!-- Expected Monthly Rent -->

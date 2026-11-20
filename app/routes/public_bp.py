@@ -1,7 +1,9 @@
 from datetime import datetime, date, timedelta
 import urllib.parse
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from sqlalchemy import or_, func
 from app.extensions import db
+from app.models.organization import Organization
 from app.models.property import Property, RentalUnit
 from app.models.booking import Booking
 from app.models.lead import HouseSeekerLead, ExternalPropertyListing
@@ -11,38 +13,67 @@ from app.services.personalization_service import PersonalizationService
 
 public_bp = Blueprint('public', __name__)
 
-@public_bp.route('/vacancies')
-def vacancies():
+@public_bp.route('/vacancies', endpoint='vacancies')
+@public_bp.route('/vacancies/<org_code>', endpoint='vacancies_by_org')
+@public_bp.route('/v/<org_code>', endpoint='vacancies_short')
+def vacancies(org_code=None):
     """
     Public Vacant Houses & Rooms Portal:
     Accessible by external website visitors and prospective tenants without login.
+    Supports organization-specific vanity URL (/vacancies/ANG0002 or /v/ANG0002)
+    ensuring each landlord/organization has their own isolated marketing page.
     """
+    if not org_code:
+        org_code = request.args.get('org_code') or request.args.get('org') or request.args.get('code')
+
+    target_org = None
+    if org_code:
+        code_str = org_code.strip()
+        target_org = Organization.query.filter(
+            or_(
+                func.upper(Organization.org_code) == code_str.upper(),
+                Organization.slug == code_str.lower()
+            )
+        ).first()
+
     property_id = request.args.get('property_id', type=int)
     unit_type = request.args.get('type')
     max_rent = request.args.get('max_rent', type=float)
 
     query = RentalUnit.query.filter_by(occupancy_status='VACANT')
+
+    if target_org:
+        # Strictly isolate vacant houses to this organization's properties
+        query = query.join(Property, RentalUnit.property_id == Property.id).filter(Property.organization_id == target_org.id)
+        properties = Property.query.filter_by(organization_id=target_org.id, management_status='ACTIVE').all()
+        ext_query = ExternalPropertyListing.query.filter_by(organization_id=target_org.id, status='PUBLISHED')
+    else:
+        properties = Property.query.filter_by(management_status='ACTIVE').all()
+        ext_query = ExternalPropertyListing.query.filter_by(status='PUBLISHED')
+
     if property_id:
-        query = query.filter_by(property_id=property_id)
+        query = query.filter(RentalUnit.property_id == property_id)
     if unit_type:
-        query = query.filter_by(unit_type=unit_type)
+        query = query.filter(RentalUnit.unit_type == unit_type)
+        ext_query = ext_query.filter(ExternalPropertyListing.unit_type == unit_type)
     if max_rent:
         query = query.filter(RentalUnit.rent_amount_cents <= to_cents(max_rent))
+        ext_query = ext_query.filter(ExternalPropertyListing.monthly_rent_cents <= to_cents(max_rent))
 
     vacant_units = query.order_by(RentalUnit.rent_amount_cents.asc()).all()
-    properties = Property.query.filter_by(management_status='ACTIVE').all()
-
-    # Query published external / partner landlord apartments
-    ext_query = ExternalPropertyListing.query.filter_by(status='PUBLISHED')
-    if unit_type:
-        ext_query = ext_query.filter_by(unit_type=unit_type)
-    if max_rent:
-        ext_query = ext_query.filter(ExternalPropertyListing.monthly_rent_cents <= to_cents(max_rent))
     external_listings = ext_query.order_by(ExternalPropertyListing.created_at.desc()).all()
 
     currency = PersonalizationService.get_setting('currency', 'KES')
-    business_phone = PersonalizationService.get_setting('business_phone', '+254700000000')
-    business_email = PersonalizationService.get_setting('business_email', 'info@rentalsystem.co.ke')
+
+    if target_org:
+        business_name = target_org.name
+        business_phone = target_org.contact_phone or PersonalizationService.get_setting('business_phone', '+254700000000')
+        business_email = target_org.contact_email or PersonalizationService.get_setting('business_email', 'info@rentalsystem.co.ke')
+    else:
+        business_name = PersonalizationService.get_setting('business_name', 'Angaza Rental Management System')
+        business_phone = PersonalizationService.get_setting('business_phone', '+254700000000')
+        business_email = PersonalizationService.get_setting('business_email', 'info@rentalsystem.co.ke')
+
     clean_phone = ''.join(c for c in business_phone if c.isdigit())
     if clean_phone.startswith('0'):
         clean_phone = '254' + clean_phone[1:]
@@ -50,7 +81,8 @@ def vacancies():
         clean_phone = '254' + clean_phone
 
     # Default WhatsApp pre-filled inquiry text
-    wa_default_msg = urllib.parse.quote("Hello, I am interested in renting a house/apartment with your management. Please share details.")
+    wa_msg = f"Hello {business_name}, I saw your available rentals on your public portal. Please share more details."
+    wa_default_msg = urllib.parse.quote(wa_msg)
 
     return render_template(
         'public/vacancies.html',
@@ -61,10 +93,12 @@ def vacancies():
         selected_type=unit_type,
         max_rent=max_rent,
         currency=currency,
+        business_name=business_name,
         business_phone=business_phone,
         business_email=business_email,
         clean_phone=clean_phone,
-        wa_default_msg=wa_default_msg
+        wa_default_msg=wa_default_msg,
+        target_org=target_org
     )
 
 @public_bp.route('/vacancies/inquire', methods=['POST'])
@@ -79,9 +113,12 @@ def inquire():
     id_num = request.form.get('id_number', '').strip()
     move_in_str = request.form.get('expected_move_in')
     notes = request.form.get('notes', '').strip()
+    org_code = request.form.get('org_code', '').strip()
 
     if not unit_id or not name or not phone:
         flash('Name, telephone number, and rental unit are required.', 'danger')
+        if org_code:
+            return redirect(url_for('public.vacancies_by_org', org_code=org_code))
         return redirect(url_for('public.vacancies'))
 
     unit = RentalUnit.query.get_or_404(unit_id)
@@ -89,7 +126,10 @@ def inquire():
 
     ref = f"INQ-{date.today().strftime('%Y%m')}-{unit.id}-{int(datetime.utcnow().timestamp()) % 10000}"
 
+    org_id = unit.property.organization_id if unit.property else None
+
     booking = Booking(
+        organization_id=org_id,
         rental_unit_id=unit.id,
         booking_reference=ref,
         prospective_name=name,
@@ -132,6 +172,8 @@ def inquire():
     db.session.commit()
 
     flash(f"Thank you, {name}! Your inquiry for Unit {unit.unit_number} has been received (Ref: {ref}). Our property management team will contact you shortly.", 'success')
+    if org_code:
+        return redirect(url_for('public.vacancies_by_org', org_code=org_code))
     return redirect(url_for('public.vacancies'))
 
 @public_bp.route('/vacancies/house-alert', methods=['POST'])
@@ -149,10 +191,19 @@ def register_house_alert():
     move_in_str = request.form.get('expected_move_in')
     contact_method = request.form.get('contact_method', 'WHATSAPP')
     notes = request.form.get('notes', '').strip()
+    org_code = request.form.get('org_code', '').strip()
 
     if not full_name or not phone:
         flash('Full Name and Phone number are required to register for house notifications.', 'danger')
+        if org_code:
+            return redirect(url_for('public.vacancies_by_org', org_code=org_code))
         return redirect(url_for('public.vacancies'))
+
+    target_org = None
+    if org_code:
+        target_org = Organization.query.filter(
+            or_(func.upper(Organization.org_code) == org_code.upper(), Organization.slug == org_code.lower())
+        ).first()
 
     budget_cents = to_cents(budget_raw) if budget_raw and budget_raw > 0 else 0
     move_in_date = None
@@ -163,6 +214,7 @@ def register_house_alert():
             move_in_date = None
 
     lead = HouseSeekerLead(
+        organization_id=target_org.id if target_org else None,
         full_name=full_name,
         phone=phone,
         email=email if email else None,
@@ -207,6 +259,8 @@ def register_house_alert():
         f"We will notify you via {contact_method} the moment a matching vacant unit becomes available!",
         'success'
     )
+    if org_code:
+        return redirect(url_for('public.vacancies_by_org', org_code=org_code))
     return redirect(url_for('public.vacancies'))
 
 @public_bp.route('/vacancies/list-property', methods=['POST'])
@@ -225,10 +279,19 @@ def list_property_lead():
     num_vacant = request.form.get('num_vacant_units', 1, type=int)
     rent_range = request.form.get('rent_range', '').strip()
     description = request.form.get('description', '').strip()
+    org_code = request.form.get('org_code', '').strip()
 
     if not owner_name or not owner_phone or not property_title or not location:
         flash('Owner Name, Telephone, Property Name, and Location are mandatory to submit a listing.', 'danger')
+        if org_code:
+            return redirect(url_for('public.vacancies_by_org', org_code=org_code))
         return redirect(url_for('public.vacancies'))
+
+    target_org = None
+    if org_code:
+        target_org = Organization.query.filter(
+            or_(func.upper(Organization.org_code) == org_code.upper(), Organization.slug == org_code.lower())
+        ).first()
 
     # Parse approximate rent if numeric
     rent_cents = 0
@@ -240,6 +303,7 @@ def list_property_lead():
             rent_cents = 0
 
     new_listing = ExternalPropertyListing(
+        organization_id=target_org.id if target_org else None,
         owner_name=owner_name,
         owner_phone=owner_phone,
         owner_email=owner_email,
@@ -281,6 +345,8 @@ def list_property_lead():
         f"Our management and marketing team will contact you on {owner_phone} to verify and publish your vacant units!",
         'success'
     )
+    if org_code:
+        return redirect(url_for('public.vacancies_by_org', org_code=org_code))
     return redirect(url_for('public.vacancies'))
 
 @public_bp.route('/vacancies/inquire-external', methods=['POST'])
@@ -295,14 +361,19 @@ def inquire_external_lead():
     email = request.form.get('email', '').strip()
     move_in_str = request.form.get('expected_move_in')
     notes = request.form.get('notes', '').strip()
+    org_code = request.form.get('org_code', '').strip()
 
     if not listing_id or not full_name or not phone:
         flash('Full Name and Phone Number are required to submit an application/inquiry.', 'danger')
+        if org_code:
+            return redirect(url_for('public.vacancies_by_org', org_code=org_code))
         return redirect(url_for('public.vacancies'))
 
     listing = db.session.get(ExternalPropertyListing, listing_id)
     if not listing:
         flash('Requested property listing could not be found.', 'danger')
+        if org_code:
+            return redirect(url_for('public.vacancies_by_org', org_code=org_code))
         return redirect(url_for('public.vacancies'))
 
     move_in_date = None
@@ -313,6 +384,7 @@ def inquire_external_lead():
             move_in_date = None
 
     lead = HouseSeekerLead(
+        organization_id=listing.organization_id if listing else None,
         full_name=full_name,
         phone=phone,
         email=email,
@@ -351,10 +423,12 @@ def inquire_external_lead():
     db.session.commit()
 
     flash(
-        f"Thank you, {full_name}! Your application for '{listing.property_title}' has been received by Angaza Tenacity. "
+        f"Thank you, {full_name}! Your application for '{listing.property_title}' has been received. "
         f"Our property management team will contact you on {phone} to arrange physical viewing and allocate the unit!",
         'success'
     )
+    if org_code:
+        return redirect(url_for('public.vacancies_by_org', org_code=org_code))
     return redirect(url_for('public.vacancies'))
 
 @public_bp.route('/api/v1/vacant-units')
@@ -362,9 +436,19 @@ def api_vacant_units():
     """
     Public JSON REST API endpoint:
     Allows any external website (WordPress, Next.js, mobile app) to query available vacant units.
+    Optionally scoped to organization via ?org_code=ANGxxxx.
     """
+    org_code = request.args.get('org_code') or request.args.get('org')
     property_id = request.args.get('property_id', type=int)
     query = RentalUnit.query.filter_by(occupancy_status='VACANT')
+
+    if org_code:
+        target_org = Organization.query.filter(
+            or_(func.upper(Organization.org_code) == org_code.strip().upper(), Organization.slug == org_code.strip().lower())
+        ).first()
+        if target_org:
+            query = query.join(Property).filter(Property.organization_id == target_org.id)
+
     if property_id:
         query = query.filter_by(property_id=property_id)
 
