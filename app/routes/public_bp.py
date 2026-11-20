@@ -155,28 +155,50 @@ def vacancies(org_code=None):
     max_rent = request.args.get('max_rent', type=float)
     location_filter = request.args.get('location', '').strip()
 
+    # Active section tab: 'rental' | 'airbnb' | 'partner'
+    active_section = request.args.get('section', 'rental')
+
     # Always scoped to this org — no global fallback
-    query = RentalUnit.query.filter_by(occupancy_status='VACANT').join(
+    base_q = RentalUnit.query.join(
         Property, RentalUnit.property_id == Property.id
     ).filter(Property.organization_id == target_org.id)
-    properties = Property.query.filter_by(organization_id=target_org.id, management_status='ACTIVE').all()
+
+    # Long-term vacant rental units
+    rental_q = base_q.filter(
+        RentalUnit.occupancy_status == 'VACANT',
+        RentalUnit.operational_type == 'LONG_TERM'
+    )
+    # Short-stay (Airbnb) rooms – all, regardless of occupancy (they can be booked for future dates)
+    airbnb_q = base_q.filter(
+        RentalUnit.operational_type == 'SHORT_STAY'
+    )
     ext_query = ExternalPropertyListing.query.filter_by(organization_id=target_org.id, status='PUBLISHED')
 
+    properties = Property.query.filter_by(organization_id=target_org.id, management_status='ACTIVE').all()
+
     if property_id:
-        query = query.filter(RentalUnit.property_id == property_id)
+        rental_q = rental_q.filter(RentalUnit.property_id == property_id)
+        airbnb_q = airbnb_q.filter(RentalUnit.property_id == property_id)
     if unit_type:
-        query = query.filter(RentalUnit.unit_type == unit_type)
+        rental_q = rental_q.filter(RentalUnit.unit_type == unit_type)
+        airbnb_q = airbnb_q.filter(RentalUnit.unit_type == unit_type)
         ext_query = ext_query.filter(ExternalPropertyListing.unit_type == unit_type)
     if max_rent:
-        query = query.filter(RentalUnit.rent_amount_cents <= to_cents(max_rent))
+        rental_q = rental_q.filter(RentalUnit.rent_amount_cents <= to_cents(max_rent))
         ext_query = ext_query.filter(ExternalPropertyListing.monthly_rent_cents <= to_cents(max_rent))
     if location_filter:
         loc_term = f"%{location_filter}%"
-        query = query.filter(Property.location.ilike(loc_term))
+        rental_q = rental_q.filter(Property.location.ilike(loc_term))
+        airbnb_q = airbnb_q.filter(Property.location.ilike(loc_term))
         ext_query = ext_query.filter(ExternalPropertyListing.location.ilike(loc_term))
 
-    vacant_units = query.order_by(RentalUnit.rent_amount_cents.asc()).all()
+    vacant_units = rental_q.order_by(RentalUnit.rent_amount_cents.asc()).all()
+    airbnb_rooms = airbnb_q.order_by(RentalUnit.daily_rate_cents.asc()).all()
     external_listings = ext_query.order_by(ExternalPropertyListing.created_at.desc()).all()
+
+    # Split partner/neighbour listings from own published listings
+    partner_listings = [e for e in external_listings if getattr(e, 'is_partner_neighbour', True)]
+    own_ext_listings  = [e for e in external_listings if not getattr(e, 'is_partner_neighbour', True)]
 
     currency = PersonalizationService.get_setting('currency', 'KES')
 
@@ -194,10 +216,10 @@ def vacancies(org_code=None):
         clean_phone = '254' + clean_phone
 
     # Default WhatsApp pre-filled inquiry text
-    wa_msg = f"Hello {business_name}, I saw your available rentals in {region_name} on your public portal. Please share more details."
+    wa_msg = f"Hello {business_name}, I saw your available properties in {region_name} on your public portal. Please share more details."
     wa_default_msg = urllib.parse.quote(wa_msg)
 
-    # Extract distinct locations/neighbourhoods in this regional scope for quick filtering
+    # Extract distinct locations for quick filtering
     available_locations = sorted(list(set(
         [p.location.strip() for p in properties if p.location] +
         [e.location.strip() for e in external_listings if e.location]
@@ -206,13 +228,17 @@ def vacancies(org_code=None):
     return render_template(
         'public/vacancies.html',
         units=vacant_units,
+        airbnb_rooms=airbnb_rooms,
         external_listings=external_listings,
+        partner_listings=partner_listings,
+        own_ext_listings=own_ext_listings,
         properties=properties,
         selected_property=property_id,
         selected_type=unit_type,
         max_rent=max_rent,
         selected_location=location_filter,
         available_locations=available_locations,
+        active_section=active_section,
         currency=currency,
         business_name=business_name,
         business_phone=business_phone,
@@ -314,6 +340,146 @@ def inquire():
         return redirect(url_for('public.vacancies_by_org', org_code=org_code))
     return redirect(url_for('public.vacancies'))
 
+
+@public_bp.route('/vacancies/airbnb-book', methods=['POST'])
+def vacancies_airbnb_book():
+    """
+    Public Airbnb / Short-Stay Online Booking from /vacancies/<org_code> portal.
+    Creates a HospitalityReservation with PENDING status and notifies the team.
+    Data is strictly scoped to the unit's owning organization.
+    """
+    from app.models.hospitality import Guest, HospitalityReservation
+    unit_id = request.form.get('unit_id', type=int)
+    guest_name = request.form.get('guest_name', '').strip()
+    phone = request.form.get('phone', '').strip()
+    email = request.form.get('email', '').strip()
+    check_in_str = request.form.get('check_in_date', '').strip()
+    check_out_str = request.form.get('check_out_date', '').strip()
+    num_guests = request.form.get('num_guests', 1, type=int)
+    special_requests = request.form.get('special_requests', '').strip()
+    org_code = request.form.get('org_code', '').strip()
+
+    if not unit_id or not guest_name or not phone or not check_in_str or not check_out_str:
+        flash('Full name, phone, check-in and check-out dates are required to book.', 'danger')
+        if org_code:
+            return redirect(url_for('public.vacancies_by_org', org_code=org_code))
+        return redirect(url_for('public.vacancies'))
+
+    unit = db.session.get(RentalUnit, unit_id)
+    if not unit or unit.operational_type != 'SHORT_STAY':
+        flash('Requested Airbnb room could not be found or is not available for short-stay booking.', 'danger')
+        if org_code:
+            return redirect(url_for('public.vacancies_by_org', org_code=org_code))
+        return redirect(url_for('public.vacancies'))
+
+    # Security: unit must belong to the declared org
+    if org_code and unit.property:
+        claimed_org = Organization.query.filter(
+            or_(func.upper(Organization.org_code) == org_code.upper(),
+                Organization.slug == org_code.lower())
+        ).first()
+        if claimed_org and unit.property.organization_id != claimed_org.id:
+            flash('This room does not belong to the selected organization.', 'danger')
+            return redirect(url_for('public.vacancies_by_org', org_code=org_code))
+
+    try:
+        check_in = datetime.strptime(check_in_str, '%Y-%m-%d').date()
+        check_out = datetime.strptime(check_out_str, '%Y-%m-%d').date()
+    except Exception:
+        flash('Invalid check-in or check-out date format.', 'danger')
+        if org_code:
+            return redirect(url_for('public.vacancies_by_org', org_code=org_code))
+        return redirect(url_for('public.vacancies'))
+
+    if check_out <= check_in:
+        flash('Check-out date must be after check-in date.', 'danger')
+        if org_code:
+            return redirect(url_for('public.vacancies_by_org', org_code=org_code))
+        return redirect(url_for('public.vacancies'))
+
+    num_nights = (check_out - check_in).days
+    total_cents = num_nights * unit.daily_rate_cents
+
+    names = guest_name.strip().split(' ', 1)
+    first_name = names[0]
+    last_name = names[1] if len(names) > 1 else 'Guest'
+
+    guest = Guest.query.filter_by(phone=phone).first()
+    if not guest:
+        guest = Guest(first_name=first_name, last_name=last_name, phone=phone, email=email or None)
+        db.session.add(guest)
+        db.session.flush()
+
+    org = unit.property.organization if unit.property else None
+    res_code = f"STAY-{org.org_code if org else 'VIS'}-{int(datetime.utcnow().timestamp()) % 100000}"
+
+    reservation = HospitalityReservation(
+        reservation_code=res_code,
+        guest_id=guest.id,
+        rental_unit_id=unit.id,
+        check_in_date=check_in,
+        check_out_date=check_out,
+        num_guests=num_guests,
+        num_nights=num_nights,
+        daily_rate_cents=unit.daily_rate_cents,
+        total_stay_cents=total_cents,
+        paid_amount_cents=0,
+        booking_source='WEBSITE',
+        status='PENDING',
+        special_requests=f"Online Portal Booking. {special_requests}".strip()
+    )
+    db.session.add(reservation)
+
+    landlord_id = unit.property.landlord_id if unit.property else None
+    notif = Notification(
+        landlord_id=landlord_id,
+        title=f"New Online Airbnb Booking: {unit.unit_number} ({res_code})",
+        message=(
+            f"NEW SHORT-STAY BOOKING FROM PUBLIC PORTAL!\n"
+            f"Room: {unit.unit_number} ({unit.property.name if unit.property else 'Unknown'})\n"
+            f"Guest: {guest_name} ({phone})\n"
+            f"Check-In: {check_in.strftime('%d/%m/%Y')}\n"
+            f"Check-Out: {check_out.strftime('%d/%m/%Y')} ({num_nights} nights)\n"
+            f"Total: {format_currency(total_cents)}\n"
+            f"Code: {res_code}\n"
+            f"Status: PENDING — confirm and collect payment."
+        ),
+        channel='IN_APP',
+        notification_type='BOOKING_CREATED',
+        sent_status='SENT',
+        sent_at=datetime.utcnow()
+    )
+    db.session.add(notif)
+
+    # Auto-SMS to guest confirming the pending booking
+    try:
+        from app.services.sms_service import SmsService
+        sms_msg = (
+            f"Dear {first_name}, your Airbnb booking for {unit.unit_number} is PENDING confirmation! "
+            f"Ref: {res_code}. Check-In: {check_in.strftime('%d/%m/%Y')}. "
+            f"Total: {format_currency(total_cents)}. "
+            f"Our team will contact you on {phone} to confirm and arrange payment."
+        )
+        SmsService.send_sms(
+            to_phone=phone,
+            message=sms_msg,
+            notification_type='HOSPITALITY_RESERVATION',
+            organization_id=org.id if org else None
+        )
+    except Exception:
+        pass  # SMS failure should not block reservation creation
+
+    db.session.commit()
+
+    flash(
+        f"Thank you, {guest_name}! Your Airbnb booking for {unit.unit_number} is registered (Ref: {res_code}). "
+        f"Our hospitality team will confirm and contact you shortly on {phone}.",
+        'success'
+    )
+    if org_code:
+        return redirect(url_for('public.vacancies_by_org', org_code=org_code, section='airbnb'))
+    return redirect(url_for('public.vacancies'))
+
 @public_bp.route('/vacancies/house-alert', methods=['POST'])
 def register_house_alert():
     """
@@ -401,6 +567,9 @@ def register_house_alert():
         return redirect(url_for('public.vacancies_by_org', org_code=org_code))
     return redirect(url_for('public.vacancies'))
 
+
+
+
 @public_bp.route('/vacancies/list-property', methods=['POST'])
 def list_property_lead():
     """
@@ -487,6 +656,9 @@ def list_property_lead():
         return redirect(url_for('public.vacancies_by_org', org_code=org_code))
     return redirect(url_for('public.vacancies'))
 
+
+
+
 @public_bp.route('/vacancies/inquire-external', methods=['POST'])
 def inquire_external_lead():
     """
@@ -569,6 +741,9 @@ def inquire_external_lead():
         return redirect(url_for('public.vacancies_by_org', org_code=org_code))
     return redirect(url_for('public.vacancies'))
 
+
+
+
 @public_bp.route('/api/v1/vacant-units')
 def api_vacant_units():
     """
@@ -578,7 +753,11 @@ def api_vacant_units():
     """
     org_code = request.args.get('org_code') or request.args.get('org')
     property_id = request.args.get('property_id', type=int)
+    op_type = request.args.get('type')
     query = RentalUnit.query.filter_by(occupancy_status='VACANT')
+
+    if op_type:
+        query = query.filter(RentalUnit.operational_type == op_type.strip().upper())
 
     if org_code:
         target_org = Organization.query.filter(
@@ -598,6 +777,8 @@ def api_vacant_units():
         result.append({
             'id': u.id,
             'unit_number': u.unit_number,
+            'operational_type': u.operational_type,
+            'daily_rate': float(from_cents(u.daily_rate_cents)) if u.daily_rate_cents else 0.0,
             'property_id': u.property_id,
             'property_name': u.property.name if u.property else None,
             'property_location': u.property.location if u.property else None,
@@ -611,6 +792,9 @@ def api_vacant_units():
             'bathrooms': u.bathrooms,
             'amenities': u.amenities,
             'description': u.description,
+            'image_url': u.image_url,
+            'youtube_url': u.youtube_url,
+            'youtube_embed_url': u.youtube_embed_url,
             'availability_date': u.availability_date.strftime('%Y-%m-%d') if u.availability_date else 'Immediate',
             'inquiry_url': url_for('public.vacancies', property_id=u.property_id, _external=True)
         })

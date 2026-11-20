@@ -213,7 +213,19 @@
                         <tbody class="small">
                             {% for u in units %}
                             <tr>
-                                <td class="ps-3 fw-bold text-primary">{{ u.unit_number }}</td>
+                                <td class="ps-3 fw-bold text-primary">
+                                    {{ u.unit_number }}
+                                    {% if u.operational_type == 'SHORT_STAY' %}
+                                    <span class="badge bg-warning text-dark border ms-1" style="font-size: 0.65rem;" title="Short-Stay / Airbnb Room">
+                                        <i class="bi bi-houses-fill"></i> Airbnb
+                                    </span>
+                                    {% endif %}
+                                    {% if u.youtube_url %}
+                                    <a href="{{ u.youtube_url }}" target="_blank" class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1 text-decoration-none" style="font-size: 0.65rem;" title="Watch YouTube Tour">
+                                        <i class="bi bi-youtube"></i> Video
+                                    </a>
+                                    {% endif %}
+                                </td>
                                 <td>{{ u.unit_type }}</td>
                                 <td>
                                     {{ u.building.name if u.building else '—' }}
@@ -340,6 +352,25 @@
                                                                     <option value="MAINTENANCE" {% if u.occupancy_status == 'MAINTENANCE' %}selected{% endif %}>MAINTENANCE</option>
                                                                     <option value="RESERVED" {% if u.occupancy_status == 'RESERVED' %}selected{% endif %}>RESERVED</option>
                                                                 </select>
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <label class="form-label small fw-semibold">Operation Type</label>
+                                                                <select name="operational_type" class="form-select">
+                                                                    <option value="LONG_TERM" {% if u.operational_type == 'LONG_TERM' or not u.operational_type %}selected{% endif %}>Long-Term Rental</option>
+                                                                    <option value="SHORT_STAY" {% if u.operational_type == 'SHORT_STAY' %}selected{% endif %}>Short-Stay / Airbnb</option>
+                                                                </select>
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <label class="form-label small fw-semibold">Daily Rate (KES) — Airbnb</label>
+                                                                <input type="number" step="0.01" name="daily_rate" class="form-control" value="{{ (u.daily_rate_cents / 100)|round(2) if u.daily_rate_cents else '' }}" placeholder="e.g. 5500">
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <label class="form-label small fw-semibold">Max Guests</label>
+                                                                <input type="number" name="max_guests" class="form-control" value="{{ u.max_guests or 2 }}" min="1" max="20">
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <label class="form-label small fw-semibold">YouTube Video Tour URL</label>
+                                                                <input type="url" name="youtube_url" class="form-control" value="{{ u.youtube_url or '' }}" placeholder="https://youtube.com/watch?v=...">
                                                             </div>
                                                             <div class="col-md-6">
                                                                 <label class="form-label small fw-semibold">Upload Unit / Room Photo</label>
@@ -674,6 +705,25 @@
                         <div class="col-md-6">
                             <label class="form-label small fw-semibold">Bathrooms</label>
                             <input type="number" name="bathrooms" class="form-control" min="0" value="1">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Operation Type</label>
+                            <select name="operational_type" class="form-select">
+                                <option value="LONG_TERM" selected>Long-Term Rental</option>
+                                <option value="SHORT_STAY">Short-Stay / Airbnb</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Daily Rate (KES) — Airbnb</label>
+                            <input type="number" step="0.01" name="daily_rate" class="form-control" placeholder="e.g. 5500">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Max Guests</label>
+                            <input type="number" name="max_guests" class="form-control" value="2" min="1" max="20">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">YouTube Video Tour URL</label>
+                            <input type="url" name="youtube_url" class="form-control" placeholder="https://youtube.com/watch?v=...">
                         </div>
                         <div class="col-12">
                             <label class="form-label small fw-semibold">Amenities (Comma separated)</label>

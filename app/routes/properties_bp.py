@@ -334,6 +334,23 @@ def create_unit(property_id):
         description=description
     )
 
+    op_type = request.form.get('operational_type', 'LONG_TERM')
+    if op_type in ['LONG_TERM', 'SHORT_STAY']:
+        unit.operational_type = op_type
+    daily_rate = request.form.get('daily_rate', type=float)
+    if daily_rate is not None and daily_rate > 0:
+        unit.daily_rate_cents = to_cents(daily_rate)
+    max_guests = request.form.get('max_guests', type=int)
+    if max_guests:
+        unit.max_guests = max_guests
+    youtube_url_val = request.form.get('youtube_url', '').strip()
+    if youtube_url_val:
+        unit.youtube_url = youtube_url_val
+    image_url_val = request.form.get('image_url', '').strip()
+    if image_url_val:
+        unit.image_url = image_url_val
+    db.session.commit()
+
     flash(f"Rental unit '{unit.unit_number}' created successfully.", 'success')
     return redirect(url_for('properties.detail', property_id=property_id))
 
@@ -390,6 +407,22 @@ def edit_unit(unit_id):
     unit.description = description
     if status in ['VACANT', 'OCCUPIED', 'RESERVED', 'MAINTENANCE', 'INACTIVE']:
         unit.occupancy_status = status
+
+    # Airbnb / Short-Stay fields
+    op_type = request.form.get('operational_type', unit.operational_type)
+    if op_type in ['LONG_TERM', 'SHORT_STAY']:
+        unit.operational_type = op_type
+    daily_rate = request.form.get('daily_rate', type=float)
+    if daily_rate is not None:
+        unit.daily_rate_cents = to_cents(daily_rate)
+    max_guests = request.form.get('max_guests', type=int)
+    if max_guests:
+        unit.max_guests = max_guests
+
+    # YouTube / Video tour URL
+    youtube_url_val = request.form.get('youtube_url', '').strip()
+    if youtube_url_val:
+        unit.youtube_url = youtube_url_val
 
     # Handle Unit / Airbnb Room Photo upload or URL
     image_url_val = request.form.get('image_url', '').strip()
@@ -532,7 +565,13 @@ def create_external_listing():
         deposit_cents=to_cents(deposit_raw),
         features=features,
         description=description,
-        status=status
+        status=status,
+        listing_type=request.form.get('listing_type', 'RENTAL'),
+        daily_rate_cents=to_cents(request.form.get('daily_rate', 0, type=float)),
+        commission_rate_pct=request.form.get('commission_rate_pct', 10, type=int),
+        is_partner_neighbour=bool(request.form.get('is_partner_neighbour', True)),
+        youtube_url=request.form.get('youtube_url', '').strip() or None,
+        image_url=request.form.get('image_url_ext', '').strip() or None,
     )
     db.session.add(listing)
     db.session.commit()

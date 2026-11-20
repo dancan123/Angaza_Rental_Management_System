@@ -56,6 +56,13 @@ class ExternalPropertyListing(db.Model):
     features = db.Column(db.Text, nullable=True)               # e.g. "Borehole, Lift, Balcony, Backup Generator"
     description = db.Column(db.Text, nullable=True)
     image_url = db.Column(db.String(255), nullable=True)
+    youtube_url = db.Column(db.String(255), nullable=True)
+    
+    # Partner & Neighbor Extensions
+    listing_type = db.Column(db.String(30), default='RENTAL')   # 'RENTAL', 'AIRBNB'
+    daily_rate_cents = db.Column(db.Integer, default=0)
+    commission_rate_pct = db.Column(db.Integer, default=10)     # e.g. 10% commission on deal
+    is_partner_neighbour = db.Column(db.Boolean, default=True)
     
     # Status: PENDING, PUBLISHED, ALLOCATED, RENTED, ARCHIVED
     status = db.Column(db.String(30), default='PENDING', index=True)
@@ -77,6 +84,28 @@ class ExternalPropertyListing(db.Model):
     @property
     def deposit_display(self):
         return format_currency(self.deposit_cents)
+
+    @property
+    def daily_rate_display(self):
+        return format_currency(self.daily_rate_cents)
+
+    @property
+    def youtube_embed_url(self):
+        if not self.youtube_url:
+            return None
+        import re
+        url = self.youtube_url.strip()
+        patterns = [
+            r'(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})',
+            r'(?:https?:\/\/)?(?:www\.)?youtu\.be\/([a-zA-Z0-9_-]{11})',
+            r'(?:https?:\/\/)?(?:www\.)?youtube\.com\/embed\/([a-zA-Z0-9_-]{11})',
+            r'(?:https?:\/\/)?(?:www\.)?youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})',
+        ]
+        for p in patterns:
+            match = re.search(p, url)
+            if match:
+                return f"https://www.youtube-nocookie.com/embed/{match.group(1)}"
+        return url
 
     def __repr__(self):
         return f"<ExternalPropertyListing {self.property_title} ({self.status})>"

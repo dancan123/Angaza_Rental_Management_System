@@ -91,6 +91,7 @@ class RentalUnit(db.Model):
     max_guests = db.Column(db.Integer, default=2)
     cleaning_status = db.Column(db.String(30), nullable=False, default='CLEAN', index=True)  # CLEAN, DIRTY, INSPECTED, OUT_OF_SERVICE
     image_url = db.Column(db.String(255))
+    youtube_url = db.Column(db.String(255))
 
     # Two-Way iCal Calendar Sync (Airbnb, Booking.com, VRBO)
     ical_token = db.Column(db.String(64), unique=True, index=True)
@@ -127,6 +128,28 @@ class RentalUnit(db.Model):
     @builtins.property
     def deposit_display(self):
         return format_currency(self.deposit_amount_cents)
+
+    @builtins.property
+    def daily_rate_display(self):
+        return format_currency(self.daily_rate_cents)
+
+    @builtins.property
+    def youtube_embed_url(self):
+        if not self.youtube_url:
+            return None
+        import re
+        url = self.youtube_url.strip()
+        patterns = [
+            r'(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})',
+            r'(?:https?:\/\/)?(?:www\.)?youtu\.be\/([a-zA-Z0-9_-]{11})',
+            r'(?:https?:\/\/)?(?:www\.)?youtube\.com\/embed\/([a-zA-Z0-9_-]{11})',
+            r'(?:https?:\/\/)?(?:www\.)?youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})',
+        ]
+        for p in patterns:
+            match = re.search(p, url)
+            if match:
+                return f"https://www.youtube-nocookie.com/embed/{match.group(1)}"
+        return url
 
     from sqlalchemy.orm import validates
 
