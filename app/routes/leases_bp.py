@@ -99,6 +99,54 @@ def download_lease_pdf(lease_id):
         download_name=f"Tenancy_Agreement_{lease.lease_number}.pdf"
     )
 
+@leases_bp.route('/<int:lease_id>/deposit-receipt/pdf')
+@login_required
+@permission_required('leases.view')
+def download_deposit_receipt_pdf(lease_id):
+    lease = db.session.get(Lease, lease_id)
+    if not lease:
+        from flask import abort; abort(404)
+    from app.utils.pdf_generator import generate_deposit_receipt_pdf
+    pdf_bytes = generate_deposit_receipt_pdf(lease)
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"Deposit_Receipt_{lease.lease_number}.pdf"
+    )
+
+@leases_bp.route('/<int:lease_id>/move-in-inspection/pdf')
+@login_required
+@permission_required('leases.view')
+def download_move_in_inspection_pdf(lease_id):
+    lease = db.session.get(Lease, lease_id)
+    if not lease:
+        from flask import abort; abort(404)
+    from app.utils.pdf_generator import generate_move_in_inspection_pdf
+    pdf_bytes = generate_move_in_inspection_pdf(lease)
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"Move_In_Inspection_{lease.lease_number}.pdf"
+    )
+
+@leases_bp.route('/<int:lease_id>/renewal/pdf')
+@login_required
+@permission_required('leases.view')
+def download_renewal_pdf(lease_id):
+    lease = db.session.get(Lease, lease_id)
+    if not lease:
+        from flask import abort; abort(404)
+    from app.utils.pdf_generator import generate_tenancy_renewal_agreement_pdf
+    pdf_bytes = generate_tenancy_renewal_agreement_pdf(lease)
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"Tenancy_Renewal_Addendum_{lease.lease_number}.pdf"
+    )
+
 @leases_bp.route('/<int:lease_id>/terminate', methods=['POST'])
 @login_required
 @permission_required('leases.manage')

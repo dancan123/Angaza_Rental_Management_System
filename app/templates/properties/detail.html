@@ -19,6 +19,9 @@
         </div>
 
         <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('properties.download_occupancy_pdf', property_id=property.id) }}" class="btn btn-outline-danger" title="Download Property Occupancy &amp; Unit Roll PDF">
+                <i class="bi bi-file-earmark-pdf me-1"></i> Occupancy Report PDF
+            </a>
             <button type="button" class="btn btn-primary" onclick="var tabTrigger = new bootstrap.Tab(document.getElementById('occupants-tab')); tabTrigger.show(); document.getElementById('occupants-tab').scrollIntoView({behavior: 'smooth'});">
                 <i class="bi bi-search me-1"></i> Who is in which room?
             </button>

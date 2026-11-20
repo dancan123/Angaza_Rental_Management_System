@@ -146,3 +146,26 @@ def create_expense():
     flash(f"Operating expense recorded under category '{category}'.", 'success')
     return redirect(url_for('maintenance.index', tab='expenses'))
 
+@maintenance_bp.route('/requests/<int:request_id>/work-order/pdf')
+@login_required
+@permission_required('maintenance.view')
+def download_work_order_pdf(request_id):
+    from io import BytesIO
+    from flask import send_file, abort
+    from app.models.maintenance import MaintenanceRequest
+    from app.utils.pdf_generator import generate_maintenance_work_order_pdf
+    req = db.session.get(MaintenanceRequest, request_id)
+    if not req:
+        abort(404)
+    if not current_user.is_superadmin():
+        org_id = current_user.organization_id
+        if req.rental_unit and req.rental_unit.property and req.rental_unit.property.organization_id != org_id:
+            abort(404)
+    pdf_bytes = generate_maintenance_work_order_pdf(req)
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"Work_Order_{req.id:04d}.pdf"
+    )
+

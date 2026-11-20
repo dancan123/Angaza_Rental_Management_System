@@ -124,14 +124,18 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-end pe-3">
-                                    {% if r.status != 'RESOLVED' and current_user.has_permission('maintenance.manage') %}
                                     <div class="d-inline-flex gap-1">
+                                        <a href="{{ url_for('maintenance.download_work_order_pdf', request_id=r.id) }}" class="btn btn-outline-secondary btn-sm" title="Download Work Order PDF">
+                                            <i class="bi bi-file-earmark-pdf text-danger"></i> Work Order
+                                        </a>
+                                        {% if r.status != 'RESOLVED' and current_user.has_permission('maintenance.manage') %}
                                         <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#assignModal{{ r.id }}" title="Assign Technician">
                                             <i class="bi bi-person-gear"></i> Assign
                                         </button>
                                         <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#resolveModal{{ r.id }}" title="Mark Resolved">
                                             <i class="bi bi-check-lg"></i> Resolve
                                         </button>
+                                        {% endif %}
                                     </div>
 
                                     <!-- Assign Modal -->

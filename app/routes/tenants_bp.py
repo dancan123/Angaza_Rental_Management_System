@@ -434,3 +434,79 @@ def download_statement_pdf(tenant_id):
         download_name=f"Statement_{tenant.id_passport_number}.pdf"
     )
 
+@tenants_bp.route('/<int:tenant_id>/registration-form/pdf')
+@login_required
+@permission_required('tenants.view')
+def download_registration_form_pdf(tenant_id):
+    from io import BytesIO
+    from flask import send_file
+    from app.utils.pdf_generator import generate_tenant_registration_form_pdf
+    tenant = db.session.get(Tenant, tenant_id)
+    if not tenant:
+        abort(404)
+    if not current_user.is_superadmin() and tenant.organization_id and current_user.organization_id and tenant.organization_id != current_user.organization_id:
+        abort(404)
+    pdf_bytes = generate_tenant_registration_form_pdf(tenant)
+    return send_file(BytesIO(pdf_bytes), mimetype='application/pdf', as_attachment=True, download_name=f"Tenant_Registration_{tenant.id_passport_number}.pdf")
+
+@tenants_bp.route('/<int:tenant_id>/demand-letter/pdf')
+@login_required
+@permission_required('tenants.view')
+def download_demand_letter_pdf(tenant_id):
+    from io import BytesIO
+    from flask import send_file
+    from app.utils.pdf_generator import generate_rent_demand_letter_pdf
+    tenant = db.session.get(Tenant, tenant_id)
+    if not tenant:
+        abort(404)
+    if not current_user.is_superadmin() and tenant.organization_id and current_user.organization_id and tenant.organization_id != current_user.organization_id:
+        abort(404)
+    pdf_bytes = generate_rent_demand_letter_pdf(tenant)
+    return send_file(BytesIO(pdf_bytes), mimetype='application/pdf', as_attachment=True, download_name=f"Rent_Demand_Notice_{tenant.id_passport_number}.pdf")
+
+@tenants_bp.route('/<int:tenant_id>/arrears/pdf')
+@login_required
+@permission_required('tenants.view')
+def download_arrears_pdf(tenant_id):
+    from io import BytesIO
+    from flask import send_file
+    from app.utils.pdf_generator import generate_rent_arrears_statement_pdf
+    tenant = db.session.get(Tenant, tenant_id)
+    if not tenant:
+        abort(404)
+    if not current_user.is_superadmin() and tenant.organization_id and current_user.organization_id and tenant.organization_id != current_user.organization_id:
+        abort(404)
+    pdf_bytes = generate_rent_arrears_statement_pdf(tenant)
+    return send_file(BytesIO(pdf_bytes), mimetype='application/pdf', as_attachment=True, download_name=f"Arrears_Statement_{tenant.id_passport_number}.pdf")
+
+@tenants_bp.route('/<int:tenant_id>/deposit-refund/pdf')
+@login_required
+@permission_required('tenants.view')
+def download_deposit_refund_pdf(tenant_id):
+    from io import BytesIO
+    from flask import send_file
+    from app.utils.pdf_generator import generate_deposit_refund_statement_pdf
+    tenant = db.session.get(Tenant, tenant_id)
+    if not tenant:
+        abort(404)
+    if not current_user.is_superadmin() and tenant.organization_id and current_user.organization_id and tenant.organization_id != current_user.organization_id:
+        abort(404)
+    pdf_bytes = generate_deposit_refund_statement_pdf(tenant)
+    return send_file(BytesIO(pdf_bytes), mimetype='application/pdf', as_attachment=True, download_name=f"Deposit_Refund_Statement_{tenant.id_passport_number}.pdf")
+
+@tenants_bp.route('/<int:tenant_id>/move-out-inspection/pdf')
+@login_required
+@permission_required('tenants.view')
+def download_move_out_inspection_pdf(tenant_id):
+    from io import BytesIO
+    from flask import send_file
+    from app.utils.pdf_generator import generate_move_out_inspection_pdf
+    tenant = db.session.get(Tenant, tenant_id)
+    if not tenant:
+        abort(404)
+    if not current_user.is_superadmin() and tenant.organization_id and current_user.organization_id and tenant.organization_id != current_user.organization_id:
+        abort(404)
+    pdf_bytes = generate_move_out_inspection_pdf(tenant)
+    return send_file(BytesIO(pdf_bytes), mimetype='application/pdf', as_attachment=True, download_name=f"Move_Out_Inspection_{tenant.id_passport_number}.pdf")
+
+

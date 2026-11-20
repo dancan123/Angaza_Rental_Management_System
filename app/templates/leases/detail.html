@@ -9,9 +9,18 @@
         <h3 class="fw-bold mb-0">Tenancy Agreement: {{ lease.lease_number }}</h3>
         <p class="text-muted small mb-0">Demised Unit: <strong>{{ lease.rental_unit.unit_number }}</strong> ({{ lease.rental_unit.property.name }})</p>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
         <a href="{{ url_for('leases.download_lease_pdf', lease_id=lease.id) }}" class="btn btn-danger">
-            <i class="bi bi-file-earmark-pdf me-1"></i> Download Legal PDF Agreement
+            <i class="bi bi-file-earmark-pdf me-1"></i> Legal Tenancy Agreement
+        </a>
+        <a href="{{ url_for('leases.download_deposit_receipt_pdf', lease_id=lease.id) }}" class="btn btn-outline-success">
+            <i class="bi bi-shield-check me-1"></i> Deposit Receipt PDF
+        </a>
+        <a href="{{ url_for('leases.download_move_in_inspection_pdf', lease_id=lease.id) }}" class="btn btn-outline-primary">
+            <i class="bi bi-clipboard-check me-1"></i> Move-In Inspection PDF
+        </a>
+        <a href="{{ url_for('leases.download_renewal_pdf', lease_id=lease.id) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-repeat me-1"></i> Renewal Addendum PDF
         </a>
     </div>
 </div>

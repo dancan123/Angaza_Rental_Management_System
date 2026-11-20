@@ -734,4 +734,25 @@ def export_vacant_excel():
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
+@properties_bp.route('/<int:property_id>/occupancy/pdf')
+@login_required
+@permission_required('properties.view')
+def download_occupancy_pdf(property_id):
+    from io import BytesIO
+    from flask import send_file, abort
+    from app.models.property import Property
+    from app.utils.pdf_generator import generate_property_occupancy_report_pdf
+    prop = db.session.get(Property, property_id)
+    if not prop:
+        abort(404)
+    if not current_user.is_superadmin() and prop.organization_id != current_user.organization_id:
+        abort(404)
+    pdf_bytes = generate_property_occupancy_report_pdf(prop)
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"Occupancy_Report_{prop.ref_number}.pdf"
+    )
+
 

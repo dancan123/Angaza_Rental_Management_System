@@ -194,6 +194,22 @@ def generate_receipt_pdf(payment):
     return buffer.getvalue()
 
 
+# Re-export advanced tenancy and property management PDF generators
+from app.utils.advanced_pdf_generator import (
+    generate_tenant_registration_form_pdf,
+    generate_rent_demand_letter_pdf,
+    generate_rent_arrears_statement_pdf,
+    generate_deposit_receipt_pdf,
+    generate_deposit_refund_statement_pdf,
+    generate_move_in_inspection_pdf,
+    generate_move_out_inspection_pdf,
+    generate_tenancy_renewal_agreement_pdf,
+    generate_maintenance_work_order_pdf,
+    generate_property_occupancy_report_pdf,
+)
+
+
+
 def generate_invoice_pdf(charge):
     """
     Generates a professional PDF Monthly Rent Invoice / Demand Note using ReportLab.
@@ -340,6 +356,22 @@ def generate_invoice_pdf(charge):
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
+
+
+# Re-export advanced tenancy and property management PDF generators
+from app.utils.advanced_pdf_generator import (
+    generate_tenant_registration_form_pdf,
+    generate_rent_demand_letter_pdf,
+    generate_rent_arrears_statement_pdf,
+    generate_deposit_receipt_pdf,
+    generate_deposit_refund_statement_pdf,
+    generate_move_in_inspection_pdf,
+    generate_move_out_inspection_pdf,
+    generate_tenancy_renewal_agreement_pdf,
+    generate_maintenance_work_order_pdf,
+    generate_property_occupancy_report_pdf,
+)
+
 
 
 def generate_guest_folio_pdf(reservation):
@@ -495,6 +527,22 @@ def generate_guest_folio_pdf(reservation):
     return buffer.getvalue()
 
 
+# Re-export advanced tenancy and property management PDF generators
+from app.utils.advanced_pdf_generator import (
+    generate_tenant_registration_form_pdf,
+    generate_rent_demand_letter_pdf,
+    generate_rent_arrears_statement_pdf,
+    generate_deposit_receipt_pdf,
+    generate_deposit_refund_statement_pdf,
+    generate_move_in_inspection_pdf,
+    generate_move_out_inspection_pdf,
+    generate_tenancy_renewal_agreement_pdf,
+    generate_maintenance_work_order_pdf,
+    generate_property_occupancy_report_pdf,
+)
+
+
+
 def generate_tenant_statement_pdf(tenant):
     """
     Generates a full PDF Tenant Statement of Account / Financial Ledger.
@@ -641,6 +689,22 @@ def generate_tenant_statement_pdf(tenant):
     return buffer.getvalue()
 
 
+# Re-export advanced tenancy and property management PDF generators
+from app.utils.advanced_pdf_generator import (
+    generate_tenant_registration_form_pdf,
+    generate_rent_demand_letter_pdf,
+    generate_rent_arrears_statement_pdf,
+    generate_deposit_receipt_pdf,
+    generate_deposit_refund_statement_pdf,
+    generate_move_in_inspection_pdf,
+    generate_move_out_inspection_pdf,
+    generate_tenancy_renewal_agreement_pdf,
+    generate_maintenance_work_order_pdf,
+    generate_property_occupancy_report_pdf,
+)
+
+
+
 def generate_landlord_remittance_pdf(landlord, report_dict):
     """
     Generates a formal Landlord Remittance & Monthly Disbursement Statement PDF.
@@ -748,6 +812,37 @@ def generate_landlord_remittance_pdf(landlord, report_dict):
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
+
+
+# Re-export advanced tenancy and property management PDF generators
+from app.utils.advanced_pdf_generator import (
+    generate_tenant_registration_form_pdf,
+    generate_rent_demand_letter_pdf,
+    generate_rent_arrears_statement_pdf,
+    generate_deposit_receipt_pdf,
+    generate_deposit_refund_statement_pdf,
+    generate_move_in_inspection_pdf,
+    generate_move_out_inspection_pdf,
+    generate_tenancy_renewal_agreement_pdf,
+    generate_maintenance_work_order_pdf,
+    generate_property_occupancy_report_pdf,
+)
+
+
+# Re-export advanced tenancy and property management PDF generators
+from app.utils.advanced_pdf_generator import (
+    generate_tenant_registration_form_pdf,
+    generate_rent_demand_letter_pdf,
+    generate_rent_arrears_statement_pdf,
+    generate_deposit_receipt_pdf,
+    generate_deposit_refund_statement_pdf,
+    generate_move_in_inspection_pdf,
+    generate_move_out_inspection_pdf,
+    generate_tenancy_renewal_agreement_pdf,
+    generate_maintenance_work_order_pdf,
+    generate_property_occupancy_report_pdf,
+)
+
 
 
 
@@ -880,3 +975,19 @@ def generate_collection_sales_report_pdf(report_data, org=None, start_date=None,
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
+
+
+# Re-export advanced tenancy and property management PDF generators
+from app.utils.advanced_pdf_generator import (
+    generate_tenant_registration_form_pdf,
+    generate_rent_demand_letter_pdf,
+    generate_rent_arrears_statement_pdf,
+    generate_deposit_receipt_pdf,
+    generate_deposit_refund_statement_pdf,
+    generate_move_in_inspection_pdf,
+    generate_move_out_inspection_pdf,
+    generate_tenancy_renewal_agreement_pdf,
+    generate_maintenance_work_order_pdf,
+    generate_property_occupancy_report_pdf,
+)
+
