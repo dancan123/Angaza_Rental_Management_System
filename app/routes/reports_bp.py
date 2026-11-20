@@ -123,7 +123,7 @@ def landlord_statement():
 @permission_required('reports.view')
 def download_landlord_statement_pdf(landlord_id):
     from app.utils.pdf_generator import generate_landlord_remittance_pdf
-    landlord = Landlord.query.get_or_404(landlord_id)
+    landlord = db.session.get(Landlord, landlord_id)
     if not landlord:
         from flask import abort; abort(404)
     report = ReportService.get_landlord_statement(landlord_id)

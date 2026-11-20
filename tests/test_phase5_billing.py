@@ -108,8 +108,8 @@ def test_payment_recording_and_chronological_allocation(app):
         assert payment.receipt_number.startswith('REC-')
 
         # Check allocations
-        c10_refreshed = RentCharge.query.get(c10.id)
-        c11_refreshed = RentCharge.query.get(c11.id)
+        c10_refreshed = db.session.get(RentCharge, c10.id)
+        c11_refreshed = db.session.get(RentCharge, c11.id)
 
         assert c10_refreshed.status == 'PAID'
         assert c10_refreshed.amount_paid_cents == 3000000
@@ -150,7 +150,7 @@ def test_payment_reversal_workflow(app):
         assert reversed_pay.payment_status == 'REVERSED'
 
         # Charge must be restored to UNPAID
-        charge_after = RentCharge.query.get(charge.id)
+        charge_after = db.session.get(RentCharge, charge.id)
         assert charge_after.status == 'UNPAID'
         assert charge_after.amount_paid_cents == 0
         assert charge_after.balance_cents == 3000000

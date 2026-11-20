@@ -2,6 +2,7 @@ import io
 from datetime import datetime
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
+from app.extensions import db
 from app.models.finance import RentCharge, Payment
 from app.models.maintenance import Expense
 from app.models.property import RentalUnit
@@ -114,7 +115,10 @@ class ReportService:
 
     @staticmethod
     def get_landlord_statement(landlord_id, start_date=None, end_date=None):
-        landlord = Landlord.query.get_or_404(landlord_id)
+        landlord = db.session.get(Landlord, landlord_id)
+        if not landlord:
+            from flask import abort
+            abort(404)
         prop_ids = [p.id for p in landlord.properties.all()]
 
         pay_query = Payment.query.filter(Payment.property_id.in_(prop_ids), Payment.payment_status == 'CONFIRMED') if prop_ids else Payment.query.filter(Payment.id == -1)
