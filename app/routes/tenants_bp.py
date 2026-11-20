@@ -1,3 +1,4 @@
+from datetime import datetime, date
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
 from flask_login import login_required, current_user
 from app.extensions import db
@@ -90,6 +91,32 @@ def create_tenant():
             occupation=occupation,
             next_of_kin_data=next_of_kin_data
         )
+
+        # Optional immediate room allocation
+        unit_id = request.form.get('rental_unit_id', type=int)
+        if unit_id:
+            from app.models.property import RentalUnit
+            from app.services.lease_service import LeaseService
+            from datetime import date as _dt_date
+            unit = db.session.get(RentalUnit, unit_id)
+            if unit and unit.occupancy_status == 'VACANT':
+                rent = request.form.get('monthly_rent', type=float) or (unit.rent_amount_cents / 100 if unit.rent_amount_cents else 0)
+                deposit = request.form.get('deposit_amount', type=float) or (unit.deposit_amount_cents / 100 if unit.deposit_amount_cents else rent)
+                start_date_str = request.form.get('start_date')
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else _dt_date.today()
+                prorate = request.form.get('prorate_first_month') in ('1', 'true', 'on', 'yes')
+
+                LeaseService.create_lease(
+                    rental_unit_id=unit.id,
+                    tenant_id=tenant.id,
+                    start_date=start_date,
+                    monthly_rent=rent,
+                    deposit_amount=deposit,
+                    prorate_first_month=prorate
+                )
+                flash(f"Tenant '{tenant.full_name}' registered and allocated to Unit {unit.unit_number} ({unit.property.name}).", 'success')
+                return redirect(url_for('tenants.detail', tenant_id=tenant.id))
+
         flash(f"Tenant '{tenant.full_name}' registered successfully.", 'success')
         return redirect(url_for('tenants.detail', tenant_id=tenant.id))
     except ValueError as e:
@@ -127,6 +154,52 @@ def detail(tenant_id):
         payments=payments,
         vacant_units=vacant_units
     )
+
+@tenants_bp.route('/<int:tenant_id>/allocate-unit', methods=['POST'])
+@login_required
+@permission_required('tenants.manage')
+def allocate_unit(tenant_id):
+    """Allocate a vacant rental unit / house to an existing tenant and create lease."""
+    tenant = db.session.get(Tenant, tenant_id)
+    if not tenant:
+        abort(404)
+    if not current_user.is_superadmin() and tenant.organization_id and current_user.organization_id and tenant.organization_id != current_user.organization_id:
+        abort(404)
+
+    unit_id = request.form.get('rental_unit_id', type=int)
+    if not unit_id:
+        flash('Please select a vacant unit to allocate.', 'danger')
+        return redirect(url_for('tenants.detail', tenant_id=tenant.id))
+
+    from app.models.property import RentalUnit
+    from app.services.lease_service import LeaseService
+    from datetime import date as _dt_date
+
+    unit = db.session.get(RentalUnit, unit_id)
+    if not unit or unit.occupancy_status != 'VACANT':
+        flash('Selected unit is no longer vacant or does not exist.', 'danger')
+        return redirect(url_for('tenants.detail', tenant_id=tenant.id))
+
+    rent = request.form.get('monthly_rent', type=float) or (unit.rent_amount_cents / 100 if unit.rent_amount_cents else 0)
+    deposit = request.form.get('deposit_amount', type=float) or (unit.deposit_amount_cents / 100 if unit.deposit_amount_cents else rent)
+    start_date_str = request.form.get('start_date')
+    start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else _dt_date.today()
+    prorate = request.form.get('prorate_first_month') in ('1', 'true', 'on', 'yes')
+
+    try:
+        lease = LeaseService.create_lease(
+            rental_unit_id=unit.id,
+            tenant_id=tenant.id,
+            start_date=start_date,
+            monthly_rent=rent,
+            deposit_amount=deposit,
+            prorate_first_month=prorate
+        )
+        flash(f"Unit '{unit.unit_number}' ({unit.property.name}) successfully allocated to {tenant.full_name}! Tenancy Agreement {lease.lease_number} activated.", 'success')
+    except Exception as e:
+        flash(f"Allocation failed: {str(e)}", 'danger')
+
+    return redirect(url_for('tenants.detail', tenant_id=tenant.id))
 
 @tenants_bp.route('/<int:tenant_id>/edit', methods=['POST'])
 @login_required

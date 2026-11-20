@@ -175,6 +175,11 @@
                                     <i class="bi bi-pencil"></i>
                                 </a>
                                 {% if not t.current_unit and t.is_active %}
+                                {% if current_user.has_permission('tenants.manage') %}
+                                <a href="{{ url_for('tenants.detail', tenant_id=t.id) }}" class="btn btn-primary-custom btn-sm py-0 px-2 d-inline-flex align-items-center" title="Allocate a Vacant Room to {{ t.full_name }}">
+                                    <i class="bi bi-door-open-fill me-1"></i> Allocate
+                                </a>
+                                {% endif %}
                                 <form method="POST" action="{{ url_for('tenants.delete_tenant', tenant_id=t.id) }}" class="d-inline" onsubmit="return confirm('Archive record for {{ t.full_name }}?');">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                     <button type="submit" class="btn btn-outline-danger btn-sm" title="Archive / Deactivate Tenant">
@@ -263,6 +268,46 @@
                             <input type="text" name="kin_phone" class="form-control" placeholder="e.g. +254722998877">
                         </div>
                     </div>
+
+                    <h6 class="fw-bold small text-uppercase text-primary border-bottom pb-1 mb-3 mt-4">3. Assign to a Vacant Room / House (Optional)</h6>
+                    <div class="alert alert-light border small mb-3">
+                        <i class="bi bi-info-circle me-1 text-primary"></i> You can immediately assign this tenant to a vacant unit upon registration or leave unassigned to allocate later.
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Select Vacant Room / Apartment</label>
+                            <select name="rental_unit_id" id="reg_rental_unit_id" class="form-select">
+                                <option value="">-- Do not assign room now (Register Profile Only) --</option>
+                                {% for u in vacant_units %}
+                                <option value="{{ u.id }}" 
+                                        data-rent="{{ (u.rent_amount_cents / 100) if u.rent_amount_cents else 0 }}" 
+                                        data-deposit="{{ (u.deposit_amount_cents / 100) if u.deposit_amount_cents else (u.rent_amount_cents / 100 if u.rent_amount_cents else 0) }}">
+                                    Unit {{ u.unit_number }} — {{ u.property.name }} ({{ u.unit_type }} • Rent: {{ u.rent_display }}/mo)
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 reg-room-field" style="display: none;">
+                            <label class="form-label small fw-semibold">Move-in / Lease Start Date</label>
+                            <input type="date" name="start_date" id="reg_start_date" class="form-control">
+                        </div>
+                        <div class="col-md-6 reg-room-field" style="display: none;">
+                            <label class="form-label small fw-semibold">Agreed Monthly Rent (KES)</label>
+                            <input type="number" step="0.01" name="monthly_rent" id="reg_monthly_rent" class="form-control" placeholder="e.g. 25000">
+                        </div>
+                        <div class="col-md-6 reg-room-field" style="display: none;">
+                            <label class="form-label small fw-semibold">Security Deposit (KES)</label>
+                            <input type="number" step="0.01" name="deposit_amount" id="reg_deposit_amount" class="form-control" placeholder="e.g. 25000">
+                        </div>
+                        <div class="col-md-6 reg-room-field" style="display: none;">
+                            <div class="form-check mt-3">
+                                <input class="form-check-input" type="checkbox" name="prorate_first_month" value="1" id="reg_prorate_first_month" checked>
+                                <label class="form-check-label small fw-semibold" for="reg_prorate_first_month">
+                                    Prorate first month's rent
+                                </label>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -272,5 +317,38 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var regUnitSelect = document.getElementById('reg_rental_unit_id');
+    var regRentInput = document.getElementById('reg_monthly_rent');
+    var regDepositInput = document.getElementById('reg_deposit_amount');
+    var regDateInput = document.getElementById('reg_start_date');
+    var roomFields = document.querySelectorAll('.reg-room-field');
+
+    if (regDateInput && !regDateInput.value) {
+        var today = new Date().toISOString().split('T')[0];
+        regDateInput.value = today;
+    }
+
+    if (regUnitSelect) {
+        regUnitSelect.addEventListener('change', function() {
+            var selected = this.options[this.selectedIndex];
+            var unitId = this.value;
+            if (unitId) {
+                roomFields.forEach(function(el) { el.style.display = ''; });
+                if (selected) {
+                    var rent = selected.getAttribute('data-rent');
+                    var deposit = selected.getAttribute('data-deposit');
+                    if (rent && regRentInput) regRentInput.value = parseFloat(rent).toFixed(2);
+                    if (deposit && regDepositInput) regDepositInput.value = parseFloat(deposit).toFixed(2);
+                }
+            } else {
+                roomFields.forEach(function(el) { el.style.display = 'none'; });
+            }
+        });
+    }
+});
+</script>
 {% endblock %}
 

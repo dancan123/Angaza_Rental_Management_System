@@ -183,10 +183,30 @@ def create_landlord():
 @permission_required('properties.view')
 def detail(property_id):
     prop = Property.query.get_or_404(property_id)
+    org_id = getattr(current_user, 'organization_id', None) if not current_user.is_superadmin() else None
+    if org_id and prop.organization_id and prop.organization_id != org_id:
+        from flask import abort
+        abort(404)
+
     buildings = prop.buildings.all()
     units = prop.rental_units.all()
     stats = PropertyService.get_property_occupancy_stats(property_id=prop.id)
     landlords = Landlord.query.filter_by(is_active=True).all()
+
+    from app.services.tenant_service import TenantService
+    occupants_data = []
+    for u in units:
+        tenant = u.current_tenant
+        active_lease = u.leases.filter_by(status='ACTIVE').first() if hasattr(u, 'leases') else None
+        summary = TenantService.get_tenant_financial_summary(tenant.id) if tenant else None
+        days_in_unit = (datetime.utcnow().date() - active_lease.start_date).days if (active_lease and active_lease.start_date) else None
+        occupants_data.append({
+            'unit': u,
+            'tenant': tenant,
+            'active_lease': active_lease,
+            'summary': summary,
+            'days_in_unit': days_in_unit
+        })
 
     return render_template(
         'properties/detail.html',
@@ -196,7 +216,8 @@ def detail(property_id):
         stats=stats,
         landlords=landlords,
         property_types=PROPERTY_TYPES,
-        unit_types=UNIT_TYPES
+        unit_types=UNIT_TYPES,
+        occupants_data=occupants_data
     )
 
 @properties_bp.route('/<int:property_id>/edit', methods=['POST'])

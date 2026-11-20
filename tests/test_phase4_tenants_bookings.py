@@ -154,3 +154,77 @@ def test_tenant_transfer_and_move_out(app):
         assert unit2.current_tenant_id is None
         assert tenant.is_active is False
 
+def test_tenant_registration_with_inline_room_allocation(client, app):
+    with app.app_context():
+        # Login
+        client.post('/auth/login', data={'username': 'admin_bkg', 'password': 'AdminPass123!'})
+        unit = RentalUnit.query.filter_by(unit_number='C-101').first()
+        assert unit.occupancy_status == 'VACANT'
+
+        resp = client.post('/tenants/create', data={
+            'first_name': 'Grace',
+            'last_name': 'Muthoni',
+            'id_passport_number': 'ID-554433',
+            'phone': '+254711224466',
+            'email': 'grace@example.com',
+            'rental_unit_id': unit.id,
+            'monthly_rent': 32000,
+            'deposit_amount': 32000,
+            'start_date': date.today().isoformat(),
+            'prorate_first_month': '1'
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+
+        # Verify tenant created and allocated
+        tenant = Tenant.query.filter_by(id_passport_number='ID-554433').first()
+        assert tenant is not None
+        db.session.refresh(unit)
+        assert unit.occupancy_status == 'OCCUPIED'
+        assert unit.current_tenant_id == tenant.id
+        assert tenant.current_unit.id == unit.id
+
+        # Verify lease created
+        lease = tenant.leases.filter_by(status='ACTIVE').first()
+        assert lease is not None
+        assert lease.rental_unit_id == unit.id
+        assert lease.monthly_rent_cents == 3200000
+
+def test_tenant_allocate_vacant_unit_route(client, app):
+    with app.app_context():
+        client.post('/auth/login', data={'username': 'admin_bkg', 'password': 'AdminPass123!'})
+        tenant = TenantService.create_tenant('Kev', 'Maina', 'ID-990011', '+254700998877')
+        unit2 = RentalUnit.query.filter_by(unit_number='C-102').first()
+        assert unit2.occupancy_status == 'VACANT'
+
+        # Allocate unit2 to Kev
+        resp = client.post(f'/tenants/{tenant.id}/allocate-unit', data={
+            'rental_unit_id': unit2.id,
+            'monthly_rent': 45000,
+            'deposit_amount': 45000,
+            'start_date': date.today().isoformat(),
+            'prorate_first_month': '0'
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+
+        db.session.refresh(unit2)
+        assert unit2.occupancy_status == 'OCCUPIED'
+        assert unit2.current_tenant_id == tenant.id
+
+        # Attempt to allocate same already-occupied unit to another tenant should be rejected
+        other_tenant = TenantService.create_tenant('Sam', 'Kariuki', 'ID-112244', '+254799001122')
+        resp2 = client.post(f'/tenants/{other_tenant.id}/allocate-unit', data={
+            'rental_unit_id': unit2.id
+        }, follow_redirects=True)
+        assert b'no longer vacant' in resp2.data
+
+def test_property_detail_occupants_query(client, app):
+    with app.app_context():
+        client.post('/auth/login', data={'username': 'admin_bkg', 'password': 'AdminPass123!'})
+        prop = Property.query.filter_by(ref_number='CRW-01').first()
+        resp = client.get(f'/properties/{prop.id}')
+        assert resp.status_code == 200
+        assert b'Who is in which room?' in resp.data
+        assert b'Current Occupants &amp; Tenancies' in resp.data
+        assert b'occupantsTable' in resp.data
+
+

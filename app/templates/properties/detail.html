@@ -19,6 +19,9 @@
         </div>
 
         <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-primary" onclick="var tabTrigger = new bootstrap.Tab(document.getElementById('occupants-tab')); tabTrigger.show(); document.getElementById('occupants-tab').scrollIntoView({behavior: 'smooth'});">
+                <i class="bi bi-search me-1"></i> Who is in which room?
+            </button>
             <button type="button" class="btn btn-outline-dark" data-bs-toggle="modal" data-bs-target="#editPropertyModal">
                 <i class="bi bi-camera me-1"></i> Edit &amp; Photo
             </button>
@@ -65,6 +68,11 @@
     <li class="nav-item">
         <button class="nav-link fw-semibold" id="table-tab" data-bs-toggle="tab" data-bs-target="#tab-table" type="button">
             <i class="bi bi-table me-1 text-primary"></i> Units Table View ({{ units|length }})
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link fw-semibold" id="occupants-tab" data-bs-toggle="tab" data-bs-target="#tab-occupants" type="button">
+            <i class="bi bi-people-fill me-1 text-primary"></i> Current Occupants &amp; Tenancies ({{ stats.occupied }})
         </button>
     </li>
     <li class="nav-item">
@@ -433,6 +441,175 @@
         </div>
     </div>
 
+    <!-- Tab 4: Who is in Which Room (Occupant & Tenancy Directory) -->
+    <div class="tab-pane fade" id="tab-occupants" role="tabpanel">
+        <div class="card card-custom bg-white mb-4">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-2 flex-grow-1" style="max-width: 480px;">
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" id="occupantSearchInput" class="form-control border-start-0" placeholder="Filter room number, tenant name, phone, or ID...">
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle p-2">
+                            <i class="bi bi-person-check-fill me-1"></i> {{ stats.occupied }} Occupied Rooms
+                        </span>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle p-2">
+                            <i class="bi bi-door-open me-1"></i> {{ stats.vacant }} Vacant Rooms
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card card-custom bg-white shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="occupantsTable">
+                        <thead class="table-light small">
+                            <tr>
+                                <th class="ps-3">Room / Unit</th>
+                                <th>Type &amp; Floor</th>
+                                <th>Occupancy Status</th>
+                                <th>Current Occupant / Tenant</th>
+                                <th>Contact &amp; National ID</th>
+                                <th>Tenancy Agreement</th>
+                                <th>Monthly Rent</th>
+                                <th>Arrears / Balance</th>
+                                <th class="text-end pe-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for item in (occupants_data if occupants_data is defined else []) %}
+                            {% set u = item.unit %}
+                            {% set t = item.tenant %}
+                            {% set lease = item.active_lease %}
+                            {% set summary = item.summary %}
+                            <tr class="occupant-row" data-search="{{ u.unit_number|lower }} {{ (t.full_name|lower) if t else '' }} {{ (t.phone|lower) if t else '' }} {{ (t.id_passport_number|lower) if t else '' }}">
+                                <td class="ps-3">
+                                    <div class="fw-bold text-primary fs-6">{{ u.unit_number }}</div>
+                                    <span class="text-muted" style="font-size: 0.72rem;">{{ property.name }}</span>
+                                </td>
+                                <td>
+                                    <span class="fw-semibold">{{ u.unit_type }}</span>
+                                    {% if u.floor %}
+                                    <div class="text-muted" style="font-size: 0.75rem;"><i class="bi bi-layers me-1"></i>{{ u.floor.floor_name }}</div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge {% if u.occupancy_status == 'OCCUPIED' %}badge-occupied{% elif u.occupancy_status == 'VACANT' %}badge-vacant{% elif u.occupancy_status == 'RESERVED' %}badge-reserved{% elif u.occupancy_status == 'MAINTENANCE' %}badge-maintenance{% else %}badge-inactive{% endif %}">
+                                        {{ u.occupancy_status }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if t %}
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="rounded-circle bg-primary-subtle text-primary fw-bold d-flex align-items-center justify-content-center" style="width: 34px; height: 34px; font-size: 0.85rem;">
+                                            {{ t.first_name[0] }}{{ t.last_name[0] }}
+                                        </div>
+                                        <div>
+                                            <a href="{{ url_for('tenants.detail', tenant_id=t.id) }}" class="fw-bold text-dark text-decoration-none" title="Open Full Tenant Dossier">
+                                                {{ t.full_name }}
+                                            </a>
+                                            <div class="text-muted" style="font-size: 0.72rem;">{{ t.occupation or 'Resident' }}</div>
+                                        </div>
+                                    </div>
+                                    {% else %}
+                                    <span class="text-muted fst-italic">— Vacant Room —</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if t %}
+                                    <div class="d-flex align-items-center gap-1">
+                                        <span class="fw-semibold">{{ t.phone }}</span>
+                                        <a href="https://wa.me/{{ t.phone|replace('+','')|replace(' ','')|replace('-','') }}" target="_blank" class="btn btn-sm btn-outline-success p-0 px-1 border-0" title="WhatsApp Tenant">
+                                            <i class="bi bi-whatsapp text-success"></i>
+                                        </a>
+                                        <a href="tel:{{ t.phone }}" class="btn btn-sm btn-outline-secondary p-0 px-1 border-0" title="Call Phone">
+                                            <i class="bi bi-telephone-fill text-muted"></i>
+                                        </a>
+                                    </div>
+                                    <div class="text-muted" style="font-size: 0.75rem;">ID: <code>{{ t.id_passport_number }}</code></div>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if lease %}
+                                    <div class="fw-bold text-dark" style="font-size: 0.8rem;"><code>{{ lease.lease_number }}</code></div>
+                                    <div class="text-muted" style="font-size: 0.72rem;">
+                                        Since {{ lease.start_date.strftime('%d/%m/%Y') }}
+                                        {% if item.days_in_unit is not none %}
+                                        ({{ item.days_in_unit }} days)
+                                        {% endif %}
+                                    </div>
+                                    {% elif t %}
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle small"><i class="bi bi-exclamation-triangle"></i> Pending Agreement</span>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="fw-bold text-dark">{{ u.rent_display }}</div>
+                                    <div class="text-muted" style="font-size: 0.72rem;">Deposit: {{ u.deposit_display }}</div>
+                                </td>
+                                <td>
+                                    {% if summary %}
+                                    {% if summary.outstanding_cents > 0 %}
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i> KES {{ '{:,.2f}'.format(summary.outstanding_cents / 100) }} Due
+                                    </span>
+                                    {% elif summary.outstanding_cents < 0 %}
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle">
+                                        KES {{ '{:,.2f}'.format(-summary.outstanding_cents / 100) }} Credit
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                        <i class="bi bi-check-circle-fill me-1"></i> Cleared
+                                    </span>
+                                    {% endif %}
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-3">
+                                    {% if t %}
+                                    <div class="d-inline-flex gap-1">
+                                        <a href="{{ url_for('tenants.detail', tenant_id=t.id) }}" class="btn btn-outline-primary btn-sm py-1 px-2" title="Open Tenant Dossier">
+                                            <i class="bi bi-person-lines-fill me-1"></i> Dossier
+                                        </a>
+                                        {% if current_user.has_permission('billing.manage') %}
+                                        <a href="{{ url_for('billing.index', tenant_id=t.id) }}" class="btn btn-outline-success btn-sm py-1 px-2" title="Receive Rent">
+                                            <i class="bi bi-cash-stack"></i>
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                    {% elif u.occupancy_status == 'VACANT' %}
+                                    <a href="{{ url_for('tenants.index') }}#createTenantModal" class="btn btn-primary-custom btn-sm py-1 px-2" title="Allocate a Tenant to this Vacant Room">
+                                        <i class="bi bi-person-plus-fill me-1"></i> Allocate Room
+                                    </a>
+                                    {% else %}
+                                    <span class="text-muted small">{{ u.occupancy_status }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="9" class="text-center text-muted py-5">
+                                    <i class="bi bi-door-open fs-1 text-secondary mb-2 d-block"></i>
+                                    <h6>No Units Registered in {{ property.name }}</h6>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <!-- Modal: Create Rental Unit -->
@@ -613,5 +790,25 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var searchInput = document.getElementById('occupantSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            var filter = this.value.toLowerCase().trim();
+            var rows = document.querySelectorAll('#occupantsTable tbody tr.occupant-row');
+            rows.forEach(function(row) {
+                var searchData = row.getAttribute('data-search') || '';
+                if (!filter || searchData.indexOf(filter) !== -1) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+    }
+});
+</script>
 {% endblock %}
 
