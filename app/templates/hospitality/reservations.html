@@ -119,28 +119,147 @@
                             {% endif %}
                         </td>
                         <td class="text-end pe-3">
-                            {% if r.status == 'CONFIRMED' %}
-                            <form method="POST" action="{{ url_for('hospitality.check_in', res_id=r.id) }}" class="d-inline">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <button type="submit" class="btn btn-success btn-sm py-0 px-2 fw-semibold" title="Check-In Guest">
-                                    <i class="bi bi-box-arrow-in-right"></i> Check In
+                            <div class="btn-group btn-group-sm" role="group">
+                                <a href="{{ url_for('hospitality.view_receipt', res_id=r.id) }}" class="btn btn-outline-dark py-0 px-2" title="View Official Receipt / Folio">
+                                    <i class="bi bi-receipt"></i> Slip
+                                </a>
+                                <button type="button" class="btn btn-outline-primary py-0 px-2" data-bs-toggle="modal" data-bs-target="#editModal{{ r.id }}" title="Edit Reservation">
+                                    <i class="bi bi-pencil-square"></i>
                                 </button>
-                            </form>
-                            <form method="POST" action="{{ url_for('hospitality.cancel_reservation', res_id=r.id) }}" class="d-inline" onsubmit="return confirm('Cancel reservation {{ r.reservation_code }}?');">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-1" title="Cancel Reservation">
-                                    <i class="bi bi-x-circle"></i>
+                                {% if r.status == 'CONFIRMED' %}
+                                <form method="POST" action="{{ url_for('hospitality.check_in', res_id=r.id) }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="btn btn-success py-0 px-2 fw-semibold" title="Check-In Guest">
+                                        <i class="bi bi-box-arrow-in-right"></i> Check In
+                                    </button>
+                                </form>
+                                {% elif r.status == 'CHECKED_IN' %}
+                                <button type="button" class="btn btn-warning py-0 px-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#checkOutModal{{ r.id }}" title="Check-Out">
+                                    <i class="bi bi-box-arrow-right"></i> Check Out
                                 </button>
-                            </form>
-                            {% elif r.status == 'CHECKED_IN' %}
-                            <button type="button" class="btn btn-warning btn-sm py-0 px-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#checkOutModal{{ r.id }}">
-                                <i class="bi bi-box-arrow-right me-1"></i> Check Out
-                            </button>
-                            {% else %}
-                            <span class="text-muted small">&mdash;</span>
-                            {% endif %}
+                                {% endif %}
+                                <form method="POST" action="{{ url_for('hospitality.delete_reservation', res_id=r.id) }}" class="d-inline"
+                                      onsubmit="return confirm('WARNING: Are you sure you want to permanently delete reservation {{ r.reservation_code }} for {{ r.guest.full_name }}?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="btn btn-outline-danger py-0 px-1" title="Delete Reservation">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
+
+                    <!-- Edit Reservation Modal -->
+                    <div class="modal fade" id="editModal{{ r.id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header bg-primary text-white">
+                                    <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2"></i>Edit Reservation #{{ r.reservation_code }}</h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                </div>
+                                <form method="POST" action="{{ url_for('hospitality.update_reservation', res_id=r.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <div class="modal-body text-start">
+                                        <h6 class="fw-bold text-uppercase text-secondary small border-bottom pb-1 mb-3">1. Guest Details</h6>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">First Name *</label>
+                                                <input type="text" name="first_name" class="form-control" value="{{ r.guest.first_name }}" required>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Last Name *</label>
+                                                <input type="text" name="last_name" class="form-control" value="{{ r.guest.last_name }}" required>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Phone Number *</label>
+                                                <input type="text" name="phone" class="form-control" value="{{ r.guest.phone }}" required>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">National ID / Passport</label>
+                                                <input type="text" name="id_passport_number" class="form-control" value="{{ r.guest.id_passport_number or '' }}">
+                                            </div>
+                                        </div>
+
+                                        <h6 class="fw-bold text-uppercase text-secondary small border-bottom pb-1 mb-3">2. Stay Dates & Room</h6>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Room / Unit</label>
+                                                <select name="rental_unit_id" class="form-select">
+                                                    {% for u in available_units %}
+                                                    <option value="{{ u.id }}" {% if u.id == r.rental_unit_id %}selected{% endif %}>
+                                                        Unit {{ u.unit_number }} ({{ u.unit_type }})
+                                                    </option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Booking Channel</label>
+                                                <select name="booking_source" class="form-select">
+                                                    <option value="DIRECT" {% if r.booking_source == 'DIRECT' %}selected{% endif %}>Direct / Walk-In</option>
+                                                    <option value="AIRBNB" {% if r.booking_source == 'AIRBNB' %}selected{% endif %}>Airbnb</option>
+                                                    <option value="BOOKING_COM" {% if r.booking_source == 'BOOKING_COM' %}selected{% endif %}>Booking.com</option>
+                                                    <option value="WEBSITE" {% if r.booking_source == 'WEBSITE' %}selected{% endif %}>Public Website</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-semibold">Check-In Date</label>
+                                                <input type="date" name="check_in_date" class="form-control" value="{{ r.check_in_date.strftime('%Y-%m-%d') }}" required>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-semibold">Check-Out Date</label>
+                                                <input type="date" name="check_out_date" class="form-control" value="{{ r.check_out_date.strftime('%Y-%m-%d') }}" required>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-semibold">Daily Rate (KES)</label>
+                                                <input type="number" step="0.01" name="daily_rate" class="form-control" value="{{ r.daily_rate_cents / 100 }}">
+                                            </div>
+                                        </div>
+
+                                        <h6 class="fw-bold text-uppercase text-secondary small border-bottom pb-1 mb-3">3. Payment & Settlement (Cash / M-Pesa)</h6>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-semibold">Payment Method</label>
+                                                <select name="payment_method" class="form-select">
+                                                    <option value="CASH" {% if r.payment_method == 'CASH' %}selected{% endif %}>Cash Payment</option>
+                                                    <option value="MPESA" {% if r.payment_method == 'MPESA' %}selected{% endif %}>M-Pesa (Mobile Money)</option>
+                                                    <option value="BANK" {% if r.payment_method == 'BANK' %}selected{% endif %}>Bank Transfer</option>
+                                                    <option value="CARD" {% if r.payment_method == 'CARD' %}selected{% endif %}>Credit / Debit Card</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-semibold">Payment Reference / Receipt #</label>
+                                                <input type="text" name="payment_reference" class="form-control" value="{{ r.payment_reference or '' }}">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-semibold">Total Paid Amount (KES)</label>
+                                                <input type="number" step="0.01" name="paid_amount" class="form-control" value="{{ r.paid_amount_cents / 100 }}">
+                                            </div>
+                                        </div>
+
+                                        <div class="row g-3">
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-semibold">Status</label>
+                                                <select name="status" class="form-select">
+                                                    <option value="CONFIRMED" {% if r.status == 'CONFIRMED' %}selected{% endif %}>Confirmed</option>
+                                                    <option value="CHECKED_IN" {% if r.status == 'CHECKED_IN' %}selected{% endif %}>Checked In</option>
+                                                    <option value="CHECKED_OUT" {% if r.status == 'CHECKED_OUT' %}selected{% endif %}>Checked Out</option>
+                                                    <option value="CANCELLED" {% if r.status == 'CANCELLED' %}selected{% endif %}>Cancelled</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-8">
+                                                <label class="form-label small fw-semibold">Special Requests</label>
+                                                <input type="text" name="special_requests" class="form-control" value="{{ r.special_requests or '' }}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer bg-light">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-primary fw-semibold"><i class="bi bi-save me-1"></i> Save Changes</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Check-Out Modal -->
                     {% if r.status == 'CHECKED_IN' %}
@@ -300,7 +419,28 @@
                         </div>
                     </div>
 
-                    <h6 class="fw-bold text-uppercase text-secondary small border-bottom pb-1 mb-3">3. Special Requests & Notes</h6>
+                    <h6 class="fw-bold text-uppercase text-secondary small border-bottom pb-1 mb-3">3. Payment & Settlement (Cash / M-Pesa)</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Payment Method</label>
+                            <select name="payment_method" class="form-select">
+                                <option value="CASH">Cash (Front Desk / Counter)</option>
+                                <option value="MPESA" selected>M-Pesa</option>
+                                <option value="BANK">Bank Transfer / EFT</option>
+                                <option value="CARD">Debit / Credit Card</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Payment Reference / Code</label>
+                            <input type="text" name="payment_reference" class="form-control" placeholder="e.g. QZ99FATUMA or Cash Receipt #">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Initial Payment / Deposit (KES)</label>
+                            <input type="number" step="0.01" name="paid_amount" class="form-control" placeholder="0.00">
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold text-uppercase text-secondary small border-bottom pb-1 mb-3">4. Special Requests & Notes</h6>
                     <div class="mb-3">
                         <textarea name="special_requests" class="form-control" rows="2" placeholder="Late arrival, extra towels, airport pickup requests..."></textarea>
                     </div>

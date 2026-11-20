@@ -229,6 +229,16 @@ def create_reservation():
             user_id=user.id
         )
 
+        # Initial payment record (Cash, M-Pesa, etc.)
+        init_paid = float(request.form.get('paid_amount', 0) or 0)
+        pay_method = request.form.get('payment_method', 'CASH').strip().upper()
+        pay_ref = request.form.get('payment_reference', '').strip()
+        if init_paid > 0:
+            res.paid_amount_cents = to_cents(init_paid)
+            res.payment_method = pay_method
+            res.payment_reference = pay_ref or (f"CASH-{res.reservation_code}" if pay_method == 'CASH' else 'SETTLED')
+            db.session.commit()
+
         flash(f"Hospitality reservation {res.reservation_code} confirmed for {res.guest.full_name}!", 'success')
     except Exception as e:
         flash(f"Booking Error: {str(e)}", 'danger')
@@ -286,6 +296,129 @@ def cancel_reservation(res_id):
     return redirect(url_for('hospitality.reservations'))
 
 
+@hospitality_bp.route('/reservations/<int:res_id>/update', methods=['POST'])
+@login_required
+@permission_required('bookings.manage')
+def update_reservation(res_id):
+    """
+    Updates reservation details including guest information, dates, pricing,
+    payment method (CASH, MPESA, BANK, CARD), payment reference, and status.
+    """
+    res = db.session.get(HospitalityReservation, res_id)
+    if not res:
+        from flask import abort; abort(404)
+
+    try:
+        # 1. Update Guest Details
+        guest = res.guest
+        first_name = request.form.get('first_name', '').strip()
+        last_name = request.form.get('last_name', '').strip()
+        phone = request.form.get('phone', '').strip()
+        if first_name: guest.first_name = first_name
+        if last_name: guest.last_name = last_name
+        if phone: guest.phone = phone
+        guest.email = request.form.get('email', '').strip() or None
+        guest.id_passport_number = request.form.get('id_passport_number', '').strip() or None
+        guest.nationality = request.form.get('nationality', 'Kenyan').strip()
+
+        # 2. Update Accommodation Unit
+        unit_id = request.form.get('rental_unit_id', type=int)
+        if unit_id and unit_id != res.rental_unit_id:
+            res.rental_unit_id = unit_id
+
+        # 3. Update Dates & Nights
+        check_in_str = request.form.get('check_in_date', '').strip()
+        check_out_str = request.form.get('check_out_date', '').strip()
+        if check_in_str and check_out_str:
+            new_check_in = datetime.strptime(check_in_str, '%Y-%m-%d').date()
+            new_check_out = datetime.strptime(check_out_str, '%Y-%m-%d').date()
+            if new_check_in >= new_check_out:
+                flash('Check-out date must be strictly after check-in date.', 'danger')
+                return redirect(request.referrer or url_for('hospitality.view_receipt', res_id=res.id))
+            res.check_in_date = new_check_in
+            res.check_out_date = new_check_out
+            res.num_nights = max(1, (new_check_out - new_check_in).days)
+
+        num_guests = request.form.get('num_guests', type=int)
+        if num_guests:
+            res.num_guests = num_guests
+
+        daily_rate = request.form.get('daily_rate')
+        if daily_rate is not None and daily_rate != '':
+            res.daily_rate_cents = to_cents(float(daily_rate))
+
+        # Recompute total charges
+        res.total_stay_cents = res.daily_rate_cents * res.num_nights
+
+        # 4. Payment Method & Reference (Accommodates Cash & M-Pesa)
+        payment_method = request.form.get('payment_method', '').strip()
+        if payment_method:
+            res.payment_method = payment_method.upper()
+
+        payment_ref = request.form.get('payment_reference', '').strip()
+        if payment_ref:
+            res.payment_reference = payment_ref
+        elif res.payment_method == 'CASH' and not res.payment_reference:
+            res.payment_reference = f"CASH-{res.reservation_code}"
+
+        paid_amount = request.form.get('paid_amount')
+        if paid_amount is not None and paid_amount != '':
+            res.paid_amount_cents = to_cents(float(paid_amount))
+
+        # 5. Status Management
+        new_status = request.form.get('status', '').strip()
+        if new_status and new_status in ('CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED'):
+            res.status = new_status
+            if new_status == 'CHECKED_IN':
+                res.rental_unit.occupancy_status = 'OCCUPIED'
+            elif new_status in ('CHECKED_OUT', 'CANCELLED'):
+                res.rental_unit.occupancy_status = 'VACANT'
+
+        # 6. Source and Special Requests
+        source = request.form.get('booking_source', '').strip()
+        if source:
+            res.booking_source = source
+        notes = request.form.get('special_requests', '').strip()
+        if notes is not None:
+            res.special_requests = notes
+
+        db.session.commit()
+        AuditService.log('UPDATE_RESERVATION', 'HospitalityReservation', res.id, new_values={'code': res.reservation_code})
+        flash(f"Reservation {res.reservation_code} updated successfully.", 'success')
+    except Exception as e:
+        flash(f"Update Error: {str(e)}", 'danger')
+
+    return redirect(request.referrer or url_for('hospitality.view_receipt', res_id=res.id))
+
+
+@hospitality_bp.route('/reservations/<int:res_id>/delete', methods=['POST'])
+@login_required
+@permission_required('bookings.manage')
+def delete_reservation(res_id):
+    """
+    Safely deletes a reservation and restores unit status to VACANT if needed.
+    """
+    res = db.session.get(HospitalityReservation, res_id)
+    if not res:
+        from flask import abort; abort(404)
+
+    code = res.reservation_code
+    try:
+        # Free unit if occupied by this reservation
+        if res.rental_unit and res.status == 'CHECKED_IN':
+            res.rental_unit.occupancy_status = 'VACANT'
+
+        db.session.delete(res)
+        db.session.commit()
+        AuditService.log('DELETE_RESERVATION', 'HospitalityReservation', res_id, new_values={'code': code})
+        flash(f"Reservation {code} has been permanently deleted.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Delete Error: {str(e)}", 'danger')
+
+    return redirect(url_for('hospitality.reservations'))
+
+
 @hospitality_bp.route('/reservations/<int:res_id>/record-payment', methods=['POST'])
 @login_required
 @permission_required('bookings.manage')
@@ -321,7 +454,8 @@ def view_receipt(res_id):
     res = db.session.get(HospitalityReservation, res_id)
     if not res:
         from flask import abort; abort(404)
-    return render_template('hospitality/receipt.html', res=res)
+    units = RentalUnit.query.filter_by(operational_type='SHORT_STAY').order_by(RentalUnit.unit_number.asc()).all()
+    return render_template('hospitality/receipt.html', res=res, units=units)
 
 
 @hospitality_bp.route('/reservations/<int:res_id>/pdf')

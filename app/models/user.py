@@ -131,8 +131,29 @@ class User(UserMixin, db.Model):
             if self.role.name == 'PROPERTY_MANAGER':
                 return True
         # Org-level roles can access their own settings (org-scoped, not global)
-        if permission_code == 'settings.manage':
+        if permission_code in ('settings.manage', 'settings.view', 'audit.view'):
             if self.role.name in ('LANDLORD', 'MANAGER', 'ACCOUNTANT', 'PROPERTY_MANAGER'):
+                return True
+        # Operations Managers and Property Managers have full operational permissions for their organization
+        if self.role.name in ('MANAGER', 'PROPERTY_MANAGER'):
+            return True
+        # Landlords have full management rights over their properties, units, bookings, housekeeping, and billing
+        if self.role.name == 'LANDLORD':
+            if permission_code in (
+                'properties.view', 'properties.manage', 'units.view', 'units.manage',
+                'bookings.view', 'bookings.manage', 'tenants.view', 'tenants.manage',
+                'leases.view', 'leases.manage', 'billing.view', 'billing.manage',
+                'mpesa.manage', 'banking.manage', 'maintenance.view', 'maintenance.manage',
+                'reports.view', 'reports.export'
+            ):
+                return True
+        # Accountants can view and manage bookings (for payments, billing, and receipts)
+        if self.role.name == 'ACCOUNTANT':
+            if permission_code in (
+                'bookings.view', 'bookings.manage', 'billing.view', 'billing.manage',
+                'banking.manage', 'mpesa.manage', 'reports.view', 'reports.export',
+                'properties.view', 'units.view', 'tenants.view'
+            ):
                 return True
         return any(p.code == permission_code for p in self.role.permissions)
 
