@@ -4,7 +4,7 @@ from flask_login import login_required, current_user
 from app.models.maintenance import Expense, MaintenanceRequest
 from app.models.property import Property, RentalUnit
 from app.services.maintenance_service import MaintenanceService
-from app.utils.decorators import permission_required
+from app.utils.decorators import permission_required, multi_tenant_scoped
 
 maintenance_bp = Blueprint('maintenance', __name__, url_prefix='/maintenance')
 
@@ -34,10 +34,11 @@ PRIORITIES = [
 @permission_required('maintenance.view')
 def index():
     tab = request.args.get('tab', 'tickets')
-    requests = MaintenanceRequest.query.order_by(MaintenanceRequest.created_at.desc()).all()
-    expenses = Expense.query.order_by(Expense.expense_date.desc()).all()
-    properties = Property.query.all()
-    units = RentalUnit.query.all()
+    # Scope maintenance requests and expenses to this org's properties/units
+    requests = multi_tenant_scoped(MaintenanceRequest.query, MaintenanceRequest).order_by(MaintenanceRequest.created_at.desc()).all()
+    expenses = multi_tenant_scoped(Expense.query, Expense).order_by(Expense.expense_date.desc()).all()
+    properties = multi_tenant_scoped(Property.query, Property).all()
+    units = multi_tenant_scoped(RentalUnit.query, RentalUnit).all()
 
     total_expense_cents = sum(e.amount_cents for e in expenses)
     pending_tickets = sum(1 for r in requests if r.status in ['PENDING', 'ASSIGNED', 'IN_PROGRESS'])

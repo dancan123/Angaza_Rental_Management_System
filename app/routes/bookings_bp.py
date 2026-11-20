@@ -4,7 +4,7 @@ from flask_login import login_required, current_user
 from app.models.booking import Booking
 from app.models.property import RentalUnit
 from app.services.booking_service import BookingService
-from app.utils.decorators import permission_required
+from app.utils.decorators import permission_required, multi_tenant_scoped
 
 bookings_bp = Blueprint('bookings', __name__, url_prefix='/bookings')
 
@@ -15,7 +15,8 @@ def index():
     status = request.args.get('status')
     search = request.args.get('search', '').strip()
 
-    query = Booking.query
+    # Scope to organization — superadmin sees all, others see only their org
+    query = multi_tenant_scoped(Booking.query, Booking)
     if status:
         query = query.filter_by(status=status)
     if search:
@@ -27,9 +28,10 @@ def index():
         )
     bookings = query.order_by(Booking.created_at.desc()).all()
 
-    vacant_units = RentalUnit.query.filter_by(occupancy_status='VACANT').all()
-    pending_count = Booking.query.filter_by(status='PENDING').count()
-    active_count = Booking.query.filter_by(status='ACTIVE').count()
+    vacant_units = multi_tenant_scoped(RentalUnit.query.filter_by(occupancy_status='VACANT'), RentalUnit).all()
+    base_q = multi_tenant_scoped(Booking.query, Booking)
+    pending_count = base_q.filter_by(status='PENDING').count()
+    active_count = multi_tenant_scoped(Booking.query, Booking).filter_by(status='ACTIVE').count()
 
     return render_template(
         'bookings/index.html',

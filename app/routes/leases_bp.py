@@ -1,13 +1,13 @@
 from datetime import datetime
 from io import BytesIO
 from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
-from flask_login import login_required
+from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.lease import Lease
 from app.models.property import RentalUnit
 from app.models.tenant import Tenant
 from app.services.lease_service import LeaseService
-from app.utils.decorators import permission_required
+from app.utils.decorators import permission_required, multi_tenant_scoped
 
 leases_bp = Blueprint('leases', __name__, url_prefix='/leases')
 
@@ -16,13 +16,14 @@ leases_bp = Blueprint('leases', __name__, url_prefix='/leases')
 @permission_required('leases.view')
 def index():
     status = request.args.get('status')
-    query = Lease.query
+    # Scope leases to organization via rental_unit → property → organization
+    query = multi_tenant_scoped(Lease.query, Lease)
     if status:
         query = query.filter_by(status=status)
     leases = query.order_by(Lease.created_at.desc()).all()
     expiring = LeaseService.get_expiring_leases(days_ahead=45)
-    vacant_units = RentalUnit.query.filter_by(occupancy_status='VACANT').all()
-    tenants = Tenant.query.filter_by(is_active=True).all()
+    vacant_units = multi_tenant_scoped(RentalUnit.query.filter_by(occupancy_status='VACANT'), RentalUnit).all()
+    tenants = multi_tenant_scoped(Tenant.query.filter_by(is_active=True), Tenant).all()
 
     return render_template(
         'leases/index.html',

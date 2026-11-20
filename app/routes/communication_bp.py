@@ -32,9 +32,14 @@ def index():
     # System notifications feed
     notifications = Notification.query.order_by(Notification.created_at.desc()).limit(50).all()
 
-    # Active properties and potential recipients
-    properties = Property.query.filter_by(management_status='ACTIVE').all()
-    recipients = User.query.filter(User.id != user_id, User.is_active.is_(True)).all()
+    # Active properties and potential recipients — scoped to organization
+    org_id = getattr(current_user, 'organization_id', None) if not current_user.is_superadmin() else None
+    if org_id:
+        properties = Property.query.filter_by(management_status='ACTIVE', organization_id=org_id).all()
+        recipients = User.query.filter(User.id != user_id, User.is_active.is_(True), User.organization_id == org_id).all()
+    else:
+        properties = Property.query.filter_by(management_status='ACTIVE').all()
+        recipients = User.query.filter(User.id != user_id, User.is_active.is_(True)).all()
 
     # Twilio configuration
     from app.services.sms_service import SmsService

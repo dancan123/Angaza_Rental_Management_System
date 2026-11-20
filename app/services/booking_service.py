@@ -36,6 +36,7 @@ class BookingService:
         ref = f"BKG-{unit.unit_number}-{datetime.utcnow().strftime('%Y%m%d%H%M')}"
 
         booking = Booking(
+            organization_id=unit.property.organization_id if unit.property else None,
             rental_unit_id=unit.id,
             booking_reference=ref,
             prospective_name=prospective_name.strip(),
