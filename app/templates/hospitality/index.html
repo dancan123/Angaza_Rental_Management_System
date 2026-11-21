@@ -984,6 +984,15 @@
                                                 <i class="bi bi-check-circle-fill me-1"></i> Confirm Reservation &amp; Notify Guest
                                             </button>
                                         </form>
+                                        {# ── M-Pesa STK Push ── #}
+                                        <form method="POST" action="{{ url_for('hospitality.push_stk_for_reservation', res_id=b.id) }}" class="d-inline"
+                                              onsubmit="return confirm('Send M-Pesa STK Push to {{ b.guest.phone }}?\n\nGuest: {{ b.guest.full_name }}\nAmount: KES {{ (b.total_stay_cents // 100) if b.total_stay_cents else 0 }}\nRef: {{ b.reservation_code }}');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <input type="hidden" name="stk_amount" value="{{ (b.total_stay_cents // 100) if b.total_stay_cents else 0 }}">
+                                            <button type="submit" class="btn btn-outline-success btn-sm fw-semibold" title="Request M-Pesa payment prompt on guest's phone">
+                                                <i class="bi bi-phone-vibrate me-1"></i> M-Pesa STK Push
+                                            </button>
+                                        </form>
                                         <a href="{{ url_for('hospitality.view_receipt', res_id=b.id) }}" class="btn btn-outline-dark btn-sm" target="_blank">
                                             <i class="bi bi-receipt me-1"></i> View Receipt / Folio
                                         </a>
@@ -1257,11 +1266,49 @@
                             <input type="text" name="special_requests" class="form-control" placeholder="e.g. Early check-in">
                         </div>
                     </div>
+
+                    {# ── M-Pesa STK Push Toggle ── #}
+                    <hr class="my-3">
+                    <div class="p-3 rounded border border-success-subtle bg-success-subtle">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="bi bi-phone-vibrate fs-5 text-success"></i>
+                            <span class="fw-bold text-success">M-Pesa Payment</span>
+                        </div>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-5">
+                                <label class="form-label fw-semibold small mb-1">Amount to Request (KES)</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text fw-bold">KES</span>
+                                    <input type="number" id="quickBookStkAmount" name="stk_amount" class="form-control"
+                                        min="1" step="1" placeholder="Auto-calculated">
+                                </div>
+                                <div class="form-text">Leave blank to use total stay cost.</div>
+                            </div>
+                            <div class="col-md-7 d-flex align-items-center pt-3">
+                                <div class="form-check form-switch ms-1">
+                                    <input class="form-check-input" type="checkbox" name="push_stk" value="1"
+                                        id="pushStkQuickBook">
+                                    <label class="form-check-label fw-semibold small" for="pushStkQuickBook">
+                                        Send Instant M-Pesa STK Prompt to Guest's Phone after booking
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="quickBookStkInfo" class="mt-2 small text-muted d-none">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Total: <strong id="quickBookTotalDisplay">KES 0</strong> for
+                            <span id="quickBookNightsDisplay">0</span> night(s) @ KES
+                            <span id="quickBookRateDisplay">0</span>/night.
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer bg-light">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-danger fw-semibold">
+                    <button type="submit" name="action" value="book_only" class="btn btn-danger fw-semibold">
                         <i class="bi bi-calendar-check me-1"></i>Confirm Booking
+                    </button>
+                    <button type="submit" name="action" value="book_and_stk" class="btn btn-success fw-bold">
+                        <i class="bi bi-phone-vibrate me-1"></i>Book &amp; Push M-Pesa STK
                     </button>
                 </div>
             </form>
@@ -1511,16 +1558,48 @@
         });
     };
 
-    // ── Auto-fill rate from selected unit in quick book modal ──
-    var unitSelect = document.getElementById('quickBookUnitId');
-    var rateInput  = document.getElementById('quickBookRate');
+    // ── Auto-fill rate & live STK total calculator for Quick Book modal ──
+    var unitSelect   = document.getElementById('quickBookUnitId');
+    var rateInput    = document.getElementById('quickBookRate');
+    var ciInput2     = document.getElementById('quickBookCheckIn');
+    var coInput2     = document.getElementById('quickBookCheckOut');
+    var stkAmtInput  = document.getElementById('quickBookStkAmount');
+    var stkInfo      = document.getElementById('quickBookStkInfo');
+    var totalDisplay = document.getElementById('quickBookTotalDisplay');
+    var nightsDisplay= document.getElementById('quickBookNightsDisplay');
+    var rateDisplay  = document.getElementById('quickBookRateDisplay');
+
+    function recalcStkTotal() {
+        var rate  = parseFloat(rateInput ? rateInput.value : 0) || 0;
+        var ciVal = ciInput2 ? ciInput2.value : '';
+        var coVal = coInput2 ? coInput2.value : '';
+        if (!rate || !ciVal || !coVal) { if (stkInfo) stkInfo.classList.add('d-none'); return; }
+        var ci = new Date(ciVal), co = new Date(coVal);
+        var nights = Math.round((co - ci) / 86400000);
+        if (nights <= 0) { if (stkInfo) stkInfo.classList.add('d-none'); return; }
+        var total = rate * nights;
+        if (stkInfo)       stkInfo.classList.remove('d-none');
+        if (totalDisplay)  totalDisplay.textContent  = 'KES ' + total.toLocaleString();
+        if (nightsDisplay) nightsDisplay.textContent = nights;
+        if (rateDisplay)   rateDisplay.textContent   = rate.toLocaleString();
+        // Pre-fill STK amount field only if user hasn't typed their own value
+        if (stkAmtInput && !stkAmtInput.dataset.userEdited) stkAmtInput.value = Math.round(total);
+    }
+
+    if (stkAmtInput) {
+        stkAmtInput.addEventListener('input', function() { stkAmtInput.dataset.userEdited = '1'; });
+    }
+
     if (unitSelect && rateInput) {
         unitSelect.addEventListener('change', function () {
             var opt = this.options[this.selectedIndex];
             var rate = opt.getAttribute('data-rate');
-            if (rate) rateInput.value = rate;
+            if (rate) { rateInput.value = rate; recalcStkTotal(); }
         });
     }
+    if (rateInput) rateInput.addEventListener('input', recalcStkTotal);
+    if (ciInput2)  ciInput2.addEventListener('change', recalcStkTotal);
+    if (coInput2)  coInput2.addEventListener('change', recalcStkTotal);
 })();
 </script>
 

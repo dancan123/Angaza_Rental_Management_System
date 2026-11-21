@@ -305,11 +305,141 @@ def create_reservation():
             res.payment_reference = pay_ref or (f"CASH-{res.reservation_code}" if pay_method == 'CASH' else 'SETTLED')
             db.session.commit()
 
-        flash(f"Hospitality reservation {res.reservation_code} confirmed for {res.guest.full_name}!", 'success')
+        # ── M-Pesa STK Push (optional) ──
+        push_stk = request.form.get('push_stk') or (request.form.get('action') == 'book_and_stk')
+        stk_result_msg = ''
+        if push_stk:
+            try:
+                from app.models.gateway import PaymentGatewayConfig
+                from app.services.mpesa_service import DarajaClient
+
+                # Resolve org strictly from unit → property → organization (multi-tenant isolation)
+                stk_unit = db.session.get(RentalUnit, unit_id)
+                stk_org = stk_unit.property.organization if (stk_unit and stk_unit.property) else None
+                stk_org_id = stk_org.id if stk_org else None
+
+                cfg = None
+                if stk_org_id:
+                    cfg = PaymentGatewayConfig.query.filter_by(
+                        organization_id=stk_org_id, is_active=True
+                    ).first()
+
+                if cfg and cfg.consumer_key and cfg.consumer_secret and cfg.shortcode and cfg.passkey:
+                    guest_phone = guest_data.get('phone', '').strip()
+                    total_amount = int(res.total_stay_cents / 100) if res.total_stay_cents else int(daily_rate or 0)
+                    account_ref = res.reservation_code[:12]
+                    client = DarajaClient(cfg)
+                    stk_resp = client.initiate_stk_push(
+                        phone_number=guest_phone,
+                        amount=max(1, total_amount),
+                        account_reference=account_ref,
+                        transaction_desc='Airbnb Stay'
+                    )
+                    checkout_id = stk_resp.get('CheckoutRequestID', '')
+                    if checkout_id:
+                        res.payment_method = 'MPESA'
+                        res.payment_reference = checkout_id
+                        db.session.commit()
+                        stk_result_msg = f' M-Pesa STK Push sent to {guest_phone} (Checkout ID: {checkout_id}).'
+                    else:
+                        err = stk_resp.get('errorMessage') or stk_resp.get('ResponseDescription', 'Daraja error')
+                        stk_result_msg = f' STK Push attempted but got: {err}.'
+                else:
+                    org_name = stk_org.name if stk_org else 'this Organization'
+                    stk_result_msg = (
+                        f' M-Pesa STK Push skipped — no active M-Pesa gateway credentials configured for '
+                        f'{org_name}. Set them under System Settings → Payment Gateways.'
+                    )
+            except Exception as stk_err:
+                stk_result_msg = f' STK Push error: {str(stk_err)}'
+
+        flash(f"Hospitality reservation {res.reservation_code} confirmed for {res.guest.full_name}!{stk_result_msg}", 'success')
     except Exception as e:
         flash(f"Booking Error: {str(e)}", 'danger')
 
     return redirect(url_for('hospitality.reservations'))
+
+
+@hospitality_bp.route('/reservations/<int:res_id>/push-stk', methods=['POST'])
+@login_required
+@permission_required('bookings.manage')
+def push_stk_for_reservation(res_id):
+    """
+    Re-push M-Pesa STK prompt for an existing reservation from the dashboard/logistics modal.
+    Multi-tenant: credentials are always resolved from the reservation's owning organization only.
+    """
+    res = db.session.get(HospitalityReservation, res_id)
+    if not res:
+        from flask import abort; abort(404)
+
+    # Tenant isolation guard
+    user = cast(Any, current_user)
+    org_id = user.organization_id if not user.is_superadmin() else None
+    if org_id and res.organization_id and res.organization_id != org_id:
+        from flask import abort; abort(403)
+
+    try:
+        from app.models.gateway import PaymentGatewayConfig
+        from app.services.mpesa_service import DarajaClient
+
+        unit = res.rental_unit
+        stk_org = unit.property.organization if (unit and unit.property) else None
+        stk_org_id = stk_org.id if stk_org else res.organization_id
+
+        cfg = None
+        if stk_org_id:
+            cfg = PaymentGatewayConfig.query.filter_by(
+                organization_id=stk_org_id, is_active=True
+            ).first()
+
+        if not (cfg and cfg.consumer_key and cfg.consumer_secret and cfg.shortcode and cfg.passkey):
+            org_name = stk_org.name if stk_org else 'this Organization'
+            flash(
+                f'M-Pesa STK Push failed — no active gateway credentials configured for {org_name}. '
+                f'Go to System Settings → Payment Gateways to add them.',
+                'warning'
+            )
+            return redirect(request.referrer or url_for('hospitality.index'))
+
+        guest = res.guest
+        guest_phone = guest.phone if guest else ''
+        total_amount = int(res.total_stay_cents / 100) if res.total_stay_cents else 0
+        # Allow partial / custom amount from form
+        custom_amount = request.form.get('stk_amount', type=int)
+        if custom_amount and custom_amount > 0:
+            total_amount = custom_amount
+
+        if not guest_phone or total_amount <= 0:
+            flash('Guest phone number and a valid amount are required for STK Push.', 'danger')
+            return redirect(request.referrer or url_for('hospitality.index'))
+
+        account_ref = res.reservation_code[:12]
+        client = DarajaClient(cfg)
+        stk_resp = client.initiate_stk_push(
+            phone_number=guest_phone,
+            amount=total_amount,
+            account_reference=account_ref,
+            transaction_desc='Airbnb Stay'
+        )
+        checkout_id = stk_resp.get('CheckoutRequestID', '')
+        if checkout_id:
+            res.payment_method = 'MPESA'
+            res.payment_reference = checkout_id
+            db.session.commit()
+            flash(
+                f'M-Pesa STK Push sent to {guest_phone} for KES {total_amount:,} '
+                f'(Ref: {res.reservation_code}). Checkout ID: {checkout_id}.',
+                'success'
+            )
+        else:
+            err = stk_resp.get('errorMessage') or stk_resp.get('ResponseDescription', 'Unknown error')
+            flash(f'STK Push attempted but Safaricom responded: {err}', 'warning')
+
+    except Exception as e:
+        flash(f'STK Push error: {str(e)}', 'danger')
+
+    return redirect(request.referrer or url_for('hospitality.index'))
+
 
 @hospitality_bp.route('/reservations/<int:res_id>/check-in', methods=['POST'])
 @login_required

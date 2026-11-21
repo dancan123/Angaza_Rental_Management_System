@@ -272,6 +272,15 @@
                                         </button>
                                     </form>
                                     {% endif %}
+                                    {# ── M-Pesa STK Push button (always available) ── #}
+                                    <form method="POST" action="{{ url_for('hospitality.push_stk_for_reservation', res_id=r.id) }}" class="d-inline"
+                                          onsubmit="return confirm('Send M-Pesa STK Push to {{ r.guest.phone }} for KES {{ (r.balance_cents // 100) if r.balance_cents and r.balance_cents > 0 else (r.total_stay_cents // 100 if r.total_stay_cents else 0) }}?\n\nGuest: {{ r.guest.full_name }}\nRef: {{ r.reservation_code }}');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                        <input type="hidden" name="stk_amount" value="{{ (r.balance_cents // 100) if r.balance_cents and r.balance_cents > 0 else (r.total_stay_cents // 100 if r.total_stay_cents else 0) }}">
+                                        <button type="submit" class="btn btn-outline-success btn-sm fw-semibold" title="Request M-Pesa payment from guest's phone">
+                                            <i class="bi bi-phone-vibrate me-1"></i> M-Pesa STK Push
+                                        </button>
+                                    </form>
                                     <a href="{{ url_for('hospitality.view_receipt', res_id=r.id) }}" class="btn btn-outline-dark btn-sm" target="_blank">
                                         <i class="bi bi-receipt me-1"></i> View Receipt Slip
                                     </a>
