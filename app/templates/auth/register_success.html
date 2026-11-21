@@ -94,20 +94,40 @@
             </div>
 
             <!-- Activation Notice & Direct Activation Button -->
+            {% if is_live_email %}
+            <div class="alert alert-success border border-success-subtle p-3 mb-4 rounded-3 text-start shadow-sm">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <i class="bi bi-patch-check-fill text-success fs-5"></i>
+                    <strong class="small text-success text-uppercase">Confirmation Email Sent!</strong>
+                </div>
+                <p class="small text-dark mb-1">
+                    A real activation link has been sent to <strong>{{ user.email }}</strong>.
+                </p>
+                <p class="small text-muted mb-0">
+                    Please open your email inbox (and check Promotions or Spam folder if not visible within a minute) and click the confirmation link inside to activate your workspace.
+                </p>
+            </div>
+            {% else %}
             <div class="alert alert-warning border border-warning-subtle p-3 mb-4 rounded-3 text-start">
                 <div class="d-flex align-items-center gap-2 mb-1">
                     <i class="bi bi-envelope-exclamation-fill text-warning fs-5"></i>
                     <strong class="small text-dark">Confirm Your Business Email:</strong>
                 </div>
                 <p class="small text-muted mb-2">
-                    A confirmation email has been sent to <strong>{{ user.email }}</strong> with your activation link to ensure your email is active.
+                    Confirmation email destination: <strong>{{ user.email }}</strong>.
+                    {% if email_status == 'FAILED' %}
+                    <span class="text-danger d-block mt-1"><i class="bi bi-exclamation-circle me-1"></i>SMTP delivery notice: {{ email_error or 'Connection failed' }}. Configure SMTP in <code>.env</code> to deliver live emails.</span>
+                    {% else %}
+                    <span class="text-secondary d-block mt-1"><i class="bi bi-info-circle me-1"></i>Running in development simulation mode (SMTP not yet configured in <code>.env</code>).</span>
+                    {% endif %}
                 </p>
                 {% if activation_url %}
                 <a href="{{ activation_url }}" class="btn btn-warning btn-sm w-100 fw-bold text-dark">
-                    <i class="bi bi-check2-circle me-1"></i> Click to Activate Account Now (Simulated Link)
+                    <i class="bi bi-check2-circle me-1"></i> Click to Activate Account Now (Development Link)
                 </a>
                 {% endif %}
             </div>
+            {% endif %}
             <div class="card bg-light border-0 p-3 mb-4 rounded-3">
                 <div class="fw-bold small text-dark mb-2 d-flex align-items-center">
                     <i class="bi bi-shield-check text-primary me-2"></i> Your Sign-In Credentials

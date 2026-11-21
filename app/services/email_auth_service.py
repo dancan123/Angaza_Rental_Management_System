@@ -1,3 +1,4 @@
+import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -21,6 +22,34 @@ class EmailAuthService:
 
     SALT_PASSWORD_RESET = 'angaza-password-reset-salt-v1'
     SALT_ACCOUNT_ACTIVATION = 'angaza-account-activation-salt-v1'
+
+    @classmethod
+    def build_external_url(cls, endpoint: str, **kwargs) -> str:
+        """
+        Builds fully qualified public URL for external email links.
+        Prioritizes APP_BASE_URL (e.g. 'https://app.angazarentals.com') from config or .env,
+        falling back to Flask's standard url_for(..., _external=True).
+        Handles CLI / background tasks safely without crashing on missing SERVER_NAME.
+        """
+        from flask import url_for, has_request_context
+        base_url = (current_app.config.get('APP_BASE_URL') or os.environ.get('APP_BASE_URL', '')).rstrip('/')
+        if not base_url:
+            server_name = current_app.config.get('SERVER_NAME')
+            scheme = current_app.config.get('PREFERRED_URL_SCHEME', 'http')
+            if server_name:
+                base_url = f"{scheme}://{server_name}"
+            elif not has_request_context():
+                base_url = "http://127.0.0.1:5000"
+
+        if base_url:
+            if has_request_context():
+                relative_url = url_for(endpoint, _external=False, **kwargs)
+            else:
+                with current_app.test_request_context():
+                    relative_url = url_for(endpoint, _external=False, **kwargs)
+            return f"{base_url}{relative_url}"
+
+        return url_for(endpoint, _external=True, **kwargs)
 
     @classmethod
     def get_serializer(cls):
@@ -85,13 +114,17 @@ class EmailAuthService:
                     sender_email = org.smtp_sender_email or org.contact_email or sender_email
                     sender_name = org.name
 
-        # If system-level SMTP is configured in app config:
+        # If system-level SMTP is configured in app config or environment variables:
         if not smtp_host:
-            smtp_host = current_app.config.get('MAIL_SERVER')
-            smtp_port = current_app.config.get('MAIL_PORT', 587)
-            smtp_user = current_app.config.get('MAIL_USERNAME')
-            smtp_password = current_app.config.get('MAIL_PASSWORD')
-            sender_email = current_app.config.get('MAIL_DEFAULT_SENDER', sender_email)
+            smtp_host = current_app.config.get('MAIL_SERVER') or os.environ.get('MAIL_SERVER')
+            smtp_port = current_app.config.get('MAIL_PORT') or os.environ.get('MAIL_PORT', 587)
+            try:
+                smtp_port = int(smtp_port)
+            except (ValueError, TypeError):
+                smtp_port = 587
+            smtp_user = current_app.config.get('MAIL_USERNAME') or os.environ.get('MAIL_USERNAME')
+            smtp_password = current_app.config.get('MAIL_PASSWORD') or os.environ.get('MAIL_PASSWORD')
+            sender_email = current_app.config.get('MAIL_DEFAULT_SENDER') or os.environ.get('MAIL_DEFAULT_SENDER') or sender_email
 
         if smtp_host and smtp_user and smtp_password:
             try:
@@ -105,9 +138,16 @@ class EmailAuthService:
                 if html_body:
                     msg.attach(MIMEText(html_body, 'html', 'utf-8'))
 
-                server = smtplib.SMTP(smtp_host, int(smtp_port), timeout=10)
-                if current_app.config.get('MAIL_USE_TLS', True):
-                    server.starttls()
+                use_ssl = int(smtp_port) == 465 or current_app.config.get('MAIL_USE_SSL', False)
+                use_tls = current_app.config.get('MAIL_USE_TLS', True) and not use_ssl
+
+                if use_ssl:
+                    server = smtplib.SMTP_SSL(smtp_host, int(smtp_port), timeout=15)
+                else:
+                    server = smtplib.SMTP(smtp_host, int(smtp_port), timeout=15)
+                    if use_tls:
+                        server.starttls()
+
                 server.login(smtp_user, smtp_password)
                 server.sendmail(sender_email, [to_email], msg.as_string())
                 server.quit()

@@ -242,7 +242,7 @@ def register():
             # 4. Generate email activation token and dispatch confirmation email
             from app.services.email_auth_service import EmailAuthService
             activation_token = EmailAuthService.generate_activation_token(org.id, user.id)
-            activation_url = url_for('auth.activate_account', token=activation_token, _external=True)
+            activation_url = EmailAuthService.build_external_url('auth.activate_account', token=activation_token)
 
             email_subject = f"Confirm Your Email & Activate Your Workspace — {org_name} ({unique_org_code})"
             email_html = f"""
@@ -262,7 +262,7 @@ def register():
             """
             email_text = f"Welcome {full_name}!\nPlease activate your account for {org_name} (Code: {unique_org_code}) by visiting:\n{activation_url}\n\nLink valid for 72 hours."
 
-            EmailAuthService.send_email(
+            email_result = EmailAuthService.send_email(
                 to_email=email,
                 subject=email_subject,
                 html_body=email_html,
@@ -272,8 +272,18 @@ def register():
                 notification_type='ACCOUNT_ACTIVATION'
             )
 
+            is_live_email = (email_result.get('status') == 'SENT')
+
             # Do NOT auto-login — show success page with business code and activation guidance
-            return render_template('auth/register_success.html', org=org, user=user, activation_url=activation_url)
+            return render_template(
+                'auth/register_success.html',
+                org=org,
+                user=user,
+                activation_url=activation_url,
+                is_live_email=is_live_email,
+                email_status=email_result.get('status'),
+                email_error=email_result.get('error')
+            )
         except Exception as e:
             db.session.rollback()
             flash(f"Registration failed: {str(e)}", 'danger')
@@ -316,8 +326,7 @@ def forgot_password():
         if user:
             from app.services.email_auth_service import EmailAuthService
             token = EmailAuthService.generate_password_reset_token(user.id)
-            reset_url = url_for('auth.reset_password_with_token', token=token, _external=True)
-            simulated_link = reset_url
+            reset_url = EmailAuthService.build_external_url('auth.reset_password_with_token', token=token)
 
             user_org = user.organization
             org_id = user_org.id if user_org else None
@@ -342,7 +351,7 @@ def forgot_password():
             """
             email_text = f"Hello {user.full_name},\nReset your password for {org_name} using this link:\n{reset_url}\n\nLink valid for 1 hour."
 
-            EmailAuthService.send_email(
+            email_result = EmailAuthService.send_email(
                 to_email=user.email,
                 subject=email_subject,
                 html_body=email_html,
@@ -354,7 +363,12 @@ def forgot_password():
 
             AuditService.log('PASSWORD_RESET_REQUEST', 'User', user.id, new_values={'email': user.email})
 
-            flash(f"A password reset link has been sent to {user.email}. Please check your inbox.", 'success')
+            if email_result.get('status') == 'SENT':
+                simulated_link = None
+                flash(f"A password reset link has been sent to your email inbox ({user.email}). Please check your messages.", 'success')
+            else:
+                simulated_link = reset_url
+                flash(f"A password reset link has been sent to {user.email}. Please check your inbox.", 'info')
         else:
             # Prevent email enumeration: same friendly confirmation message
             flash(f"If an account with {email} exists in our system, a password reset link has been dispatched.", 'info')
