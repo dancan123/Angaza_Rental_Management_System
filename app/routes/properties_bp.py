@@ -461,9 +461,32 @@ def delete_unit(unit_id):
         return redirect(url_for('properties.detail', property_id=prop_id))
 
     unit_name = unit.unit_number
-    db.session.delete(unit)
-    db.session.commit()
-    flash(f"Rental unit '{unit_name}' deleted successfully.", 'success')
+    try:
+        from app.models.maintenance import MaintenanceRequest, MaintenanceRecord, Expense
+        from app.models.hospitality import HousekeepingTask, HospitalityReservation
+        from app.models.pricing import RoomPricingRule
+        from app.models.utility import Meter
+
+        # Clean up attached operational records
+        for mr in MaintenanceRequest.query.filter_by(rental_unit_id=unit.id).all():
+            MaintenanceRecord.query.filter_by(maintenance_request_id=mr.id).delete()
+            db.session.delete(mr)
+        HousekeepingTask.query.filter_by(rental_unit_id=unit.id).delete()
+        RoomPricingRule.query.filter_by(rental_unit_id=unit.id).delete()
+        HospitalityReservation.query.filter_by(rental_unit_id=unit.id).delete()
+        Meter.query.filter_by(rental_unit_id=unit.id).delete()
+        Expense.query.filter_by(rental_unit_id=unit.id).update({'rental_unit_id': None})
+
+        db.session.delete(unit)
+        db.session.commit()
+        flash(f"Rental unit '{unit_name}' deleted successfully.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error deleting unit '{unit_name}': {str(e)}", 'danger')
+
+    next_page = request.form.get('next') or request.referrer
+    if next_page and ('/properties' in next_page or '/hospitality' in next_page):
+        return redirect(next_page)
     return redirect(url_for('properties.detail', property_id=prop_id))
 
 @properties_bp.route('/marketplace')

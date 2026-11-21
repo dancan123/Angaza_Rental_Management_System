@@ -114,7 +114,7 @@ class RentalUnit(db.Model):
     
     bookings = db.relationship('Booking', back_populates='rental_unit', lazy='dynamic', cascade='all, delete-orphan')
     leases = db.relationship('Lease', back_populates='rental_unit', lazy='dynamic', cascade='all, delete-orphan')
-    maintenance_requests = db.relationship('MaintenanceRequest', back_populates='rental_unit', lazy='dynamic')
+    maintenance_requests = db.relationship('MaintenanceRequest', back_populates='rental_unit', lazy='dynamic', cascade='all, delete-orphan')
     expenses = db.relationship('Expense', back_populates='rental_unit', lazy='dynamic')
 
     __table_args__ = (

@@ -981,6 +981,14 @@ def delete_room(unit_id):
     Superadmins can delete any room (automatically decommissioning active demo reservations).
     Cleans up associated housekeeping tasks, room pricing rules, and reservations.
     """
+    from app.models.pricing import RoomPricingRule
+    from app.models.maintenance import MaintenanceRequest, MaintenanceRecord, Expense
+    from app.models.hospitality import HousekeepingTask, HospitalityReservation
+    from app.models.finance import Payment, PaymentAllocation, RentCharge
+    from app.models.lease import Lease, TenancyRecord
+    from app.models.utility import Meter
+    from app.models.booking import Booking
+
     user = cast(Any, current_user)
     unit = db.session.get(RentalUnit, unit_id)
     if not unit:
@@ -1016,13 +1024,33 @@ def delete_room(unit_id):
         return redirect(request.form.get('next') or request.referrer or url_for('hospitality.housekeeping'))
 
     try:
-        from app.models.pricing import RoomPricingRule
         unit_name = unit.unit_number
 
-        # Clean up related records
+        # 1. Clean up maintenance records & requests
+        for mr in MaintenanceRequest.query.filter_by(rental_unit_id=unit.id).all():
+            MaintenanceRecord.query.filter_by(maintenance_request_id=mr.id).delete()
+            db.session.delete(mr)
+
+        # 2. Clean up hospitality tasks, pricing, reservations
         HousekeepingTask.query.filter_by(rental_unit_id=unit.id).delete()
         RoomPricingRule.query.filter_by(rental_unit_id=unit.id).delete()
         HospitalityReservation.query.filter_by(rental_unit_id=unit.id).delete()
+
+        # 3. Clean up meters & disassociate expenses
+        Meter.query.filter_by(rental_unit_id=unit.id).delete()
+        Expense.query.filter_by(rental_unit_id=unit.id).update({'rental_unit_id': None})
+
+        # 4. Clean up billing & lease records if superadmin or decommissioning unit
+        if user.is_superadmin():
+            for p in Payment.query.filter_by(rental_unit_id=unit.id).all():
+                PaymentAllocation.query.filter_by(payment_id=p.id).delete()
+                db.session.delete(p)
+            for rc in RentCharge.query.filter_by(rental_unit_id=unit.id).all():
+                PaymentAllocation.query.filter_by(rent_charge_id=rc.id).delete()
+                db.session.delete(rc)
+            TenancyRecord.query.filter_by(rental_unit_id=unit.id).delete()
+            Booking.query.filter_by(rental_unit_id=unit.id).delete()
+            Lease.query.filter_by(rental_unit_id=unit.id).delete()
 
         db.session.delete(unit)
         db.session.commit()
