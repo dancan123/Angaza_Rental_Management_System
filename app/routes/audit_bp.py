@@ -19,6 +19,8 @@ ACTION_LABELS = {
     'ACTIVATED':       ('success', 'bi-person-check-fill',  'Activated'),
     'DEACTIVATED':     ('warning', 'bi-person-x-fill',      'Deactivated'),
     'PASSWORD_RESET':  ('warning', 'bi-key-fill',           'Password Reset'),
+    'PASSWORD_RESET_REQUEST': ('info', 'bi-envelope-exclamation', 'Password Reset Requested'),
+    'ACCOUNT_ACTIVATION':     ('success', 'bi-envelope-check-fill', 'Account Activated via Email'),
     'PASSWORD_CHANGE': ('secondary','bi-shield-lock-fill',  'Password Changed'),
     'LOGIN':           ('info',    'bi-box-arrow-in-right', 'Logged In'),
     'LOGOUT':          ('secondary','bi-box-arrow-left',    'Logged Out'),

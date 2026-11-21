@@ -239,8 +239,41 @@ def register():
 
             AuditService.log('SELF_ONBOARDING_TRIAL', 'Organization', org.id, new_values={'name': org_name, 'tier': suite_tier, 'org_code': unique_org_code, 'expires_at': str(trial_expiry)})
 
-            # Do NOT auto-login — show success page with business code first
-            return render_template('auth/register_success.html', org=org, user=user)
+            # 4. Generate email activation token and dispatch confirmation email
+            from app.services.email_auth_service import EmailAuthService
+            activation_token = EmailAuthService.generate_activation_token(org.id, user.id)
+            activation_url = url_for('auth.activate_account', token=activation_token, _external=True)
+
+            email_subject = f"Confirm Your Email & Activate Your Workspace — {org_name} ({unique_org_code})"
+            email_html = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                <h2 style="color: #1a56db; margin-top: 0;">Welcome to Angaza Property Management, {full_name}!</h2>
+                <p>Thank you for registering <strong>{org_name}</strong>. Your dedicated business code is: <strong style="color: #059669; font-size: 1.2em;">{unique_org_code}</strong>.</p>
+                <p>Please confirm that this email address is active to complete your account activation and unlock full dashboard access:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="{activation_url}" style="background-color: #059669; color: white; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                        Activate Your Account Now
+                    </a>
+                </div>
+                <p style="color: #64748b; font-size: 0.9em;">Or copy and paste this link in your browser:<br><a href="{activation_url}">{activation_url}</a></p>
+                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                <p style="color: #94a3b8; font-size: 0.8em; margin-bottom: 0;">This activation link remains valid for 72 hours. If you did not register this account, you may safely ignore this message.</p>
+            </div>
+            """
+            email_text = f"Welcome {full_name}!\nPlease activate your account for {org_name} (Code: {unique_org_code}) by visiting:\n{activation_url}\n\nLink valid for 72 hours."
+
+            EmailAuthService.send_email(
+                to_email=email,
+                subject=email_subject,
+                html_body=email_html,
+                text_body=email_text,
+                organization_id=org.id,
+                recipient_user_id=user.id,
+                notification_type='ACCOUNT_ACTIVATION'
+            )
+
+            # Do NOT auto-login — show success page with business code and activation guidance
+            return render_template('auth/register_success.html', org=org, user=user, activation_url=activation_url)
         except Exception as e:
             db.session.rollback()
             flash(f"Registration failed: {str(e)}", 'danger')
@@ -249,7 +282,165 @@ def register():
     return render_template('auth/register.html')
 
 
-# ─── Super Admin User Impersonation ──────────────────────────────────────────
+# ─── Forgot Password, Password Reset, and Account Activation ──────────────────
+
+@auth_bp.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    """
+    Public password reset request portal.
+    Accepts registered user email and generates a secure one-hour timed reset link.
+    Sends link via email/notification log and renders simulation link for instant testing.
+    """
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard.index'))
+
+    simulated_link = None
+
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        org_code = request.form.get('org_code', '').strip().upper()
+
+        if not email:
+            flash('Please enter your registered email address.', 'danger')
+            return render_template('auth/forgot_password.html')
+
+        # Multi-tenant search: locate user by email, optionally filtered by org_code
+        query = User.query.filter((User.email == email) | (User.username == email))
+        if org_code:
+            org = Organization.query.filter_by(org_code=org_code).first()
+            if org:
+                query = query.filter(User.organization_id == org.id)
+
+        user = query.first()
+
+        if user:
+            from app.services.email_auth_service import EmailAuthService
+            token = EmailAuthService.generate_password_reset_token(user.id)
+            reset_url = url_for('auth.reset_password_with_token', token=token, _external=True)
+            simulated_link = reset_url
+
+            user_org = user.organization
+            org_id = user_org.id if user_org else None
+            org_name = user_org.name if user_org else 'Angaza Property Management'
+
+            email_subject = f"Password Reset Instructions — {user.full_name} ({org_name})"
+            email_html = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                <h3 style="color: #1a56db; margin-top: 0;">Password Reset Request</h3>
+                <p>Hello <strong>{user.full_name}</strong>,</p>
+                <p>A request was received to reset the password for your account associated with <strong>{org_name}</strong>.</p>
+                <p>Click the button below to set a new password. This link is valid for <strong>1 hour</strong>:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="{reset_url}" style="background-color: #1a56db; color: white; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                        Reset Password
+                    </a>
+                </div>
+                <p style="color: #64748b; font-size: 0.9em;">If button does not work, visit:<br><a href="{reset_url}">{reset_url}</a></p>
+                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                <p style="color: #94a3b8; font-size: 0.8em; margin-bottom: 0;">If you did not request a password reset, you can safely ignore this email. Your password will not change.</p>
+            </div>
+            """
+            email_text = f"Hello {user.full_name},\nReset your password for {org_name} using this link:\n{reset_url}\n\nLink valid for 1 hour."
+
+            EmailAuthService.send_email(
+                to_email=user.email,
+                subject=email_subject,
+                html_body=email_html,
+                text_body=email_text,
+                organization_id=org_id,
+                recipient_user_id=user.id,
+                notification_type='PASSWORD_RESET'
+            )
+
+            AuditService.log('PASSWORD_RESET_REQUEST', 'User', user.id, new_values={'email': user.email})
+
+            flash(f"A password reset link has been sent to {user.email}. Please check your inbox.", 'success')
+        else:
+            # Prevent email enumeration: same friendly confirmation message
+            flash(f"If an account with {email} exists in our system, a password reset link has been dispatched.", 'info')
+
+    return render_template('auth/forgot_password.html', simulated_reset_link=simulated_link)
+
+
+@auth_bp.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password_with_token(token):
+    """
+    Validates password reset token and allows the user to securely set a new password.
+    """
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard.index'))
+
+    from app.services.email_auth_service import EmailAuthService
+    user_id = EmailAuthService.verify_password_reset_token(token)
+
+    if not user_id:
+        flash('This password reset link is invalid or has expired. Please request a new one.', 'danger')
+        return redirect(url_for('auth.forgot_password'))
+
+    user = db.session.get(User, user_id)
+    if not user:
+        flash('User account not found.', 'danger')
+        return redirect(url_for('auth.forgot_password'))
+
+    if request.method == 'POST':
+        new_pwd = request.form.get('password', '')
+        confirm_pwd = request.form.get('confirm_password', '')
+
+        if not new_pwd or len(new_pwd) < 6:
+            flash('Password must be at least 6 characters long.', 'danger')
+            return render_template('auth/reset_password_token.html', token=token, user=user)
+
+        if new_pwd != confirm_pwd:
+            flash('Passwords do not match. Please re-enter.', 'danger')
+            return render_template('auth/reset_password_token.html', token=token, user=user)
+
+        user.set_password(new_pwd)
+        db.session.commit()
+
+        AuditService.log('PASSWORD_CHANGE', 'User', user.id, new_values={'method': 'TOKEN_RESET', 'username': user.username})
+
+        org_code = user.organization.org_code if user.organization else None
+        flash('Your password has been successfully reset! You can now sign in with your new password.', 'success')
+        return redirect(url_for('auth.login', org_code=org_code, username=user.email))
+
+    return render_template('auth/reset_password_token.html', token=token, user=user)
+
+
+@auth_bp.route('/activate/<token>', methods=['GET'])
+def activate_account(token):
+    """
+    Public email confirmation and business account activation link.
+    Validates token, verifies email, and activates both User and Organization.
+    """
+    from app.services.email_auth_service import EmailAuthService
+    org_id, user_id = EmailAuthService.verify_activation_token(token)
+
+    if not org_id or not user_id:
+        return render_template('auth/activate_account.html', success=False, error_message='The activation link is invalid or has expired (72-hour limit).')
+
+    org = db.session.get(Organization, org_id)
+    user = db.session.get(User, user_id)
+
+    if not org or not user:
+        return render_template('auth/activate_account.html', success=False, error_message='The organization or user account associated with this link was not found.')
+
+    now = datetime.utcnow()
+    # Confirm email on User
+    user.email_verified = True
+    user.email_verified_at = now
+    user.is_active = True
+
+    # Confirm email and ensure active on Organization
+    org.email_verified = True
+    org.email_verified_at = now
+    org.is_active = True
+
+    db.session.commit()
+
+    AuditService.log('ACCOUNT_ACTIVATION', 'Organization', org.id, new_values={'user_id': user.id, 'org_code': org.org_code})
+
+    return render_template('auth/activate_account.html', success=True, org=org, user=user)
+
 
 @auth_bp.route('/impersonate/<int:user_id>')
 @login_required

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Activation Status - {{ app_name }}</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #1a56db;
+        }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+        }
+        .status-card {
+            max-width: 520px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 1.25rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+            overflow: hidden;
+        }
+        .header-success {
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            color: white;
+            padding: 2.25rem 2rem 2rem;
+            text-align: center;
+        }
+        .header-error {
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+            color: white;
+            padding: 2.25rem 2rem 2rem;
+            text-align: center;
+        }
+        .btn-action {
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: 700;
+            padding: 0.85rem;
+            border-radius: 0.5rem;
+            border: none;
+            transition: all 0.2s ease;
+        }
+        .btn-action:hover {
+            background-color: #1e429f;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="status-card">
+        {% if success %}
+        <div class="header-success">
+            <div class="d-inline-flex align-items-center justify-content-center bg-white text-success rounded-circle shadow-sm mb-3" style="width: 64px; height: 64px;">
+                <i class="bi bi-patch-check-fill fs-1 text-success"></i>
+            </div>
+            <h3 class="fw-bold mb-1">Account Confirmed &amp; Activated!</h3>
+            <p class="mb-0 opacity-75 small">Your business email has been verified and your workspace is fully active</p>
+        </div>
+        <div class="p-4">
+            <div class="card bg-light border-0 p-3 mb-4 rounded-3 text-start">
+                <div class="small text-muted text-uppercase fw-semibold mb-1">Activated Business Workspace</div>
+                <h5 class="fw-bold text-dark mb-2">{{ org.name }}</h5>
+                <div class="row g-2 small">
+                    <div class="col-5 text-muted">Business Code:</div>
+                    <div class="col-7 fw-bold font-monospace text-success">{{ org.org_code }}</div>
+
+                    <div class="col-5 text-muted">Confirmed Email:</div>
+                    <div class="col-7 fw-bold text-dark">{{ user.email }}</div>
+
+                    <div class="col-5 text-muted">Account Status:</div>
+                    <div class="col-7 text-success fw-bold">
+                        <i class="bi bi-check-circle-fill me-1"></i> Active (14-Day Free Trial)
+                    </div>
+                </div>
+            </div>
+
+            <a href="{{ url_for('auth.login', org_code=org.org_code, username=user.email) }}" class="btn btn-action w-100 shadow-sm d-flex align-items-center justify-content-center">
+                <span>Sign In to Your Workspace</span>
+                <i class="bi bi-arrow-right ms-2"></i>
+            </a>
+        </div>
+        {% else %}
+        <div class="header-error">
+            <div class="d-inline-flex align-items-center justify-content-center bg-white text-danger rounded-circle shadow-sm mb-3" style="width: 64px; height: 64px;">
+                <i class="bi bi-exclamation-triangle-fill fs-1 text-danger"></i>
+            </div>
+            <h3 class="fw-bold mb-1">Activation Link Expired</h3>
+            <p class="mb-0 opacity-75 small">{{ error_message or 'The activation link you followed is invalid or has expired.' }}</p>
+        </div>
+        <div class="p-4 text-center">
+            <p class="text-muted small mb-4">Activation tokens expire after 72 hours for security. You can request a fresh activation link or sign in if your account is already active.</p>
+
+            <a href="{{ url_for('auth.login') }}" class="btn btn-action w-100 mb-2">
+                <span>Go to Sign In</span>
+            </a>
+            <a href="{{ url_for('auth.register') }}" class="btn btn-outline-secondary w-100 btn-sm">
+                <span>Start New Registration</span>
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

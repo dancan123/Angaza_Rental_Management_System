@@ -57,6 +57,8 @@ class Organization(db.Model):
     enable_rentals = db.Column(db.Boolean, default=True)
     enable_hospitality = db.Column(db.Boolean, default=True)
     is_active = db.Column(db.Boolean, default=True, index=True)
+    email_verified = db.Column(db.Boolean, default=True)
+    email_verified_at = db.Column(db.DateTime, nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

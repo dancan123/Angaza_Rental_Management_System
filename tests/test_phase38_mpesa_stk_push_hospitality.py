@@ -175,8 +175,11 @@ def test_quick_book_stk_push_triggered_with_mocked_daraja(client, app_instance):
         db.session.commit()
 
     _login_as_manager(client, app_instance)
-    ci = (date.today() + timedelta(days=200)).strftime('%Y-%m-%d')
-    co = (date.today() + timedelta(days=202)).strftime('%Y-%m-%d')
+    # Use randomized future dates to avoid collisions with prior test runs
+    import random
+    offset = random.randint(300, 600)
+    ci = (date.today() + timedelta(days=offset)).strftime('%Y-%m-%d')
+    co = (date.today() + timedelta(days=offset + 2)).strftime('%Y-%m-%d')
 
     mock_stk_resp = {
         'CheckoutRequestID': 'ws_CO_TEST_12345',
