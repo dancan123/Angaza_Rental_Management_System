@@ -200,7 +200,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    {% else %}
+                                    {% if r.status == 'RESOLVED' %}
                                     <span class="text-success small"><i class="bi bi-check-circle me-1"></i> Closed</span>
                                     {% endif %}
                                 </td>
