@@ -12,6 +12,7 @@ hashlib.md5 = _safe_md5
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
 from app.services.personalization_service import PersonalizationService
 
@@ -71,6 +72,12 @@ def generate_receipt_pdf(payment):
         fontSize=9,
         textColor=colors.HexColor('#334155')
     )
+    center_bold = ParagraphStyle('RcptCenterBold', parent=bold_style, alignment=TA_CENTER)
+    center_normal = ParagraphStyle('RcptCenterNorm', parent=normal_style, alignment=TA_CENTER)
+    right_bold = ParagraphStyle('RcptRightBold', parent=bold_style, alignment=TA_RIGHT)
+    header_white_center = ParagraphStyle('RcptHdrCenter', parent=bold_style, alignment=TA_CENTER, textColor=colors.white)
+    header_white_left = ParagraphStyle('RcptHdrLeft', parent=bold_style, alignment=TA_LEFT, textColor=colors.white)
+    header_white_right = ParagraphStyle('RcptHdrRight', parent=bold_style, alignment=TA_RIGHT, textColor=colors.white)
 
     story = []
 
@@ -133,7 +140,12 @@ def generate_receipt_pdf(payment):
     # 3. Allocations / Particulars Table
     allocations = payment.allocations.all()
     items_data = [
-        [Paragraph("<b>#</b>", bold_style), Paragraph("<b>Description / Period</b>", bold_style), Paragraph("<b>Charge Type</b>", bold_style), Paragraph("<b>Allocated Amount</b>", bold_style)]
+        [
+            Paragraph("<b>#</b>", header_white_center),
+            Paragraph("<b>Description / Period</b>", header_white_left),
+            Paragraph("<b>Charge Type</b>", header_white_center),
+            Paragraph("<b>Allocated Amount</b>", header_white_right)
+        ]
     ]
 
     if allocations:
@@ -141,38 +153,41 @@ def generate_receipt_pdf(payment):
             c = a.rent_charge
             period_str = f"Period: {c.period_month}/{c.period_year}" if c else "General Credit"
             items_data.append([
-                Paragraph(str(idx), normal_style),
+                Paragraph(str(idx), center_normal),
                 Paragraph(f"{c.description or 'Rent Payment'} ({period_str})", normal_style),
-                Paragraph(c.charge_type if c else "RENT", normal_style),
-                Paragraph(a.amount_display, bold_style)
+                Paragraph(c.charge_type if c else "RENT", center_normal),
+                Paragraph(a.amount_display, right_bold)
             ])
     else:
         items_data.append([
-            Paragraph("1", normal_style),
+            Paragraph("1", center_normal),
             Paragraph(payment.description or "Rent Account Payment", normal_style),
-            Paragraph(payment.payment_method, normal_style),
-            Paragraph(payment.amount_display, bold_style)
+            Paragraph(payment.payment_method, center_normal),
+            Paragraph(payment.amount_display, right_bold)
         ])
 
+    total_row = len(items_data)
     items_data.append([
-        Paragraph("<b>TOTAL RECEIVED</b>", bold_style),
-        Paragraph("", normal_style),
-        Paragraph("", normal_style),
-        Paragraph(f"<b>{payment.amount_display}</b>", bold_style)
+        Paragraph("<b>TOTAL RECEIVED:</b>", right_bold),
+        "",
+        "",
+        Paragraph(f"<b>{payment.amount_display}</b>", right_bold)
     ])
 
-    items_table = Table(items_data, colWidths=[30, 290, 100, 120])
+    items_table = Table(items_data, colWidths=[36, 284, 100, 120])
     items_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a56db')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('ALIGN', (3, 0), (3, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
-        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f1f5f9')),
         ('TOPPADDING', (0, 0), (-1, -1), 6),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('SPAN', (0, total_row), (2, total_row)),
+        ('BACKGROUND', (0, total_row), (-1, total_row), colors.HexColor('#f1f5f9')),
     ]))
     story.append(items_table)
-    story.append(Spacer(1, 30))
+    story.append(Spacer(1, 25))
 
     # 4. Sign-off and Verification Stamp Box
     stamp_data = [
@@ -239,6 +254,15 @@ def generate_invoice_pdf(charge):
     subtitle_style = ParagraphStyle('InvSub', parent=styles['Normal'], fontName='Helvetica', fontSize=9, textColor=colors.HexColor('#64748b'))
     bold_style = ParagraphStyle('InvBold', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=9, textColor=colors.HexColor('#1e293b'))
     normal_style = ParagraphStyle('InvNorm', parent=styles['Normal'], fontName='Helvetica', fontSize=9, textColor=colors.HexColor('#334155'))
+    
+    center_bold = ParagraphStyle('InvCenterBold', parent=bold_style, alignment=TA_CENTER)
+    center_normal = ParagraphStyle('InvCenterNorm', parent=normal_style, alignment=TA_CENTER)
+    right_bold = ParagraphStyle('InvRightBold', parent=bold_style, alignment=TA_RIGHT)
+    right_normal = ParagraphStyle('InvRightNorm', parent=normal_style, alignment=TA_RIGHT)
+
+    header_white_center = ParagraphStyle('InvHdrCenter', parent=bold_style, alignment=TA_CENTER, textColor=colors.white)
+    header_white_left = ParagraphStyle('InvHdrLeft', parent=bold_style, alignment=TA_LEFT, textColor=colors.white)
+    header_white_right = ParagraphStyle('InvHdrRight', parent=bold_style, alignment=TA_RIGHT, textColor=colors.white)
 
     story = []
 
@@ -292,48 +316,101 @@ def generate_invoice_pdf(charge):
     story.append(info_table)
     story.append(Spacer(1, 20))
 
-    # 3. Particulars
+    # 3. Particulars Table (Col widths: # = 36, Description = 284, Category = 100, Amount = 120 -> Total 540 pt)
     items_data = [
-        [Paragraph("<b>#</b>", bold_style), Paragraph("<b>Item Description</b>", bold_style), Paragraph("<b>Category</b>", bold_style), Paragraph("<b>Amount (KES)</b>", bold_style)],
         [
-            Paragraph("1", normal_style),
-            Paragraph(charge.description or f"Monthly Rental Charge ({charge.period_month:02d}/{charge.period_year})", normal_style),
-            Paragraph(charge.charge_type, normal_style),
-            Paragraph(charge.amount_display, bold_style)
+            Paragraph("<b>#</b>", header_white_center),
+            Paragraph("<b>Item Description</b>", header_white_left),
+            Paragraph("<b>Category</b>", header_white_center),
+            Paragraph("<b>Amount (KES)</b>", header_white_right)
         ],
         [
-            Paragraph("<b>TOTAL DUE</b>", bold_style),
-            Paragraph("", normal_style),
-            Paragraph("", normal_style),
-            Paragraph(f"<b>{charge.amount_display}</b>", bold_style)
+            Paragraph("1", center_normal),
+            Paragraph(charge.description or f"Monthly Rental Charge ({charge.period_month:02d}/{charge.period_year}) - Unit {unit.unit_number}", normal_style),
+            Paragraph(charge.charge_type, center_normal),
+            Paragraph(charge.amount_display, right_bold)
+        ],
+        [
+            Paragraph("<b>TOTAL DUE:</b>", right_bold),
+            "",
+            "",
+            Paragraph(f"<b>{charge.amount_display}</b>", right_bold)
         ]
     ]
-    if charge.amount_paid_cents > 0:
-        items_data.append([
-            Paragraph("<b>LESS: AMOUNT PAID</b>", bold_style),
-            Paragraph("", normal_style),
-            Paragraph("", normal_style),
-            Paragraph(f"<font color='#0e9f6e'><b>- {charge.paid_display}</b></font>", bold_style)
-        ])
-        items_data.append([
-            Paragraph("<b>OUTSTANDING BALANCE</b>", bold_style),
-            Paragraph("", normal_style),
-            Paragraph("", normal_style),
-            Paragraph(f"<font color='#dc2626'><b>{charge.balance_display}</b></font>", bold_style)
-        ])
 
-    items_table = Table(items_data, colWidths=[30, 290, 100, 120])
-    items_table.setStyle(TableStyle([
+    table_styles = [
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#dc2626')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('ALIGN', (3, 0), (3, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
-        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#fef2f2')),
         ('TOPPADDING', (0, 0), (-1, -1), 6),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-    ]))
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('SPAN', (0, 2), (2, 2)),
+        ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor('#f8fafc')),
+    ]
+
+    curr_row = 3
+    if charge.amount_paid_cents > 0:
+        items_data.append([
+            Paragraph("<b>LESS: AMOUNT PAID:</b>", right_bold),
+            "",
+            "",
+            Paragraph(f"<font color='#059669'><b>- {charge.paid_display}</b></font>", right_bold)
+        ])
+        table_styles.append(('SPAN', (0, curr_row), (2, curr_row)))
+        table_styles.append(('BACKGROUND', (0, curr_row), (-1, curr_row), colors.HexColor('#f0fdf4')))
+        curr_row += 1
+
+    bal_color = '#dc2626' if charge.balance_cents > 0 else '#059669'
+    bal_text = charge.balance_display if charge.balance_cents > 0 else 'KES 0.00 (PAID IN FULL)'
+    items_data.append([
+        Paragraph("<b>OUTSTANDING BALANCE:</b>", right_bold),
+        "",
+        "",
+        Paragraph(f"<font color='{bal_color}'><b>{bal_text}</b></font>", right_bold)
+    ])
+    table_styles.append(('SPAN', (0, curr_row), (2, curr_row)))
+    table_styles.append(('BACKGROUND', (0, curr_row), (-1, curr_row), colors.HexColor('#fef2f2') if charge.balance_cents > 0 else colors.HexColor('#ecfdf5')))
+
+    items_table = Table(items_data, colWidths=[36, 284, 100, 120])
+    items_table.setStyle(TableStyle(table_styles))
     story.append(items_table)
-    story.append(Spacer(1, 25))
+    story.append(Spacer(1, 15))
+
+    # Official Status Banner
+    if charge.status == 'PAID' or charge.balance_cents <= 0:
+        status_box = [
+            [
+                Paragraph("<font color='#059669'><b>INVOICE STATUS: PAID IN FULL &bull; SETTLED</b></font><br/><font color='#475569'>This invoice has been cleared and settled in full. Thank you for your prompt payment.</font>", subtitle_style)
+            ]
+        ]
+        status_table = Table(status_box, colWidths=[540])
+        status_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#ecfdf5')),
+            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#10b981')),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 10),
+        ]))
+        story.append(status_table)
+        story.append(Spacer(1, 12))
+    elif charge.status == 'PARTIALLY_PAID':
+        status_box = [
+            [
+                Paragraph(f"<font color='#d97706'><b>INVOICE STATUS: PARTIALLY PAID</b></font><br/><font color='#475569'>Paid: {charge.paid_display} &bull; Outstanding Balance: <font color='#dc2626'><b>{charge.balance_display}</b></font> due by {charge.due_date.strftime('%d/%m/%Y')}.</font>", subtitle_style)
+            ]
+        ]
+        status_table = Table(status_box, colWidths=[540])
+        status_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#fffbeb')),
+            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#f59e0b')),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 10),
+        ]))
+        story.append(status_table)
+        story.append(Spacer(1, 12))
 
     # 4. Payment Instructions Box
     pay_data = [
@@ -491,39 +568,42 @@ def generate_guest_folio_pdf(reservation):
             Paragraph(f"<b>{reservation.total_stay_display}</b>", right_bold)
         ],
         [
-            Paragraph("<b>TOTAL CHARGES:</b>", bold_style),
-            Paragraph("", normal_style),
-            Paragraph("", normal_style),
-            Paragraph("", normal_style),
+            Paragraph("<b>TOTAL CHARGES:</b>", right_bold),
+            "",
+            "",
+            "",
             Paragraph(f"<b>{reservation.total_stay_display}</b>", right_bold)
         ],
         [
-            Paragraph("<b>TOTAL PAYMENTS RECORDED:</b>", bold_style),
-            Paragraph(f"<b>Payment Mode:</b> {method_name} &bull; <b>Reference / Code:</b> {reservation.payment_reference or 'SETTLED'}", normal_style),
-            Paragraph("", normal_style),
-            Paragraph("", normal_style),
+            Paragraph("<b>PAYMENTS RECORDED:</b>", bold_style),
+            Paragraph(f"<b>Mode:</b> {method_name} &bull; <b>Ref:</b> {reservation.payment_reference or 'SETTLED'}", normal_style),
+            "",
+            "",
             Paragraph(f"<font color='#0e9f6e'><b>- {reservation.paid_amount_display}</b></font>", right_bold)
         ],
         [
-            Paragraph("<b>OUTSTANDING BALANCE:</b>", bold_style),
-            Paragraph("", normal_style),
-            Paragraph("", normal_style),
-            Paragraph("", normal_style),
+            Paragraph("<b>OUTSTANDING BALANCE:</b>", right_bold),
+            "",
+            "",
+            "",
             Paragraph(f"<font color=\"{'#dc2626' if reservation.balance_cents > 0 else '#0e9f6e'}\"><b>{reservation.balance_display if reservation.balance_cents > 0 else 'KES 0.00 (SETTLED IN FULL)'}</b></font>", right_bold)
         ]
     ]
-    items_table = Table(items_data, colWidths=[24, 235, 95, 55, 130])
+    items_table = Table(items_data, colWidths=[30, 229, 95, 55, 130])
     items_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e11d48')),
-        ('ALIGN', (0, 0), (0, -1), 'CENTER'),
-        ('ALIGN', (2, 0), (3, -1), 'CENTER'),
+        ('ALIGN', (0, 0), (0, 1), 'CENTER'),
+        ('ALIGN', (2, 0), (3, 1), 'CENTER'),
         ('ALIGN', (4, 0), (4, -1), 'RIGHT'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+        ('SPAN', (0, 2), (3, 2)),
+        ('SPAN', (1, 3), (3, 3)),
+        ('SPAN', (0, 4), (3, 4)),
         ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor('#f8fafc')),
         ('BACKGROUND', (0, 3), (-1, 3), colors.HexColor('#f0fdf4')),
         ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor('#fef2f2') if reservation.balance_cents > 0 else colors.HexColor('#f0fdf4')),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
         ('LEFTPADDING', (0, 0), (-1, -1), 5),
         ('RIGHTPADDING', (0, 0), (-1, -1), 5),
     ]))
@@ -868,13 +948,15 @@ def generate_tenant_statement_pdf(tenant):
             Paragraph(format_currency(running_bal), bold_style)
         ])
 
+    right_bold = ParagraphStyle('StatRightBold', parent=bold_style, alignment=TA_RIGHT)
+
     ledger_data.append([
-        Paragraph("<b>TOTALS</b>", bold_style),
-        Paragraph("", normal_style),
-        Paragraph("", normal_style),
-        Paragraph(f"<b>{format_currency(total_debits)}</b>", bold_style),
-        Paragraph(f"<b>{format_currency(total_credits)}</b>", bold_style),
-        Paragraph(f"<b>{format_currency(running_bal)}</b>", bold_style)
+        Paragraph("<b>TOTALS:</b>", right_bold),
+        "",
+        "",
+        Paragraph(f"<b>{format_currency(total_debits)}</b>", right_bold),
+        Paragraph(f"<b>{format_currency(total_credits)}</b>", right_bold),
+        Paragraph(f"<b>{format_currency(running_bal)}</b>", right_bold)
     ])
 
     ledger_table = Table(ledger_data, colWidths=[65, 80, 165, 75, 75, 80])
@@ -883,6 +965,7 @@ def generate_tenant_statement_pdf(tenant):
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('ALIGN', (3, 0), (-1, -1), 'RIGHT'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+        ('SPAN', (0, -1), (2, -1)),
         ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f1f5f9')),
         ('TOPPADDING', (0, 0), (-1, -1), 5),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
