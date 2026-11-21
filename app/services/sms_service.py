@@ -159,8 +159,9 @@ class SmsService:
         """
         Triggered after a successful verified payment.
         Sends SMS to:
-          1. Tenant: Payment receipt confirmation with remaining balance.
-          2. Landlord: Notification of revenue received.
+          1. Tenant: Payment receipt confirmation with remaining balance and automated Thank You note.
+          2. Landlord / Apartment Owner: Instant alert with tenant name, phone, room number, amount, and reference.
+          3. Organization Manager: Optional dispatch to org office contact phone.
         Personalizes sender header with organization name.
         """
         tenant = payment.tenant
@@ -175,11 +176,21 @@ class SmsService:
         from app.utils.currency import format_currency
         balance_str = format_currency(summary['outstanding_cents'])
 
-        # 1. SMS to Tenant
-        if tenant and tenant.phone:
+        send_thank_you = getattr(org, 'auto_send_payment_thank_you', True) if org else True
+        notify_landlord = getattr(org, 'auto_notify_landlord_on_payment', True) if org else True
+        notify_manager = getattr(org, 'auto_notify_manager_on_payment', True) if org else True
+
+        unit_str = unit.unit_number if unit else "N/A"
+        prop_str = prop.name if prop else "Property"
+        ref_str = payment.transaction_reference or payment.receipt_number
+        tenant_phone_str = f" (Tel: {tenant.phone})" if tenant and tenant.phone else ""
+
+        # 1. Thank You SMS to Tenant
+        if send_thank_you and tenant and tenant.phone:
             tenant_msg = (
-                f"[{org_name}] Dear {tenant.first_name}, payment of {payment.amount_display} for Unit {unit.unit_number} ({prop.name}) "
-                f"has been confirmed. Receipt: {payment.receipt_number}. Remaining Balance: {balance_str}. Thank you!"
+                f"[{org_name}] Dear {tenant.first_name}, thank you! Payment of {payment.amount_display} for Unit/Room {unit_str} ({prop_str}) "
+                f"has been confirmed. Receipt: {payment.receipt_number} (Ref: {ref_str}). Remaining Balance: {balance_str}. "
+                f"Thank you for your prompt payment!"
             )
             cls.send_sms(
                 to_phone=tenant.phone,
@@ -189,12 +200,16 @@ class SmsService:
                 organization_id=org.id if org else None
             )
 
-        # 2. SMS to Landlord
-        if landlord and landlord.phone:
+        # 2. Alert SMS to Landlord / Apartment Owner
+        landlord_msg = None
+        if landlord:
             landlord_msg = (
-                f"[{org_name}] Payment Alert: Rent {payment.amount_display} received from {tenant.full_name} for Unit {unit.unit_number} "
-                f"({prop.name}). Ref: {payment.transaction_reference or payment.receipt_number}."
+                f"[{org_name}] PAYMENT RECEIVED ALERT: {payment.amount_display} received from {tenant.full_name}{tenant_phone_str} "
+                f"for Unit/Room {unit_str} at {prop_str}. Method: {payment.payment_method}. Ref: {ref_str}. "
+                f"Receipt: {payment.receipt_number}. Current Balance: {balance_str}."
             )
+
+        if notify_landlord and landlord and landlord.phone and landlord_msg:
             cls.send_sms(
                 to_phone=landlord.phone,
                 message=landlord_msg,
@@ -202,6 +217,102 @@ class SmsService:
                 landlord_id=landlord.id,
                 organization_id=org.id if org else None
             )
+
+        # 3. Optional Alert to Organization Contact Phone (Manager/Office)
+        if notify_manager and org and org.contact_phone and landlord_msg:
+            clean_org_phone = cls.format_phone_number(org.contact_phone)
+            landlord_phone = cls.format_phone_number(landlord.phone) if landlord and landlord.phone else ""
+            if clean_org_phone and clean_org_phone != landlord_phone:
+                cls.send_sms(
+                    to_phone=org.contact_phone,
+                    message=landlord_msg,
+                    notification_type='RENT_PAYMENT_CONFIRMED',
+                    landlord_id=landlord.id if landlord else None,
+                    organization_id=org.id if org else None
+                )
+
+    @classmethod
+    def send_hospitality_payment_sms(cls, reservation, amount, method='MPESA', reference=None):
+        """
+        Triggered when a payment is received for a Hospitality / Airbnb reservation
+        (via STK push, C2B callback, or manual record).
+        Sends:
+          1. Automated Thank You SMS to the Guest (with amount, room number, property, and balance).
+          2. Automated Payment Alert SMS to the Landlord / Apartment Owner
+             (with guest name, guest phone number, room/unit number, property, amount, and dates).
+          3. Optional Alert to Organization Contact Phone.
+        """
+        guest = reservation.guest
+        unit = reservation.rental_unit
+        prop = unit.property if unit else None
+        landlord = prop.landlord if prop else None
+        org = prop.organization if (prop and hasattr(prop, 'organization')) else reservation.organization
+        org_name = org.name if org else "Angaza Stays"
+
+        from app.utils.currency import format_currency, to_cents
+        if isinstance(amount, (int, float)):
+            amount_display = f"KES {amount:,.2f}" if isinstance(amount, float) else f"KES {amount:,}"
+        else:
+            amount_display = str(amount)
+
+        unit_str = unit.unit_number if unit else "Suite/Room"
+        prop_str = prop.name if prop else "our property"
+        ref_str = reference or reservation.payment_reference or reservation.reservation_code
+        balance_str = reservation.balance_display if reservation.balance_cents > 0 else "KES 0.00 (SETTLED)"
+        guest_phone = guest.phone if guest else None
+        guest_name = guest.full_name if guest else "Guest"
+        guest_first = guest.first_name if guest else "Guest"
+        check_in_str = reservation.check_in_date.strftime('%d/%m/%Y') if reservation.check_in_date else ''
+        check_out_str = reservation.check_out_date.strftime('%d/%m/%Y') if reservation.check_out_date else ''
+
+        send_thank_you = getattr(org, 'auto_send_payment_thank_you', True) if org else True
+        notify_landlord = getattr(org, 'auto_notify_landlord_on_payment', True) if org else True
+        notify_manager = getattr(org, 'auto_notify_manager_on_payment', True) if org else True
+
+        # 1. Thank You note SMS to Guest
+        if send_thank_you and guest_phone:
+            guest_msg = (
+                f"[{org_name}] Dear {guest_first}, thank you! Payment of {amount_display} "
+                f"via {method} (Ref: {ref_str}) for Room {unit_str} ({prop_str}) has been received. "
+                f"Balance: {balance_str}. We look forward to hosting you. Karibu sana!"
+            )
+            cls.send_sms(
+                to_phone=guest_phone,
+                message=guest_msg,
+                notification_type='PAYMENT_THANK_YOU',
+                landlord_id=landlord.id if landlord else None,
+                organization_id=org.id if org else None
+            )
+
+        # 2. Alert SMS to Landlord / Apartment Owner
+        landlord_msg = (
+            f"[{org_name}] PAYMENT RECEIVED ALERT: {amount_display} received from Guest {guest_name} "
+            f"(Tel: {guest_phone or 'N/A'}) for Room {unit_str} at {prop_str}. "
+            f"Method: {method}. Ref: {ref_str}, Booking: {reservation.reservation_code}. "
+            f"Stay: {check_in_str} to {check_out_str}. Balance: {balance_str}."
+        )
+
+        if notify_landlord and landlord and landlord.phone:
+            cls.send_sms(
+                to_phone=landlord.phone,
+                message=landlord_msg,
+                notification_type='HOSPITALITY_PAYMENT_CONFIRMED',
+                landlord_id=landlord.id,
+                organization_id=org.id if org else None
+            )
+
+        # 3. Optional Alert to Organization Contact Phone
+        if notify_manager and org and org.contact_phone:
+            clean_org_phone = cls.format_phone_number(org.contact_phone)
+            landlord_phone = cls.format_phone_number(landlord.phone) if landlord and landlord.phone else ""
+            if clean_org_phone and clean_org_phone != landlord_phone:
+                cls.send_sms(
+                    to_phone=org.contact_phone,
+                    message=landlord_msg,
+                    notification_type='HOSPITALITY_PAYMENT_CONFIRMED',
+                    landlord_id=landlord.id if landlord else None,
+                    organization_id=org.id if org else None
+                )
 
     @classmethod
     def send_booking_sms(cls, booking):

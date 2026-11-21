@@ -656,25 +656,17 @@ def record_payment(res_id):
     res.payment_reference = ref
     db.session.commit()
 
-    # Auto-send thank you & payment receipt SMS to customer/guest
-    if res.guest and res.guest.phone:
-        from app.services.sms_service import SmsService
-        from app.utils.currency import format_currency
-        prop_name = res.rental_unit.property.name if res.rental_unit and res.rental_unit.property else "Angaza Stays"
-        sms_msg = (
-            f"Dear {res.guest.first_name}, thank you! Payment of {format_currency(to_cents(amount))} "
-            f"via {method} ({ref or 'Confirmed'}) for Unit {res.rental_unit.unit_number} ({prop_name}) has been received. "
-            f"Balance: {res.balance_display if res.balance_cents > 0 else 'KES 0.00 (SETTLED)'}. Karibu sana!"
-        )
-        try:
-            SmsService.send_sms(
-                to_phone=res.guest.phone,
-                message=sms_msg,
-                notification_type='PAYMENT_THANK_YOU',
-                organization_id=res.organization_id
-            )
-        except Exception:
-            pass
+    # Auto-send thank you to guest & payment alert to landlord / property owner
+    from app.services.sms_service import SmsService
+    from app.services.notification_service import NotificationService
+    try:
+        SmsService.send_hospitality_payment_sms(res, amount, method=method, reference=ref)
+    except Exception:
+        pass
+    try:
+        NotificationService.notify_hospitality_payment(res, amount, method=method, reference=ref)
+    except Exception:
+        pass
 
     AuditService.log('RECORD_RESERVATION_PAYMENT', 'HospitalityReservation', res.id,
                      new_values={'amount': amount, 'method': method})

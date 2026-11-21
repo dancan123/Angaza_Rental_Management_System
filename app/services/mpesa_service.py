@@ -129,6 +129,41 @@ class MpesaCallbackHandler:
             first_name = payload.get('FirstName', '')
             last_name = payload.get('LastName', '')
 
+            from app.models.hospitality import HospitalityReservation, Guest
+            from app.utils.currency import to_cents
+
+            # Strategy 0: Check if bill_ref or phone matches an Airbnb / Hospitality reservation
+            res = None
+            if bill_ref:
+                res = HospitalityReservation.query.filter_by(reservation_code=bill_ref).first()
+            if not res and phone:
+                clean_phone = phone[-9:] if len(phone) >= 9 else phone
+                guest = Guest.query.filter(Guest.phone.ilike(f"%{clean_phone}")).first()
+                if guest:
+                    res = HospitalityReservation.query.filter_by(guest_id=guest.id).filter(
+                        HospitalityReservation.status.in_(['CONFIRMED', 'CHECKED_IN'])
+                    ).order_by(HospitalityReservation.created_at.desc()).first()
+
+            if res:
+                res.paid_amount_cents += to_cents(amount)
+                res.payment_method = 'MPESA_PAYBILL'
+                res.payment_reference = trans_id
+                callback_log.status = 'PROCESSED'
+                if res.rental_unit and res.rental_unit.property:
+                    callback_log.organization_id = res.rental_unit.property.organization_id
+                db.session.commit()
+
+                from app.services.sms_service import SmsService
+                from app.services.notification_service import NotificationService
+                from app.services.audit_service import AuditService
+
+                SmsService.send_hospitality_payment_sms(res, amount, method='MPESA_PAYBILL', reference=trans_id)
+                NotificationService.notify_hospitality_payment(res, amount, method='MPESA_PAYBILL', reference=trans_id)
+                AuditService.log('C2B_HOSPITALITY_PAYMENT', 'HospitalityReservation', res.id,
+                                 new_values={'amount': amount, 'trans_id': trans_id, 'bill_ref': bill_ref})
+
+                return {"ResultCode": 0, "ResultDesc": "Hospitality payment settled and notifications sent"}, 200
+
             # 3. Match Tenant and Rental Unit strictly within this organization if known
             from app.models.property import Property
             unit_query = RentalUnit.query.join(Property)
@@ -223,7 +258,43 @@ class MpesaCallbackHandler:
         db.session.add(callback_log)
         db.session.commit()
 
-        # Match tenant by phone
+        checkout_id = body.get('CheckoutRequestID', '').strip()
+        from app.models.hospitality import HospitalityReservation, Guest
+        from app.utils.currency import to_cents
+
+        # 1. Match Hospitality / Airbnb reservation by checkout_id or phone
+        res = None
+        if checkout_id:
+            res = HospitalityReservation.query.filter_by(payment_reference=checkout_id).first()
+        if not res and phone:
+            clean_phone = phone[-9:] if len(phone) >= 9 else phone
+            guest = Guest.query.filter(Guest.phone.ilike(f"%{clean_phone}")).first()
+            if guest:
+                res = HospitalityReservation.query.filter_by(guest_id=guest.id).filter(
+                    HospitalityReservation.status.in_(['CONFIRMED', 'CHECKED_IN'])
+                ).order_by(HospitalityReservation.created_at.desc()).first()
+
+        if res:
+            res.paid_amount_cents += to_cents(amount)
+            res.payment_method = 'MPESA_STK'
+            res.payment_reference = trans_id
+            callback_log.status = 'PROCESSED'
+            if res.rental_unit and res.rental_unit.property:
+                callback_log.organization_id = res.rental_unit.property.organization_id
+            db.session.commit()
+
+            from app.services.sms_service import SmsService
+            from app.services.notification_service import NotificationService
+            from app.services.audit_service import AuditService
+
+            SmsService.send_hospitality_payment_sms(res, amount, method='MPESA_STK', reference=trans_id)
+            NotificationService.notify_hospitality_payment(res, amount, method='MPESA_STK', reference=trans_id)
+            AuditService.log('STK_HOSPITALITY_PAYMENT', 'HospitalityReservation', res.id,
+                             new_values={'amount': amount, 'trans_id': trans_id, 'checkout_id': checkout_id})
+
+            return {"ResultCode": 0, "ResultDesc": "Hospitality STK payment settled and notifications sent"}, 200
+
+        # 2. Match long-term rental tenant by phone
         clean_phone = phone[-9:] if len(phone) >= 9 else phone
         tenant = Tenant.query.filter(Tenant.phone.ilike(f"%{clean_phone}")).first()
         unit = tenant.current_unit if tenant else None
@@ -232,7 +303,7 @@ class MpesaCallbackHandler:
             payment = PaymentService.record_payment(
                 tenant_id=tenant.id,
                 amount=amount,
-                payment_method='MPESA_PAYBILL',
+                payment_method='MPESA_STK',
                 rental_unit_id=unit.id,
                 property_id=unit.property_id,
                 transaction_reference=trans_id,
@@ -241,7 +312,13 @@ class MpesaCallbackHandler:
             )
             callback_log.status = 'PROCESSED'
             callback_log.processed_payment_id = payment.id
+            if unit.property:
+                callback_log.organization_id = unit.property.organization_id
             db.session.commit()
+            return {"ResultCode": 0, "ResultDesc": "Success"}, 200
 
-        return {"ResultCode": 0, "ResultDesc": "Success"}, 200
+        callback_log.status = 'UNMATCHED'
+        callback_log.error_message = f"Could not match STK payment from phone '{phone}' to a tenant or reservation."
+        db.session.commit()
+        return {"ResultCode": 0, "ResultDesc": "Payment received into reconciliation queue"}, 200
 

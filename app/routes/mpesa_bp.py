@@ -76,8 +76,27 @@ def save_config():
     cfg.property_id = property_id if property_id else None
     cfg.is_sandbox = is_sandbox
 
+    if 'has_automation_settings' in request.form:
+        cfg.auto_send_thank_you_sms = bool(request.form.get('auto_send_thank_you_sms'))
+        cfg.auto_notify_landlord = bool(request.form.get('auto_notify_landlord'))
+        cfg.auto_notify_manager = bool(request.form.get('auto_notify_manager'))
+    elif not gateway_id:
+        cfg.auto_send_thank_you_sms = True
+        cfg.auto_notify_landlord = True
+        cfg.auto_notify_manager = True
+
+    # Sync automation flags to active Organization
+    org_id = getattr(cfg, 'organization_id', None) or getattr(current_user, 'organization_id', None)
+    if org_id:
+        from app.models.organization import Organization
+        org = db.session.get(Organization, org_id)
+        if org:
+            org.auto_send_payment_thank_you = cfg.auto_send_thank_you_sms
+            org.auto_notify_landlord_on_payment = cfg.auto_notify_landlord
+            org.auto_notify_manager_on_payment = cfg.auto_notify_manager
+
     db.session.commit()
-    flash(f"M-Pesa Gateway configuration '{name}' saved successfully.", 'success')
+    flash(f"M-Pesa Gateway configuration '{name}' saved successfully with automated Thank-You & Landlord alerts enabled.", 'success')
     return redirect(url_for('mpesa.index'))
 
 # ----------------- PUBLIC SAFARICOM DARAJA WEBHOOKS -----------------

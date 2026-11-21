@@ -23,6 +23,9 @@ class PaymentGatewayConfig(db.Model):
     
     is_active = db.Column(db.Boolean, default=True)
     is_sandbox = db.Column(db.Boolean, default=True)
+    auto_send_thank_you_sms = db.Column(db.Boolean, default=True)
+    auto_notify_landlord = db.Column(db.Boolean, default=True)
+    auto_notify_manager = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

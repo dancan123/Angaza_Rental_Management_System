@@ -59,6 +59,9 @@ class Organization(db.Model):
     is_active = db.Column(db.Boolean, default=True, index=True)
     email_verified = db.Column(db.Boolean, default=True)
     email_verified_at = db.Column(db.DateTime, nullable=True)
+    auto_send_payment_thank_you = db.Column(db.Boolean, default=True)
+    auto_notify_landlord_on_payment = db.Column(db.Boolean, default=True)
+    auto_notify_manager_on_payment = db.Column(db.Boolean, default=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
