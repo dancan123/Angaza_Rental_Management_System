@@ -728,9 +728,22 @@ def download_thermal_receipt_pdf(res_id):
 @login_required
 @permission_required('maintenance.view')
 def housekeeping():
-    rooms = RentalUnit.query.order_by(RentalUnit.unit_number.asc()).all()
-    tasks = HousekeepingTask.query.order_by(HousekeepingTask.scheduled_date.desc(), HousekeepingTask.id.desc()).all()
-    staff = User.query.filter_by(is_active=True).all()
+    user = cast(Any, current_user)
+    is_sa = user.is_superadmin()
+    org_id = user.organization_id if not is_sa else None
+
+    room_query = RentalUnit.query.join(Property)
+    task_query = HousekeepingTask.query.join(RentalUnit).join(Property)
+    staff_query = User.query.filter_by(is_active=True)
+
+    if org_id:
+        room_query = room_query.filter(Property.organization_id == org_id)
+        task_query = task_query.filter(Property.organization_id == org_id)
+        staff_query = staff_query.filter(User.organization_id == org_id)
+
+    rooms = room_query.order_by(RentalUnit.unit_number.asc()).all()
+    tasks = task_query.order_by(HousekeepingTask.scheduled_date.desc(), HousekeepingTask.id.desc()).all()
+    staff = staff_query.all()
 
     return render_template(
         'hospitality/housekeeping.html',
