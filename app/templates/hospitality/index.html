@@ -153,105 +153,137 @@
 </div>
 
 {# ═══════════════════════════════════════════════════════════════
-   ONE-ON-ONE OPERATIONAL FLOW (BOOKING TO PAYMENT CONFIRMATION)
+   ONE-ON-ONE OPERATIONAL FLOW (BOOKING TO PAYMENT CONFIRMATION) — COLLAPSIBLE
 ═══════════════════════════════════════════════════════════════ #}
-<div class="card border-0 shadow-sm mb-4" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #fff; border-radius: 12px; overflow: hidden;">
-    <div class="card-header border-0 bg-transparent pt-3 pb-2 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-2">
-            <span class="badge bg-danger text-uppercase fw-bold px-2 py-1">Operational Flow</span>
-            <h5 class="fw-bold mb-0 text-white"><i class="bi bi-diagram-3-fill text-warning me-2"></i>One-on-One Operation: From Guest Booking to M-Pesa Payment Confirmation</h5>
+<div class="mb-4">
+    <!-- Always-closed button / banner bar -->
+    <div class="d-flex justify-content-between align-items-center p-2 px-3 rounded-3 shadow-sm border border-secondary border-opacity-25"
+         style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="badge bg-danger text-uppercase fw-bold px-2 py-1" style="font-size:.72rem;">Operational Flow</span>
+            <span class="fw-bold text-white small">
+                <i class="bi bi-diagram-3-fill text-warning me-1"></i> One-on-One Operation: From Guest Booking to M-Pesa Payment Confirmation
+            </span>
         </div>
-        <div class="d-flex gap-2">
-            <a href="{{ url_for('hospitality.view_receipt', res_id=7) }}" class="btn btn-warning btn-sm fw-bold">
-                <i class="bi bi-receipt-cutoff me-1"></i> Inspect Authentic 80mm Slip (Ref: QZ99FATUMA)
-            </a>
-            <a href="{{ url_for('hospitality.download_thermal_receipt_pdf', res_id=7) }}" class="btn btn-outline-light btn-sm">
-                <i class="bi bi-file-earmark-pdf-fill me-1 text-danger"></i> 80mm PDF
-            </a>
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-warning fw-bold d-flex align-items-center gap-1 shadow-sm"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#operationalFlowCollapse"
+                    aria-expanded="false"
+                    aria-controls="operationalFlowCollapse"
+                    id="btnToggleOpFlow">
+                <i class="bi bi-layout-text-window-reverse me-1"></i>
+                <span id="labelOpFlow">Show Flow &amp; Receipt</span>
+                <i class="bi bi-chevron-down ms-1" id="chevronOpFlow"></i>
+            </button>
         </div>
     </div>
-    <div class="card-body px-4 pt-1 pb-4">
-        <p class="text-white-50 small mb-3">
-            Step-by-step real-world operation on system usage — from customer intake, automated room rate calculation, verified Kenyan Safaricom M-Pesa settlement, to true 80mm thermal slip receipt dispatch:
-        </p>
 
-        <div class="row g-3">
-            <!-- Step 1 -->
-            <div class="col-md-6 col-lg">
-                <div class="p-3 rounded h-100" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);">
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <span class="badge bg-danger rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">1</span>
-                        <span class="fw-bold text-white small">Guest Booking</span>
-                    </div>
-                    <div class="text-white-50 smaller mb-1">Intake &amp; room reservation:</div>
-                    <div class="fw-bold text-warning small">Fatuma Hassan</div>
-                    <div class="text-white-50 smaller"><i class="bi bi-telephone me-1"></i>+254 711 223 344</div>
-                    <div class="text-white-50 smaller mt-1">Cottage A &bull; 4 Nights</div>
-                    <div class="badge bg-info-subtle text-info mt-2">KES 24,000.00 Stay</div>
+    <!-- Collapsible Content (Always closed by default) -->
+    <div class="collapse mt-2" id="operationalFlowCollapse">
+        <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #fff; border-radius: 12px; overflow: hidden;">
+            <div class="card-header border-0 bg-transparent pt-3 pb-2 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-danger text-uppercase fw-bold px-2 py-1">5-Step Lifecycle</span>
+                    <h6 class="fw-bold mb-0 text-white"><i class="bi bi-diagram-3-fill text-warning me-2"></i>Live System Flow &amp; Verified Settlement</h6>
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                    <a href="{{ url_for('hospitality.view_receipt', res_id=7) }}" class="btn btn-warning btn-sm fw-bold">
+                        <i class="bi bi-receipt-cutoff me-1"></i> Inspect Authentic 80mm Slip (Ref: QZ99FATUMA)
+                    </a>
+                    <a href="{{ url_for('hospitality.download_thermal_receipt_pdf', res_id=7) }}" class="btn btn-outline-light btn-sm">
+                        <i class="bi bi-file-earmark-pdf-fill me-1 text-danger"></i> 80mm PDF
+                    </a>
+                    <button class="btn btn-sm btn-outline-secondary text-white-50 ms-1" type="button" data-bs-toggle="collapse" data-bs-target="#operationalFlowCollapse" title="Close Flow Panel">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
                 </div>
             </div>
+            <div class="card-body px-4 pt-1 pb-4">
+                <p class="text-white-50 small mb-3">
+                    Step-by-step real-world operation on system usage — from customer intake, automated room rate calculation, verified Kenyan Safaricom M-Pesa settlement, to true 80mm thermal slip receipt dispatch:
+                </p>
 
-            <!-- Step 2 -->
-            <div class="col-md-6 col-lg">
-                <div class="p-3 rounded h-100" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);">
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <span class="badge bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">2</span>
-                        <span class="fw-bold text-white small">Physical Check-In</span>
+                <div class="row g-3">
+                    <!-- Step 1 -->
+                    <div class="col-md-6 col-lg">
+                        <div class="p-3 rounded h-100" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <span class="badge bg-danger rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">1</span>
+                                <span class="fw-bold text-white small">Guest Booking</span>
+                            </div>
+                            <div class="text-white-50 smaller mb-1">Intake &amp; room reservation:</div>
+                            <div class="fw-bold text-warning small">Fatuma Hassan</div>
+                            <div class="text-white-50 smaller"><i class="bi bi-telephone me-1"></i>+254 711 223 344</div>
+                            <div class="text-white-50 smaller mt-1">Cottage A &bull; 4 Nights</div>
+                            <div class="badge bg-info-subtle text-info mt-2">KES 24,000.00 Stay</div>
+                        </div>
                     </div>
-                    <div class="text-white-50 smaller mb-1">ID verification &amp; keys:</div>
-                    <div class="text-white-50 smaller">National ID: <strong class="text-white">29837482</strong></div>
-                    <div class="text-white-50 smaller">Lock code issued</div>
-                    <div class="mt-2">
-                        <span class="badge bg-danger text-white"><i class="bi bi-check2-circle me-1"></i>Checked In (Active)</span>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Step 3 -->
-            <div class="col-md-6 col-lg">
-                <div class="p-3 rounded h-100" style="background: rgba(255,255,255,0.08); border: 1.5px solid rgba(16,185,129,0.5);">
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <span class="badge bg-success rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">3</span>
-                        <span class="fw-bold text-white small">Payment (M-Pesa / Cash)</span>
+                    <!-- Step 2 -->
+                    <div class="col-md-6 col-lg">
+                        <div class="p-3 rounded h-100" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <span class="badge bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">2</span>
+                                <span class="fw-bold text-white small">Physical Check-In</span>
+                            </div>
+                            <div class="text-white-50 smaller mb-1">ID verification &amp; keys:</div>
+                            <div class="text-white-50 smaller">National ID: <strong class="text-white">29837482</strong></div>
+                            <div class="text-white-50 smaller">Lock code issued</div>
+                            <div class="mt-2">
+                                <span class="badge bg-danger text-white"><i class="bi bi-check2-circle me-1"></i>Checked In (Active)</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="text-white-50 smaller mb-1">Authentic Settlement:</div>
-                    <div class="text-success small fw-bold"><i class="bi bi-wallet2 me-1"></i>Method: MPESA or CASH</div>
-                    <div class="mt-1">
-                        <span class="badge bg-dark border border-success text-success fw-bold font-monospace" style="letter-spacing:1px;font-size:.85rem;">Ref: QZ99FATUMA / CASH</span>
-                    </div>
-                    <div class="text-white-50 smaller mt-1">Paid: <strong class="text-success">KES 24,000.00</strong></div>
-                </div>
-            </div>
 
-            <!-- Step 4 -->
-            <div class="col-md-6 col-lg">
-                <div class="p-3 rounded h-100" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);">
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <span class="badge bg-info rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">4</span>
-                        <span class="fw-bold text-white small">Ledger Settlement</span>
+                    <!-- Step 3 -->
+                    <div class="col-md-6 col-lg">
+                        <div class="p-3 rounded h-100" style="background: rgba(255,255,255,0.08); border: 1.5px solid rgba(16,185,129,0.5);">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <span class="badge bg-success rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">3</span>
+                                <span class="fw-bold text-white small">Payment (M-Pesa / Cash)</span>
+                            </div>
+                            <div class="text-white-50 smaller mb-1">Authentic Settlement:</div>
+                            <div class="text-success small fw-bold"><i class="bi bi-wallet2 me-1"></i>Method: MPESA or CASH</div>
+                            <div class="mt-1">
+                                <span class="badge bg-dark border border-success text-success fw-bold font-monospace" style="letter-spacing:1px;font-size:.85rem;">Ref: QZ99FATUMA / CASH</span>
+                            </div>
+                            <div class="text-white-50 smaller mt-1">Paid: <strong class="text-success">KES 24,000.00</strong></div>
+                        </div>
                     </div>
-                    <div class="text-white-50 smaller mb-1">Zero balance reconciliation:</div>
-                    <div class="text-success small fw-bold"><i class="bi bi-check-circle-fill me-1"></i>SETTLED IN FULL</div>
-                    <div class="text-white-50 smaller">Folio Balance: <strong class="text-success">KES 0.00</strong></div>
-                    <div class="text-white-50 smaller mt-1">Owner Account Credited</div>
-                </div>
-            </div>
 
-            <!-- Step 5 -->
-            <div class="col-md-6 col-lg">
-                <div class="p-3 rounded h-100" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);">
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <span class="badge bg-warning text-dark rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">5</span>
-                        <span class="fw-bold text-white small">80mm Receipt Slip</span>
+                    <!-- Step 4 -->
+                    <div class="col-md-6 col-lg">
+                        <div class="p-3 rounded h-100" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <span class="badge bg-info rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">4</span>
+                                <span class="fw-bold text-white small">Ledger Settlement</span>
+                            </div>
+                            <div class="text-white-50 smaller mb-1">Zero balance reconciliation:</div>
+                            <div class="text-success small fw-bold"><i class="bi bi-check-circle-fill me-1"></i>SETTLED IN FULL</div>
+                            <div class="text-white-50 smaller">Folio Balance: <strong class="text-success">KES 0.00</strong></div>
+                            <div class="text-white-50 smaller mt-1">Owner Account Credited</div>
+                        </div>
                     </div>
-                    <div class="text-white-50 smaller mb-2">Instant dispatch to guest:</div>
-                    <div class="d-flex flex-column gap-1">
-                        <a href="{{ url_for('hospitality.view_receipt', res_id=7) }}" class="btn btn-warning btn-sm text-start py-1 px-2 fw-semibold" style="font-size:.75rem;">
-                            <i class="bi bi-receipt me-1"></i> View 80mm Slip
-                        </a>
-                        <a href="{{ url_for('hospitality.download_thermal_receipt_pdf', res_id=7) }}" class="btn btn-outline-light btn-sm text-start py-1 px-2" style="font-size:.75rem;">
-                            <i class="bi bi-file-earmark-pdf-fill me-1 text-danger"></i> 80mm PDF
-                        </a>
+
+                    <!-- Step 5 -->
+                    <div class="col-md-6 col-lg">
+                        <div class="p-3 rounded h-100" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <span class="badge bg-warning text-dark rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">5</span>
+                                <span class="fw-bold text-white small">80mm Receipt Slip</span>
+                            </div>
+                            <div class="text-white-50 smaller mb-2">Instant dispatch to guest:</div>
+                            <div class="d-flex flex-column gap-1">
+                                <a href="{{ url_for('hospitality.view_receipt', res_id=7) }}" class="btn btn-warning btn-sm text-start py-1 px-2 fw-semibold" style="font-size:.75rem;">
+                                    <i class="bi bi-receipt me-1"></i> View 80mm Slip
+                                </a>
+                                <a href="{{ url_for('hospitality.download_thermal_receipt_pdf', res_id=7) }}" class="btn btn-outline-light btn-sm text-start py-1 px-2" style="font-size:.75rem;">
+                                    <i class="bi bi-file-earmark-pdf-fill me-1 text-danger"></i> 80mm PDF
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1600,6 +1632,21 @@
     if (rateInput) rateInput.addEventListener('input', recalcStkTotal);
     if (ciInput2)  ciInput2.addEventListener('change', recalcStkTotal);
     if (coInput2)  coInput2.addEventListener('change', recalcStkTotal);
+
+    // ── Collapsible Operational Flow Toggle Listener ──
+    var opFlowEl = document.getElementById('operationalFlowCollapse');
+    var labelOpFlow = document.getElementById('labelOpFlow');
+    var chevronOpFlow = document.getElementById('chevronOpFlow');
+    if (opFlowEl && labelOpFlow && chevronOpFlow) {
+        opFlowEl.addEventListener('show.bs.collapse', function () {
+            labelOpFlow.textContent = 'Hide Flow & Receipt';
+            chevronOpFlow.classList.replace('bi-chevron-down', 'bi-chevron-up');
+        });
+        opFlowEl.addEventListener('hide.bs.collapse', function () {
+            labelOpFlow.textContent = 'Show Flow & Receipt';
+            chevronOpFlow.classList.replace('bi-chevron-up', 'bi-chevron-down');
+        });
+    }
 })();
 </script>
 
