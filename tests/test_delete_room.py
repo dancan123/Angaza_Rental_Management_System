@@ -73,8 +73,21 @@ def test_delete_room_success(client):
     remaining_tasks = HousekeepingTask.query.filter_by(rental_unit_id=room_id).count()
     assert remaining_tasks == 0
 
-def test_delete_room_blocked_if_occupied(client):
+def test_delete_room_blocked_for_manager_if_occupied(client):
+    from app.models.user import Role
     prop = Property.query.first()
+    
+    # Create non-superadmin manager
+    mgr_role = Role.query.filter_by(name='PROPERTY_MANAGER').first()
+    if not mgr_role:
+        mgr_role = Role(name='PROPERTY_MANAGER', display_name='Property Manager', description='Manager')
+        db.session.add(mgr_role)
+        db.session.flush()
+
+    manager = User(username='test_mgr_100', email='mgr100@test.com', full_name='Mgr', role_id=mgr_role.id, organization_id=prop.organization_id or 1)
+    manager.set_password('pass123')
+    db.session.add(manager)
+
     occupied_room = RentalUnit(
         property_id=prop.id,
         unit_number="Villa 100 — Occupied",
@@ -84,6 +97,11 @@ def test_delete_room_blocked_if_occupied(client):
     )
     db.session.add(occupied_room)
     db.session.commit()
+
+    # Log in as manager
+    with client.session_transaction() as sess:
+        sess['_user_id'] = str(manager.id)
+        sess['_fresh'] = True
 
     resp = client.post(f'/hospitality/rooms/{occupied_room.id}/delete', follow_redirects=True)
     assert resp.status_code == 200

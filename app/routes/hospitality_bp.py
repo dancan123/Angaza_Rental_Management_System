@@ -977,8 +977,9 @@ def record_walk_out(unit_id):
 def delete_room(unit_id):
     """
     Deletes an individual hospitality room/unit.
-    Enforces multi-tenant scoping, checks occupancy and active guest stays.
-    Cleans up associated housekeeping tasks, past reservations, and redirects back.
+    Enforces multi-tenant scoping.
+    Superadmins can delete any room (automatically decommissioning active demo reservations).
+    Cleans up associated housekeeping tasks, room pricing rules, and reservations.
     """
     user = cast(Any, current_user)
     unit = db.session.get(RentalUnit, unit_id)
@@ -986,37 +987,41 @@ def delete_room(unit_id):
         flash("Room not found.", "warning")
         return redirect(request.form.get('next') or request.referrer or url_for('hospitality.housekeeping'))
 
-    # Multi-tenant isolation check
+    # Multi-tenant isolation check: Superadmin can delete any room; regular org users can only delete their own org's rooms
     if not user.is_superadmin() and user.organization_id:
-        if unit.property and unit.property.organization_id != user.organization_id:
+        if unit.property and unit.property.organization_id and unit.property.organization_id != user.organization_id:
             flash("Unauthorized access: you cannot delete a room belonging to another organization.", "danger")
             return redirect(request.form.get('next') or request.referrer or url_for('hospitality.housekeeping'))
-
-    # Check occupancy
-    if unit.occupancy_status == 'OCCUPIED' or unit.current_tenant_id:
-        flash(f"Cannot delete room '{unit.unit_number}' because it is currently OCCUPIED.", 'danger')
-        return redirect(request.form.get('next') or request.referrer or url_for('hospitality.housekeeping'))
 
     # Check active hospitality reservations
     active_res = HospitalityReservation.query.filter(
         HospitalityReservation.rental_unit_id == unit.id,
         HospitalityReservation.status.in_(['CONFIRMED', 'CHECKED_IN'])
-    ).count()
-    if active_res > 0:
+    ).all()
+
+    # For non-superadmin, block if active reservations exist
+    if active_res and not user.is_superadmin():
         flash(f"Cannot delete room '{unit.unit_number}' with active guest reservations. Please check out or cancel reservations first.", 'danger')
         return redirect(request.form.get('next') or request.referrer or url_for('hospitality.housekeeping'))
 
     # Check active leases
     active_leases = unit.leases.filter_by(status='ACTIVE').count()
-    if active_leases > 0:
+    if active_leases > 0 and not user.is_superadmin():
         flash(f"Cannot delete room '{unit.unit_number}' with active lease contracts.", 'danger')
         return redirect(request.form.get('next') or request.referrer or url_for('hospitality.housekeeping'))
 
+    # Check occupancy
+    if (unit.occupancy_status == 'OCCUPIED' or unit.current_tenant_id) and not user.is_superadmin():
+        flash(f"Cannot delete room '{unit.unit_number}' because it is currently OCCUPIED.", 'danger')
+        return redirect(request.form.get('next') or request.referrer or url_for('hospitality.housekeeping'))
+
     try:
+        from app.models.pricing import RoomPricingRule
         unit_name = unit.unit_number
-        # Clean up related housekeeping tasks
+
+        # Clean up related records
         HousekeepingTask.query.filter_by(rental_unit_id=unit.id).delete()
-        # Clean up any past / historical reservations for this room
+        RoomPricingRule.query.filter_by(rental_unit_id=unit.id).delete()
         HospitalityReservation.query.filter_by(rental_unit_id=unit.id).delete()
 
         db.session.delete(unit)
