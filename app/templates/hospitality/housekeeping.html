@@ -36,15 +36,26 @@
                         <h5 class="fw-bold mb-0">Unit {{ u.unit_number }}</h5>
                         <small class="text-muted">{{ u.property.name if u.property else '' }}</small>
                     </div>
-                    {% if u.cleaning_status == 'CLEAN' %}
-                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Clean</span>
-                    {% elif u.cleaning_status == 'DIRTY' %}
-                        <span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>Dirty</span>
-                    {% elif u.cleaning_status == 'INSPECTED' %}
-                        <span class="badge bg-primary"><i class="bi bi-shield-check me-1"></i>Inspected</span>
-                    {% else %}
-                        <span class="badge bg-secondary">Out of Order</span>
-                    {% endif %}
+                    <div class="d-flex align-items-center gap-1">
+                        {% if u.cleaning_status == 'CLEAN' %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Clean</span>
+                        {% elif u.cleaning_status == 'DIRTY' %}
+                            <span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>Dirty</span>
+                        {% elif u.cleaning_status == 'INSPECTED' %}
+                            <span class="badge bg-primary"><i class="bi bi-shield-check me-1"></i>Inspected</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Out of Order</span>
+                        {% endif %}
+                        <form method="POST" action="{{ url_for('hospitality.delete_room', unit_id=u.id) }}"
+                              onsubmit="return confirm('Are you sure you want to permanently delete room \'{{ u.unit_number }}\'? This will remove the room and its housekeeping records.');"
+                              class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <input type="hidden" name="next" value="{{ url_for('hospitality.housekeeping') }}"/>
+                            <button type="submit" class="btn btn-sm btn-outline-danger p-0 px-1 border-0" title="Delete Room {{ u.unit_number }}" style="font-size:.85rem;">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </div>
                 </div>
 
                 <div class="small text-muted mb-3">
@@ -53,22 +64,33 @@
                     <div>Op Mode: <span class="badge bg-light text-dark border">{{ u.operational_type }}</span></div>
                 </div>
 
-                <!-- Quick Change Status Form -->
-                <form method="POST" action="{{ url_for('hospitality.update_cleaning_status') }}" class="mt-auto">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    <input type="hidden" name="unit_id" value="{{ u.id }}"/>
-                    <div class="input-group input-group-sm">
-                        <select name="cleaning_status" class="form-select form-select-sm">
-                            <option value="CLEAN" {% if u.cleaning_status == 'CLEAN' %}selected{% endif %}>Clean</option>
-                            <option value="DIRTY" {% if u.cleaning_status == 'DIRTY' %}selected{% endif %}>Dirty</option>
-                            <option value="INSPECTED" {% if u.cleaning_status == 'INSPECTED' %}selected{% endif %}>Inspected</option>
-                            <option value="OUT_OF_SERVICE" {% if u.cleaning_status == 'OUT_OF_SERVICE' %}selected{% endif %}>Out of Order</option>
-                        </select>
-                        <button class="btn btn-outline-secondary" type="submit" title="Save Status">
-                            <i class="bi bi-arrow-repeat"></i>
+                <!-- Quick Change Status Form & Delete Action -->
+                <div class="mt-auto d-flex gap-1 align-items-center">
+                    <form method="POST" action="{{ url_for('hospitality.update_cleaning_status') }}" class="flex-grow-1">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <input type="hidden" name="unit_id" value="{{ u.id }}"/>
+                        <div class="input-group input-group-sm">
+                            <select name="cleaning_status" class="form-select form-select-sm">
+                                <option value="CLEAN" {% if u.cleaning_status == 'CLEAN' %}selected{% endif %}>Clean</option>
+                                <option value="DIRTY" {% if u.cleaning_status == 'DIRTY' %}selected{% endif %}>Dirty</option>
+                                <option value="INSPECTED" {% if u.cleaning_status == 'INSPECTED' %}selected{% endif %}>Inspected</option>
+                                <option value="OUT_OF_SERVICE" {% if u.cleaning_status == 'OUT_OF_SERVICE' %}selected{% endif %}>Out of Order</option>
+                            </select>
+                            <button class="btn btn-outline-secondary" type="submit" title="Save Status">
+                                <i class="bi bi-arrow-repeat"></i>
+                            </button>
+                        </div>
+                    </form>
+                    <form method="POST" action="{{ url_for('hospitality.delete_room', unit_id=u.id) }}"
+                          onsubmit="return confirm('Are you sure you want to permanently delete room \'{{ u.unit_number }}\'? This will remove the room and its housekeeping records.');"
+                          class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <input type="hidden" name="next" value="{{ url_for('hospitality.housekeeping') }}"/>
+                        <button class="btn btn-sm btn-outline-danger" type="submit" title="Delete Room {{ u.unit_number }}">
+                            <i class="bi bi-trash"></i>
                         </button>
-                    </div>
-                </form>
+                    </form>
+                </div>
             </div>
         </div>
         {% endfor %}

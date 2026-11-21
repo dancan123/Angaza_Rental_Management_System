@@ -958,6 +958,67 @@ def record_walk_out(unit_id):
     return redirect(request.referrer or url_for('hospitality.rooms'))
 
 
+@hospitality_bp.route('/rooms/<int:unit_id>/delete', methods=['POST'])
+@login_required
+@permission_required('properties.manage')
+def delete_room(unit_id):
+    """
+    Deletes an individual hospitality room/unit.
+    Enforces multi-tenant scoping, checks occupancy and active guest stays.
+    Cleans up associated housekeeping tasks, past reservations, and redirects back.
+    """
+    user = cast(Any, current_user)
+    unit = db.session.get(RentalUnit, unit_id)
+    if not unit:
+        flash("Room not found.", "warning")
+        return redirect(request.form.get('next') or request.referrer or url_for('hospitality.housekeeping'))
+
+    # Multi-tenant isolation check
+    if not user.is_superadmin() and user.organization_id:
+        if unit.property and unit.property.organization_id != user.organization_id:
+            flash("Unauthorized access: you cannot delete a room belonging to another organization.", "danger")
+            return redirect(request.form.get('next') or request.referrer or url_for('hospitality.housekeeping'))
+
+    # Check occupancy
+    if unit.occupancy_status == 'OCCUPIED' or unit.current_tenant_id:
+        flash(f"Cannot delete room '{unit.unit_number}' because it is currently OCCUPIED.", 'danger')
+        return redirect(request.form.get('next') or request.referrer or url_for('hospitality.housekeeping'))
+
+    # Check active hospitality reservations
+    active_res = HospitalityReservation.query.filter(
+        HospitalityReservation.rental_unit_id == unit.id,
+        HospitalityReservation.status.in_(['CONFIRMED', 'CHECKED_IN'])
+    ).count()
+    if active_res > 0:
+        flash(f"Cannot delete room '{unit.unit_number}' with active guest reservations. Please check out or cancel reservations first.", 'danger')
+        return redirect(request.form.get('next') or request.referrer or url_for('hospitality.housekeeping'))
+
+    # Check active leases
+    active_leases = unit.leases.filter_by(status='ACTIVE').count()
+    if active_leases > 0:
+        flash(f"Cannot delete room '{unit.unit_number}' with active lease contracts.", 'danger')
+        return redirect(request.form.get('next') or request.referrer or url_for('hospitality.housekeeping'))
+
+    try:
+        unit_name = unit.unit_number
+        # Clean up related housekeeping tasks
+        HousekeepingTask.query.filter_by(rental_unit_id=unit.id).delete()
+        # Clean up any past / historical reservations for this room
+        HospitalityReservation.query.filter_by(rental_unit_id=unit.id).delete()
+
+        db.session.delete(unit)
+        db.session.commit()
+        flash(f"Room '{unit_name}' deleted successfully.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error deleting room '{unit.unit_number}': {str(e)}", 'danger')
+
+    next_page = request.form.get('next') or request.referrer
+    if next_page and ('/hospitality' in next_page or '/properties' in next_page):
+        return redirect(next_page)
+    return redirect(url_for('hospitality.housekeeping'))
+
+
 # ─── Seasonal / Pricing Rules ────────────────────────────────────────────────
 
 @hospitality_bp.route('/pricing')

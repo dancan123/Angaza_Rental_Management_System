@@ -318,6 +318,17 @@
                                 <button type="button" class="btn btn-sm btn-outline-dark py-1 px-2" data-bs-toggle="modal" data-bs-target="#icalRoomModal{{ u.id }}" title="iCal Calendar Synchronization (Airbnb, Booking.com)">
                                     <i class="bi bi-calendar-event me-1 text-danger"></i> iCal
                                 </button>
+
+                                <!-- 7. Delete Room Button -->
+                                <form method="POST" action="{{ url_for('hospitality.delete_room', unit_id=u.id) }}"
+                                      onsubmit="return confirm('Are you sure you want to permanently delete room \'{{ u.unit_number }}\'? This will remove the room and its housekeeping records.');"
+                                      class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <input type="hidden" name="next" value="{{ url_for('hospitality.rooms') }}"/>
+                                    <button type="submit" class="btn btn-sm btn-outline-danger py-1 px-2" title="Delete Room {{ u.unit_number }}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
                             </div>
                         </td>
                     </tr>
